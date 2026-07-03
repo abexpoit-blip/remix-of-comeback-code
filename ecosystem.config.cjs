@@ -6,7 +6,7 @@ module.exports = {
     cwd: "/opt/sleepox-app-new",
     script: ".output/server/index.mjs",
     interpreter: "node",
-    interpreter_args: "--env-file=/opt/sleepox-app-new/.env",
+    interpreter_args: "--env-file=/opt/sleepox-app-new/.env --import=/opt/sleepox-app-new/scripts/uri-guard.mjs",
     instances: 1,
     exec_mode: "fork",
     max_memory_restart: "1536M",
