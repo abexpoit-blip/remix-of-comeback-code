@@ -1570,28 +1570,14 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // Probabilistic injection: each click has an independent chance
       // of routing to ours based on the configured threshold + inject count.
       // This ensures the ~target ratio across ALL traffic (not per-link).
-      //
-      // AD-REVIEW PROTECTION: skip `ours` inject entirely while the link is
-      // young (< 6h old) OR has few clicks (< 50 human clicks). FB ad
-      // reviewers hit new links within seconds/minutes of activation; if
-      // they land on OUR_URL (Adsterra) instead of the user's offer, the
-      // ad gets rejected for creative-landing mismatch. After the window
-      // passes, normal 5% inject resumes.
-      const linkAgeMsForInject = link.created_at
-        ? Date.now() - new Date(link.created_at).getTime()
-        : Number.MAX_SAFE_INTEGER;
-      const linkHumanClicks = link.clicks_count ?? 0;
-      const inAdReviewWindow =
-        linkAgeMsForInject < 6 * 60 * 60 * 1000 || linkHumanClicks < 50;
-
       const probability = INJECT_COUNT / (THRESHOLD + INJECT_COUNT);
       if (
-        !inAdReviewWindow &&
         !visitorAlreadySawAdToday &&
         Math.random() < probability
       ) {
         target = OUR_URL;
         routedTo = "ours";
+
       } else {
         // Smart offer selection: A/B variants > geo offers > default link offer
         const { abRows, geoRows } = await getOfferRows(link.id);
