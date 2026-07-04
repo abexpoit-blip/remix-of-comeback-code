@@ -1,4 +1,30 @@
+// Install process-level guards at server bundle load time.
+// h3's decodePathname (H3Event constructor) throws URIError on malformed
+// URLs (e.g. bots hitting `/r/%E0%A4` or `/foo%`), and the throw happens
+// BEFORE our fetch handler runs — so a try/catch in `fetch()` cannot catch
+// it. Without this listener, Node's default behavior kills the PM2 worker.
+if (typeof process !== "undefined" && typeof process.on === "function") {
+  const g = globalThis as { __sleepox_proc_guards?: boolean };
+  if (!g.__sleepox_proc_guards) {
+    g.__sleepox_proc_guards = true;
+    process.on("uncaughtException", (err: Error) => {
+      if (
+        err instanceof URIError ||
+        (err && typeof err.message === "string" && err.message.includes("URI malformed"))
+      ) {
+        // Silently drop — malformed URL from a bot, not our bug.
+        return;
+      }
+      console.error("[uncaughtException]", err);
+    });
+    process.on("unhandledRejection", (reason) => {
+      console.error("[unhandledRejection]", reason);
+    });
+  }
+}
+
 type ServerEntry = {
+
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
