@@ -17,12 +17,17 @@ import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 
 
 const SAFE_FALLBACK = "https://sleepox.com/";
-// FULL BOT DETECTION MODE (default). Every request runs through the complete
-// detection pipeline: desktop-block, cloaking rules, fingerprint auto-block,
-// signal analysis, referrer block, and legacy UA list — no leaks.
-// The old opt-in "legacy direct" mode (skips detection layers) is kept as an
-// emergency escape valve only. Set LEGACY_DIRECT_MODE=true in .env to enable it.
+// FULL BOT DETECTION MODE (default): cloaking rules, fingerprint auto-block,
+// signal analysis (score ≥80), referrer block, and legacy UA list all run.
+// These layers only catch confirmed bots (headless browsers, ahrefs/semrush,
+// suspicious referrers) — zero real-user traffic loss.
+// Emergency escape: set LEGACY_DIRECT_MODE=true in .env to skip these layers.
 const LEGACY_DIRECT_MODE = process.env.LEGACY_DIRECT_MODE === "true";
+// Desktop-block is aggressive: blocks ALL desktop users (including real
+// WhatsApp Web / Messenger Web forwards). OFF by default to preserve real
+// user traffic. Enable only if ad-reviewer bots are slipping through on
+// desktop UAs: set STRICT_DESKTOP_BLOCK=true in .env.
+const STRICT_DESKTOP_BLOCK = process.env.STRICT_DESKTOP_BLOCK === "true";
 // Higher = fewer false auto-blocks. 3 was way too aggressive on mobile carrier
 // NATs where thousands of real users share one /24+UA bucket. 20 means we need
 // 20 confirmed bot hits from the EXACT same fingerprint before locking it out.
@@ -1304,7 +1309,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   //   (b) a scraper / competitor / VPN bot
   // Either way → article/safe is the correct route. Real human users on
   // desktop FB still get FBAN/FBAV markers in their UA and bypass this block.
-  if (!LEGACY_DIRECT_MODE && !isBot) {
+  if (STRICT_DESKTOP_BLOCK && !isBot) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
