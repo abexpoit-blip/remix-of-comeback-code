@@ -1309,7 +1309,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   //   (b) a scraper / competitor / VPN bot
   // Either way → article/safe is the correct route. Real human users on
   // desktop FB still get FBAN/FBAV markers in their UA and bypass this block.
-  if (!LEGACY_DIRECT_MODE && !isBot) {
+  if (STRICT_DESKTOP_BLOCK && !isBot) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
