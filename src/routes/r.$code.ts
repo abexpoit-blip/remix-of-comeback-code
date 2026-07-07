@@ -17,10 +17,12 @@ import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 
 
 const SAFE_FALLBACK = "https://sleepox.com/";
-// OLD DIRECT SYSTEM: regular visitors go straight to the link's Adsterra URL.
-// Only known social/search preview crawlers still receive safe/article content.
-// Override at runtime by setting LEGACY_DIRECT_MODE=false in the environment.
-const LEGACY_DIRECT_MODE = process.env.LEGACY_DIRECT_MODE !== "false";
+// FULL BOT DETECTION MODE (default). Every request runs through the complete
+// detection pipeline: desktop-block, cloaking rules, fingerprint auto-block,
+// signal analysis, referrer block, and legacy UA list — no leaks.
+// The old opt-in "legacy direct" mode (skips detection layers) is kept as an
+// emergency escape valve only. Set LEGACY_DIRECT_MODE=true in .env to enable it.
+const LEGACY_DIRECT_MODE = process.env.LEGACY_DIRECT_MODE === "true";
 // Higher = fewer false auto-blocks. 3 was way too aggressive on mobile carrier
 // NATs where thousands of real users share one /24+UA bucket. 20 means we need
 // 20 confirmed bot hits from the EXACT same fingerprint before locking it out.
