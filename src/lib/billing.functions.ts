@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
 
 /**
@@ -12,6 +11,7 @@ export const createInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ package_slug: z.string().min(1).max(64).regex(/^[a-z0-9_-]+$/) }).parse(d))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const apiKey = process.env.PLISIO_API_KEY;
     if (!apiKey) throw new Error("Plisio API key not configured");
 
@@ -122,6 +122,7 @@ export const createInvoice = createServerFn({ method: "POST" })
 export const getMyOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Auto-expire old pending requests (> 30 minutes)
     const expiryCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     await supabaseAdmin
