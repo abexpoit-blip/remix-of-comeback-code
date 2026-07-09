@@ -476,6 +476,8 @@ function redirectTo(
 }
 
 type RedirectClickInput = {
+  eventId?: string;
+  attempt?: number;
   linkId: string;
   userId: string;
   ip: string | null;
@@ -506,14 +508,15 @@ type ClickBatchState = {
   failed: number;
 };
 
-// Tuned for HIGH throughput. RPC accepts up to 250 events/call. Larger
-// batches + parallel in-flight flushes = ~30x throughput of size=25 serial.
-// Shorter timeout = fail fast instead of letting queue overflow.
-const CLICK_BATCH_SIZE = 200;
+// Tuned for sustained throughput without overwhelming PostgREST/DB. In 8 PM2
+// workers, high per-worker parallelism creates 50+ simultaneous RPCs and causes
+// upstream timeouts, so keep concurrency low and use idempotent retries.
+const CLICK_BATCH_SIZE = 250;
 const CLICK_BATCH_QUEUE_MAX = 50_000;
 const CLICK_BATCH_FLUSH_MS = 500;
-const CLICK_BATCH_TIMEOUT_MS = 25_000;
-const CLICK_BATCH_MAX_PARALLEL = 8;
+const CLICK_BATCH_TIMEOUT_MS = 60_000;
+const CLICK_BATCH_MAX_PARALLEL = 2;
+const CLICK_BATCH_MAX_ATTEMPTS = 3;
 
 type ClickBatchStateExt = ClickBatchState & { inFlight: number };
 
@@ -538,6 +541,7 @@ function getClickBatchState(): ClickBatchStateExt {
 
 function toClickBatchEvent(input: RedirectClickInput) {
   return {
+    id: input.eventId,
     link_id: input.linkId,
     user_id: input.userId,
     ip: input.ip,
@@ -579,7 +583,11 @@ function enqueueClickForBatch(input: RedirectClickInput) {
       console.warn(`[click-batch][DROP] total=${state.dropped} queue=${state.queue.length}`);
     }
   }
-  state.queue.push(input);
+  state.queue.push({
+    ...input,
+    eventId: input.eventId ?? crypto.randomUUID(),
+    attempt: input.attempt ?? 0,
+  });
   state.enqueued += 1;
   if (state.queue.length >= CLICK_BATCH_SIZE) void flushClickBatch();
   else scheduleClickBatchFlush();
@@ -607,11 +615,25 @@ async function flushClickBatch() {
     if (result?.error) throw result.error;
     state.flushed += batch.length;
   } catch (error) {
-    state.failed += batch.length;
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
-    if (state.failed === batch.length || state.failed % 1000 < batch.length) {
-      console.warn(`[click-batch][FAIL] dropped=${state.failed} reason=${reason} queue=${state.queue.length} inFlight=${state.inFlight}`);
+    const retriable = /abort|timeout|upstream|temporar|network|fetch/i.test(raw);
+    const retryBatch = retriable
+      ? batch
+          .filter((item) => (item.attempt ?? 0) < CLICK_BATCH_MAX_ATTEMPTS)
+          .map((item) => ({ ...item, attempt: (item.attempt ?? 0) + 1 }))
+      : [];
+
+    if (retryBatch.length > 0 && state.queue.length + retryBatch.length <= CLICK_BATCH_QUEUE_MAX) {
+      state.queue.unshift(...retryBatch);
+      if (state.failed === 0 || state.failed % 1000 < batch.length) {
+        console.warn(`[click-batch][RETRY] count=${retryBatch.length} reason=${reason} queue=${state.queue.length} inFlight=${state.inFlight}`);
+      }
+    } else {
+      state.failed += batch.length;
+      if (state.failed === batch.length || state.failed % 1000 < batch.length) {
+        console.warn(`[click-batch][FAIL] dropped=${state.failed} reason=${reason} queue=${state.queue.length} inFlight=${state.inFlight}`);
+      }
     }
   } finally {
     state.inFlight -= 1;

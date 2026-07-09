@@ -1,11 +1,36 @@
 -- Production fix: redirect click batch RPC was timing out under high traffic.
--- This replaces per-row processing with set-based INSERT/UPDATE statements.
+-- Changes:
+-- 1) single JSON parse into a temp table, not 4 repeated jsonb_array_elements scans
+-- 2) idempotent event ids so app retries cannot double-count clicks
+-- 3) per-link advisory transaction locks to serialize counter updates cheaply
+-- 4) set-based INSERT/UPDATE statements
+
+CREATE TABLE IF NOT EXISTS public.click_event_dedupe (
+  event_id uuid PRIMARY KEY,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, DELETE ON public.click_event_dedupe TO authenticated;
+GRANT ALL ON public.click_event_dedupe TO service_role;
+
+ALTER TABLE public.click_event_dedupe ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role owns click dedupe" ON public.click_event_dedupe;
+CREATE POLICY "Service role owns click dedupe"
+  ON public.click_event_dedupe
+  FOR ALL
+  USING (false)
+  WITH CHECK (false);
+
+CREATE INDEX IF NOT EXISTS idx_click_event_dedupe_created_at
+  ON public.click_event_dedupe(created_at);
 
 CREATE OR REPLACE FUNCTION public.record_redirect_clicks_batch(_events jsonb)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
+SET statement_timeout TO '55s'
 AS $$
 BEGIN
   IF _events IS NULL OR jsonb_typeof(_events) <> 'array' OR jsonb_array_length(_events) = 0 THEN
@@ -13,6 +38,7 @@ BEGIN
   END IF;
 
   CREATE TEMP TABLE IF NOT EXISTS pg_temp.redirect_click_batch_events (
+    event_id uuid,
     link_id uuid,
     user_id uuid,
     ip text,
@@ -35,13 +61,14 @@ BEGIN
   TRUNCATE pg_temp.redirect_click_batch_events;
 
   INSERT INTO pg_temp.redirect_click_batch_events (
-    link_id, user_id, ip, country, ua, is_bot, bot_reason, routed_to,
+    event_id, link_id, user_id, ip, country, ua, is_bot, bot_reason, routed_to,
     utm_source, utm_medium, utm_campaign, utm_term, utm_content,
     referer_host, bot_score, signals, challenge_passed
   )
   SELECT
+    COALESCE(e.event_id, e.id, gen_random_uuid()),
     e.link_id,
-    e.user_id,
+    l.user_id,
     NULLIF(e.ip, ''),
     NULLIF(e.country, ''),
     NULLIF(e.ua, ''),
@@ -58,8 +85,9 @@ BEGIN
     COALESCE(e.signals, '{}'::jsonb),
     COALESCE(e.challenge_passed, false)
   FROM jsonb_to_recordset(_events) AS e(
+    id uuid,
+    event_id uuid,
     link_id uuid,
-    user_id uuid,
     ip text,
     country text,
     ua text,
@@ -76,7 +104,30 @@ BEGIN
     signals jsonb,
     challenge_passed boolean
   )
-  WHERE e.link_id IS NOT NULL;
+  JOIN public.links l ON l.id = e.link_id
+  WHERE e.link_id IS NOT NULL
+  LIMIT 250;
+
+  -- Insert dedupe markers first. Rows already present are retry duplicates and
+  -- must not be inserted/counted again.
+  WITH accepted AS (
+    INSERT INTO public.click_event_dedupe (event_id)
+    SELECT event_id
+    FROM pg_temp.redirect_click_batch_events
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING event_id
+  )
+  DELETE FROM pg_temp.redirect_click_batch_events e
+  WHERE NOT EXISTS (SELECT 1 FROM accepted a WHERE a.event_id = e.event_id);
+
+  IF NOT EXISTS (SELECT 1 FROM pg_temp.redirect_click_batch_events) THEN
+    RETURN;
+  END IF;
+
+  -- Serialize updates per link only. This prevents row lock pile-ups when all
+  -- PM2 workers flush clicks for the same viral link at once.
+  PERFORM pg_advisory_xact_lock(hashtext(link_id::text))
+  FROM (SELECT DISTINCT link_id FROM pg_temp.redirect_click_batch_events ORDER BY link_id) s;
 
   INSERT INTO public.clicks (
     link_id, ip, country, ua, is_bot, bot_reason, routed_to,
@@ -125,6 +176,33 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.record_redirect_clicks_batch(jsonb) TO anon, authenticated, service_role;
 
+CREATE OR REPLACE FUNCTION public.prune_click_event_dedupe()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  DELETE FROM public.click_event_dedupe
+  WHERE created_at < now() - interval '2 days';
+$$;
+
+GRANT EXECUTE ON FUNCTION public.prune_click_event_dedupe() TO service_role;
+
+DO $$
+BEGIN
+  IF to_regnamespace('cron') IS NOT NULL
+     AND to_regclass('cron.job') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'prune-click-event-dedupe-hourly') THEN
+    PERFORM cron.schedule(
+      'prune-click-event-dedupe-hourly',
+      '17 * * * *',
+      'SELECT public.prune_click_event_dedupe();'
+    );
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping click_event_dedupe cron schedule: %', SQLERRM;
+END $$;
+
 NOTIFY pgrst, 'reload schema';
 
-SELECT 'record_redirect_clicks_batch fast RPC ready' AS status;
+SELECT 'record_redirect_clicks_batch fast idempotent RPC ready' AS status;

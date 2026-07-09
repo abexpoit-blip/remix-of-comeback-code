@@ -148,6 +148,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
           // Form-encoded path: HMAC verify with shared secret.
           verified = verifyFormHash(body, apiKey);
         }
+        const hashVerified = verified;
 
         // For JSON payloads (or when form-hash fails), verify against our own
         // DB linkage: we created the invoice with plisio_invoice_id = txn_id
@@ -169,9 +170,18 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               .maybeSingle();
 
             if (linkedReq && (linkedReq as any).plisio_invoice_id === txnId) {
-              verified = true;
               const op = await fetchPlisioOperation(txnId, apiKey);
-              if (op?.status) status = op.status;
+              const incomingStatus = String(status || "").toLowerCase();
+              const isPaidLike = ["completed", "success", "finished", "mismatch"].includes(incomingStatus);
+              if (op?.status) {
+                verified = true;
+                status = op.status;
+              } else if (hashVerified || !isPaidLike) {
+                verified = true;
+              } else {
+                verificationTemporarilyUnavailable = true;
+                console.warn("[plisio] paid callback verification delayed — stored txn but Plisio lookup unavailable", { txnId, orderNumber, status });
+              }
             } else if (linkedReq) {
               // RECOVERY: DB has null (or different) txn_id because createInvoice
               // timed out before saving. Ask Plisio directly; if the txn is real
@@ -188,6 +198,13 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               // live Plisio lookup before package activation.
               if (!hasStoredTxn && !isPaidLike) {
                 verified = true;
+                try {
+                  await supabaseAdmin
+                    .from("upgrade_requests")
+                    .update({ plisio_invoice_id: txnId })
+                    .eq("id", orderNumber)
+                    .is("plisio_invoice_id", null);
+                } catch (_e) {}
                 console.log("[plisio] accepted non-paid callback for unsaved txn", { txnId, orderNumber, status });
               } else {
                 const op = await fetchPlisioOperation(txnId, apiKey);
@@ -205,6 +222,15 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                   console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
                 } else if (isPaidLike && !op) {
                   verificationTemporarilyUnavailable = true;
+                  if (!hasStoredTxn) {
+                    try {
+                      await supabaseAdmin
+                        .from("upgrade_requests")
+                        .update({ plisio_invoice_id: txnId })
+                        .eq("id", orderNumber)
+                        .is("plisio_invoice_id", null);
+                    } catch (_e) {}
+                  }
                   console.warn("[plisio] paid callback verification delayed — Plisio lookup unavailable", { txnId, orderNumber, status });
                 } else {
                   console.warn(
