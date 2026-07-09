@@ -188,6 +188,21 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.prune_click_event_dedupe() TO service_role;
 
+DO $$
+BEGIN
+  IF to_regnamespace('cron') IS NOT NULL
+     AND to_regclass('cron.job') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'prune-click-event-dedupe-hourly') THEN
+    PERFORM cron.schedule(
+      'prune-click-event-dedupe-hourly',
+      '17 * * * *',
+      'SELECT public.prune_click_event_dedupe();'
+    );
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping click_event_dedupe cron schedule: %', SQLERRM;
+END $$;
+
 NOTIFY pgrst, 'reload schema';
 
 SELECT 'record_redirect_clicks_batch fast idempotent RPC ready' AS status;
