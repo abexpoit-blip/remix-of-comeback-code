@@ -97,6 +97,9 @@ AS $$
     SELECT pg_advisory_xact_lock(hashtext(link_id::text)) AS locked
     FROM (SELECT DISTINCT link_id FROM events ORDER BY link_id) s
   ),
+  lock_barrier AS MATERIALIZED (
+    SELECT count(*) AS lock_count FROM locks
+  ),
   inserted_clicks AS (
     INSERT INTO public.clicks (
     link_id, ip, country, ua, is_bot, bot_reason, routed_to,
@@ -108,7 +111,7 @@ AS $$
       utm_source, utm_medium, utm_campaign, utm_term, utm_content,
       referer_host, bot_score, signals, challenge_passed
     FROM events
-    WHERE EXISTS (SELECT 1 FROM locks) OR NOT EXISTS (SELECT 1 FROM events)
+    WHERE (SELECT lock_count FROM lock_barrier) >= 0
     RETURNING link_id
   ),
   link_stats AS MATERIALIZED (
@@ -119,7 +122,7 @@ AS $$
       COUNT(*) FILTER (WHERE NOT is_bot AND routed_to = 'ours')::integer AS ours_clicks,
       COUNT(*) FILTER (WHERE NOT is_bot AND routed_to = 'offer')::integer AS offer_clicks
     FROM events
-    WHERE EXISTS (SELECT 1 FROM locks) OR NOT EXISTS (SELECT 1 FROM events)
+    WHERE (SELECT lock_count FROM lock_barrier) >= 0
     GROUP BY link_id
   ),
   updated_links AS (
@@ -140,7 +143,7 @@ AS $$
       COUNT(*) FILTER (WHERE routed_to = 'ours')::bigint AS ours_clicks
     FROM events
     WHERE NOT is_bot AND user_id IS NOT NULL
-      AND (EXISTS (SELECT 1 FROM locks) OR NOT EXISTS (SELECT 1 FROM events))
+      AND (SELECT lock_count FROM lock_barrier) >= 0
     GROUP BY user_id
   ),
   updated_profiles AS (
