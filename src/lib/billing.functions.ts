@@ -108,6 +108,8 @@ export const createInvoice = createServerFn({ method: "POST" })
       .eq("id", req.id);
 
     return { invoice_url: invoiceUrl };
+  });
+
 
 export const getMyOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
