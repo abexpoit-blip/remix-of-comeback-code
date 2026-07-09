@@ -510,7 +510,7 @@ type ClickBatchState = {
 
 // Tuned for sustained throughput without overwhelming PostgREST/DB. In 8 PM2
 // workers, high per-worker parallelism creates 50+ simultaneous RPCs and causes
-// upstream timeouts, so keep concurrency low and use idempotent retries.
+// upstream timeouts, so keep per-worker flushing serial and use idempotent retries.
 const CLICK_BATCH_SIZE = 200;
 const CLICK_BATCH_QUEUE_MAX = 50_000;
 const CLICK_BATCH_FLUSH_MS = 750;
