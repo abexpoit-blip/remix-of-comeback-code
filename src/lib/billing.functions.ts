@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
 
 /**
@@ -12,6 +11,7 @@ export const createInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ package_slug: z.string().min(1).max(64).regex(/^[a-z0-9_-]+$/) }).parse(d))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const apiKey = process.env.PLISIO_API_KEY;
     if (!apiKey) throw new Error("Plisio API key not configured");
 
@@ -66,7 +66,7 @@ export const createInvoice = createServerFn({ method: "POST" })
 
     console.log("[plisio] requesting invoice for order", req.id, "amount", chargeAmount);
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const timer = setTimeout(() => ctrl.abort(), 45000);
     let res: Response;
     let raw = "";
     try {
@@ -75,7 +75,11 @@ export const createInvoice = createServerFn({ method: "POST" })
     } catch (e: any) {
       clearTimeout(timer);
       console.error("[plisio] fetch failed:", e?.message || e);
-      throw new Error(`Plisio request failed: ${e?.message || "network error"}`);
+      await supabaseAdmin
+        .from("upgrade_requests")
+        .update({ status: "invoice_failed" } as any)
+        .eq("id", req.id);
+      throw new Error(`Payment gateway is slow right now. Please try again in a minute.`);
     }
     clearTimeout(timer);
 
@@ -99,13 +103,17 @@ export const createInvoice = createServerFn({ method: "POST" })
     const rawInvoiceUrl: string = json.data.invoice_url;
     const invoiceUrl = rawInvoiceUrl.replace(/^https?:\/\/payplisio\.net\//i, "https://plisio.net/");
 
-    await supabaseAdmin
+    const { error: updateErr } = await supabaseAdmin
       .from("upgrade_requests")
       .update({
         plisio_invoice_id: json.data.txn_id || null,
         plisio_invoice_url: invoiceUrl,
       })
       .eq("id", req.id);
+    if (updateErr) {
+      console.error("[plisio] failed to save invoice", req.id, updateErr.message);
+      throw new Error("Invoice was created but could not be saved. Please contact support before paying.");
+    }
 
     return { invoice_url: invoiceUrl };
   });
@@ -114,6 +122,7 @@ export const createInvoice = createServerFn({ method: "POST" })
 export const getMyOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Auto-expire old pending requests (> 30 minutes)
     const expiryCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     await supabaseAdmin
