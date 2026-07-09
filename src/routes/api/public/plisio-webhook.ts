@@ -23,14 +23,16 @@ function verifyFormHash(body: Record<string, string>, apiKey: string): boolean {
 }
 
 async function fetchPlisioOperation(txnId: string, apiKey: string) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
+    timer = setTimeout(() => ctrl.abort(), 45000);
     const res = await fetchIpv4(
       `https://api.plisio.net/api/v1/operations/${encodeURIComponent(txnId)}?api_key=${encodeURIComponent(apiKey)}`,
       { signal: ctrl.signal },
     );
     clearTimeout(timer);
+    timer = null;
     const json = await res.json() as {
       status?: string;
       message?: string;
@@ -50,6 +52,8 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
     });
   } catch (e) {
     console.error("[plisio] fetch operation failed", e);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   return null;
 }
@@ -256,6 +260,8 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
             ? "paid"
           : status === "mismatch"
             ? "underpaid"
+          : status === "new" || status === "pending"
+            ? "pending"
           : status === "expired" || status === "cancelled" || status === "error"
             ? "expired"
           : status;
