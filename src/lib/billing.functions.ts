@@ -92,16 +92,22 @@ export const createInvoice = createServerFn({ method: "POST" })
       throw new Error(`Plisio error: ${msg}`);
     }
 
+    // Plisio retired the `payplisio.net` invoice subdomain — it now returns
+    // ERR_CONNECTION_TIMED_OUT in browsers. Their API still hands back the old
+    // URL, so rewrite it to the working `plisio.net` host before we save or
+    // return it. Path structure is identical.
+    const rawInvoiceUrl: string = json.data.invoice_url;
+    const invoiceUrl = rawInvoiceUrl.replace(/^https?:\/\/payplisio\.net\//i, "https://plisio.net/");
+
     await supabaseAdmin
       .from("upgrade_requests")
       .update({
         plisio_invoice_id: json.data.txn_id || null,
-        plisio_invoice_url: json.data.invoice_url,
+        plisio_invoice_url: invoiceUrl,
       })
       .eq("id", req.id);
 
-    return { invoice_url: json.data.invoice_url };
-  });
+    return { invoice_url: invoiceUrl };
 
 export const getMyOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
