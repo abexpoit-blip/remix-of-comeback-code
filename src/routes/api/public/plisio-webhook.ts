@@ -193,28 +193,28 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                 const op = await fetchPlisioOperation(txnId, apiKey);
                 const orderMatches = !op?.order_number || op.order_number === orderNumber;
                 if (op && orderMatches) {
-                verified = true;
-                if (op.status) status = op.status;
-                // Back-fill DB so future callbacks for the same txn verify fast.
-                try {
-                  await supabaseAdmin
-                    .from("upgrade_requests")
-                    .update({ plisio_invoice_id: txnId })
-                    .eq("id", orderNumber);
-                } catch (_e) {}
-                console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
+                  verified = true;
+                  if (op.status) status = op.status;
+                  // Back-fill DB so future callbacks for the same txn verify fast.
+                  try {
+                    await supabaseAdmin
+                      .from("upgrade_requests")
+                      .update({ plisio_invoice_id: txnId })
+                      .eq("id", orderNumber);
+                  } catch (_e) {}
+                  console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
                 } else if (isPaidLike && !op) {
                   verificationTemporarilyUnavailable = true;
                   console.warn("[plisio] paid callback verification delayed — Plisio lookup unavailable", { txnId, orderNumber, status });
                 } else {
-                console.warn(
-                  "[plisio] txn_id mismatch — callback claims",
-                  txnId,
-                  "for order",
-                  orderNumber,
-                  "but DB has",
-                  (linkedReq as any).plisio_invoice_id,
-                );
+                  console.warn(
+                    "[plisio] txn_id mismatch — callback claims",
+                    txnId,
+                    "for order",
+                    orderNumber,
+                    "but DB has",
+                    (linkedReq as any).plisio_invoice_id,
+                  );
                 }
               }
             }
