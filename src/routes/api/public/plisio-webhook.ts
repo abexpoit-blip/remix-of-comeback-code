@@ -25,7 +25,7 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     const ctrl = new AbortController();
-    timer = setTimeout(() => ctrl.abort(), 45000);
+    timer = setTimeout(() => ctrl.abort(), 90000);
     const res = await fetchIpv4(
       `https://api.plisio.net/api/v1/operations/${encodeURIComponent(txnId)}?api_key=${encodeURIComponent(apiKey)}`,
       { signal: ctrl.signal },
@@ -201,7 +201,10 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                 try {
                   await supabaseAdmin
                     .from("upgrade_requests")
-                    .update({ plisio_invoice_id: txnId })
+                    .update({
+                      plisio_invoice_id: txnId,
+                      plisio_invoice_url: `https://plisio.net/invoice/${encodeURIComponent(txnId)}`,
+                    })
                     .eq("id", orderNumber)
                     .is("plisio_invoice_id", null);
                 } catch (_e) {}
@@ -216,7 +219,10 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                   try {
                     await supabaseAdmin
                       .from("upgrade_requests")
-                      .update({ plisio_invoice_id: txnId })
+                      .update({
+                        plisio_invoice_id: txnId,
+                        plisio_invoice_url: `https://plisio.net/invoice/${encodeURIComponent(txnId)}`,
+                      })
                       .eq("id", orderNumber);
                   } catch (_e) {}
                   console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
@@ -226,7 +232,10 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                     try {
                       await supabaseAdmin
                         .from("upgrade_requests")
-                        .update({ plisio_invoice_id: txnId })
+                        .update({
+                          plisio_invoice_id: txnId,
+                          plisio_invoice_url: `https://plisio.net/invoice/${encodeURIComponent(txnId)}`,
+                        })
                         .eq("id", orderNumber)
                         .is("plisio_invoice_id", null);
                     } catch (_e) {}
@@ -343,10 +352,17 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
 
         // UPDATE ORDER AND APPLY PACKAGE
         if (req) {
-          await supabaseAdmin
-            .from("upgrade_requests")
-            .update({ status: internalStatus })
-            .eq("id", req.id);
+          const currentStatus = String(req.status || "").toLowerCase();
+          const shouldUpdateOrderStatus =
+            !(currentStatus === "paid" && internalStatus !== "paid") &&
+            !(currentStatus === "underpaid" && internalStatus !== "paid" && internalStatus !== "underpaid");
+
+          if (shouldUpdateOrderStatus) {
+            await supabaseAdmin
+              .from("upgrade_requests")
+              .update({ status: internalStatus })
+              .eq("id", req.id);
+          }
 
           if (internalStatus === "paid" && req.status !== "paid") {
             const { data: pkg } = await supabaseAdmin

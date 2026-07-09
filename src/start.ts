@@ -8,10 +8,26 @@ if (typeof process !== "undefined" && process.on) {
   const g = globalThis as { __sleepox_handlers_installed?: boolean };
   if (!g.__sleepox_handlers_installed) {
     g.__sleepox_handlers_installed = true;
+    const shouldLogUriNoise = () => {
+      const state = globalThis as typeof globalThis & {
+        __sleepoxUriNoiseMinute?: number;
+        __sleepoxUriNoiseCount?: number;
+      };
+      const minute = Math.floor(Date.now() / 60_000);
+      if (state.__sleepoxUriNoiseMinute !== minute) {
+        state.__sleepoxUriNoiseMinute = minute;
+        state.__sleepoxUriNoiseCount = 0;
+      }
+      state.__sleepoxUriNoiseCount = (state.__sleepoxUriNoiseCount ?? 0) + 1;
+      return state.__sleepoxUriNoiseCount === 1 || state.__sleepoxUriNoiseCount % 500 === 0;
+    };
+
     process.on("uncaughtException", (err: Error) => {
       // Only swallow known-safe errors; re-throw anything unexpected
       if (err instanceof URIError || err?.message?.includes("URI malformed")) {
-        console.warn("[uncaughtException] Swallowed URIError (malformed URL from bot):", err.message);
+        if (shouldLogUriNoise()) {
+          console.warn("[uri-guard] malformed bot URL swallowed");
+        }
         return;
       }
       console.error("[uncaughtException] FATAL:", err);
