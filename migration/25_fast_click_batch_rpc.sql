@@ -151,7 +151,7 @@ AS $$
     WHERE p.id = s.user_id
     RETURNING p.id
   )
-  SELECT NULL;
+  SELECT NULL::void;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.record_redirect_clicks_batch(jsonb) TO anon, authenticated, service_role;
