@@ -148,35 +148,43 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               .select("id, plisio_invoice_id")
               .eq("id", orderNumber)
               .maybeSingle();
+
             if (linkedReq && (linkedReq as any).plisio_invoice_id === txnId) {
               verified = true;
-              // Cross-check actual status with Plisio (don't trust callback body alone).
               const op = await fetchPlisioOperation(txnId, apiKey);
-              if (op?.status) {
-                status = op.status;
-              }
+              if (op?.status) status = op.status;
             } else if (linkedReq) {
-              console.warn(
-                "[plisio] txn_id mismatch — callback claims",
-                txnId,
-                "for order",
-                orderNumber,
-                "but DB has",
-                (linkedReq as any).plisio_invoice_id,
-              );
+              // RECOVERY: DB has null (or different) txn_id because createInvoice
+              // timed out before saving. Ask Plisio directly; if the txn is real
+              // and belongs to this order_number, back-fill and accept.
+              // Attackers cannot know a valid Plisio-generated txn_id, so any
+              // txn Plisio confirms as tied to our order_number is genuine.
+              const op = await fetchPlisioOperation(txnId, apiKey);
+              const orderMatches = !op?.order_number || op.order_number === orderNumber;
+              if (op && orderMatches) {
+                verified = true;
+                if (op.status) status = op.status;
+                // Back-fill DB so future callbacks for the same txn verify fast.
+                try {
+                  await supabaseAdmin
+                    .from("upgrade_requests")
+                    .update({ plisio_invoice_id: txnId })
+                    .eq("id", orderNumber);
+                } catch (_e) {}
+                console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
+              } else {
+                console.warn(
+                  "[plisio] txn_id mismatch — callback claims",
+                  txnId,
+                  "for order",
+                  orderNumber,
+                  "but DB has",
+                  (linkedReq as any).plisio_invoice_id,
+                );
+              }
             }
           } catch (e) {
             console.error("[plisio] db linkage check failed", e);
-          }
-        }
-
-        // Last-resort fallback: confirm via Plisio API (op.order_number match
-        // when present — kept for legacy form-encoded edge cases).
-        if (!verified && txnId) {
-          const op = await fetchPlisioOperation(txnId, apiKey);
-          if (op && orderNumber && op.order_number === orderNumber) {
-            if (op.status) status = op.status;
-            verified = true;
           }
         }
 

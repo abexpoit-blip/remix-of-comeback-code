@@ -51,7 +51,7 @@ async function requestOverIpv4(input: RequestInfo | URL, init: RequestInit = {})
         headers: Object.fromEntries(headers.entries()),
         agent,
         family: 4,
-        timeout: 3000,
+        timeout: 25000,
       },
       (res) => {
         const chunks: Buffer[] = [];
