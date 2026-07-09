@@ -66,7 +66,7 @@ export const createInvoice = createServerFn({ method: "POST" })
 
     console.log("[plisio] requesting invoice for order", req.id, "amount", chargeAmount);
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
+    const timer = setTimeout(() => ctrl.abort(), 90000);
     let res: Response;
     let raw = "";
     try {
@@ -77,9 +77,9 @@ export const createInvoice = createServerFn({ method: "POST" })
       console.error("[plisio] fetch failed:", e?.message || e);
       await supabaseAdmin
         .from("upgrade_requests")
-        .update({ status: "invoice_failed" } as any)
+        .update({ status: "pending" } as any)
         .eq("id", req.id);
-      throw new Error(`Payment gateway is slow right now. Please try again in a minute.`);
+      throw new Error(`Payment gateway is slow right now. Please try again in a minute. If an invoice was created, it will appear in your order history automatically.`);
     }
     clearTimeout(timer);
 

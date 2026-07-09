@@ -24,10 +24,9 @@ if (!globalThis[INSTALL_KEY]) {
         globalThis.__sleepoxUriGuardCount = 0;
       }
       globalThis.__sleepoxUriGuardCount += 1;
-      if (globalThis.__sleepoxUriGuardCount <= 3 || globalThis.__sleepoxUriGuardCount % 100 === 0) {
-        console.warn("[uri-guard] Swallowed URIError from malformed bot URL", {
+      if (globalThis.__sleepoxUriGuardCount === 1 || globalThis.__sleepoxUriGuardCount % 500 === 0) {
+        console.warn("[uri-guard] malformed bot URL swallowed", {
           countThisMinute: globalThis.__sleepoxUriGuardCount,
-          message: error?.message || String(error),
         });
       }
       return true;

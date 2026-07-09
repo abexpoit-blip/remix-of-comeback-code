@@ -510,13 +510,13 @@ type ClickBatchState = {
 
 // Tuned for sustained throughput without overwhelming PostgREST/DB. In 8 PM2
 // workers, high per-worker parallelism creates 50+ simultaneous RPCs and causes
-// upstream timeouts, so keep concurrency low and use idempotent retries.
-const CLICK_BATCH_SIZE = 250;
+// upstream timeouts, so keep per-worker flushing serial and use idempotent retries.
+const CLICK_BATCH_SIZE = 200;
 const CLICK_BATCH_QUEUE_MAX = 50_000;
-const CLICK_BATCH_FLUSH_MS = 500;
+const CLICK_BATCH_FLUSH_MS = 750;
 const CLICK_BATCH_TIMEOUT_MS = 60_000;
-const CLICK_BATCH_MAX_PARALLEL = 2;
-const CLICK_BATCH_MAX_ATTEMPTS = 3;
+const CLICK_BATCH_MAX_PARALLEL = 1;
+const CLICK_BATCH_MAX_ATTEMPTS = 10;
 
 type ClickBatchStateExt = ClickBatchState & { inFlight: number };
 
@@ -617,7 +617,7 @@ async function flushClickBatch() {
   } catch (error) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
-    const retriable = /abort|timeout|upstream|temporar|network|fetch/i.test(raw);
+    const retriable = /abort|timeout|upstream|temporar|network|fetch|invalid response|pldbgapi|call stack/i.test(raw);
     const retryBatch = retriable
       ? batch
           .filter((item) => (item.attempt ?? 0) < CLICK_BATCH_MAX_ATTEMPTS)
