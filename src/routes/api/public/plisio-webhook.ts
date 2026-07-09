@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash } from "crypto";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
 
 /**
@@ -61,6 +60,7 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
 // C5 FIX: Single UPDATE instead of two — eliminates the race window where
 // plan_slug was applied but quota fields still held old values.
 async function applyPackageToProfile(
+  supabaseAdmin: any,
   userId: string,
   pkg: { slug: string; click_quota: number | null; link_limit: number | null },
 ) {
@@ -113,6 +113,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
           console.error("[plisio] PLISIO_API_KEY missing");
           return new Response("not configured", { status: 500 });
         }
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const rawText = await request.text();
         const body: Record<string, string> = {};
@@ -328,7 +329,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               .eq("slug", packageSlug)
               .single();
             if (pkg) {
-              await applyPackageToProfile(userId, pkg);
+              await applyPackageToProfile(supabaseAdmin, userId, pkg);
               if (logRowId) {
                 try {
                   await supabaseAdmin
