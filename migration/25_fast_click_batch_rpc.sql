@@ -154,7 +154,14 @@ AS $$
     WHERE p.id = s.user_id
     RETURNING p.id
   )
-  SELECT NULL::void;
+  SELECT pg_sleep(0)
+  FROM (
+    SELECT 1 FROM inserted_clicks
+    UNION ALL SELECT 1 FROM updated_links
+    UNION ALL SELECT 1 FROM updated_profiles
+    UNION ALL SELECT 1
+  ) done
+  LIMIT 1;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.record_redirect_clicks_batch(jsonb) TO anon, authenticated, service_role;
