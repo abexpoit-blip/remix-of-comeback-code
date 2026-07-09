@@ -24,9 +24,16 @@ function verifyFormHash(body: Record<string, string>, apiKey: string): boolean {
 
 async function fetchPlisioOperation(txnId: string, apiKey: string) {
   try {
-    const res = await fetchIpv4(`https://api.plisio.net/api/v1/operations/${encodeURIComponent(txnId)}?api_key=${encodeURIComponent(apiKey)}`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    const res = await fetchIpv4(
+      `https://api.plisio.net/api/v1/operations/${encodeURIComponent(txnId)}?api_key=${encodeURIComponent(apiKey)}`,
+      { signal: ctrl.signal },
+    );
+    clearTimeout(timer);
     const json = await res.json() as {
       status?: string;
+      message?: string;
       data?: {
         status?: string;
         order_number?: string;
@@ -35,6 +42,12 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
       };
     };
     if (json.status === "success" && json.data) return json.data;
+    console.warn("[plisio] operation lookup rejected", {
+      txnId,
+      http: res.status,
+      status: json?.status,
+      message: json?.message || (json?.data as any)?.message || null,
+    });
   } catch (e) {
     console.error("[plisio] fetch operation failed", e);
   }
@@ -141,6 +154,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         // do NOT require op.order_number to match (Plisio's operations endpoint
         // sometimes returns it as null/missing — that was the source of the
         // false "mismatch" rejections that lost real payments).
+        let verificationTemporarilyUnavailable = false;
         if (!verified && txnId && orderNumber) {
           try {
             const { data: linkedReq } = await supabaseAdmin
@@ -159,9 +173,21 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               // and belongs to this order_number, back-fill and accept.
               // Attackers cannot know a valid Plisio-generated txn_id, so any
               // txn Plisio confirms as tied to our order_number is genuine.
-              const op = await fetchPlisioOperation(txnId, apiKey);
-              const orderMatches = !op?.order_number || op.order_number === orderNumber;
-              if (op && orderMatches) {
+              const incomingStatus = String(status || "").toLowerCase();
+              const isPaidLike = ["completed", "success", "finished", "mismatch"].includes(incomingStatus);
+              const hasStoredTxn = Boolean((linkedReq as any).plisio_invoice_id);
+
+              // Non-paid lifecycle callbacks (new/expired/cancelled/error) do not
+              // grant packages, so accept them for an existing local order even if
+              // invoice save previously failed. Paid callbacks still require a
+              // live Plisio lookup before package activation.
+              if (!hasStoredTxn && !isPaidLike) {
+                verified = true;
+                console.log("[plisio] accepted non-paid callback for unsaved txn", { txnId, orderNumber, status });
+              } else {
+                const op = await fetchPlisioOperation(txnId, apiKey);
+                const orderMatches = !op?.order_number || op.order_number === orderNumber;
+                if (op && orderMatches) {
                 verified = true;
                 if (op.status) status = op.status;
                 // Back-fill DB so future callbacks for the same txn verify fast.
@@ -172,7 +198,10 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                     .eq("id", orderNumber);
                 } catch (_e) {}
                 console.log("[plisio] recovered null txn_id via Plisio API for order", orderNumber);
-              } else {
+                } else if (isPaidLike && !op) {
+                  verificationTemporarilyUnavailable = true;
+                  console.warn("[plisio] paid callback verification delayed — Plisio lookup unavailable", { txnId, orderNumber, status });
+                } else {
                 console.warn(
                   "[plisio] txn_id mismatch — callback claims",
                   txnId,
@@ -181,6 +210,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                   "but DB has",
                   (linkedReq as any).plisio_invoice_id,
                 );
+                }
               }
             }
           } catch (e) {
@@ -189,6 +219,9 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         }
 
         if (!verified) {
+          if (verificationTemporarilyUnavailable) {
+            return new Response("verification temporarily unavailable", { status: 503 });
+          }
           console.warn("[plisio] verification failed", { txnId, orderNumber, status });
           return new Response("invalid signature", { status: 401 });
         }
