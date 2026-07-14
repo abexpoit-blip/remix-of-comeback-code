@@ -871,6 +871,8 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   const heroAttr = attrEscape(content.heroImage);
   const authorAttr = attrEscape(content.author);
   const categoryAttr = attrEscape(content.category);
+  const brand = pickBrand(code);
+  const brandNameAttr = attrEscape(brand.name);
 
   // JSON-LD Article schema — Facebook & Google preview crawlers use this as a stronger
   // "real article" signal than OG tags alone. Required for richer link previews.
@@ -885,7 +887,7 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   "author": { "@type": "Person", "name": "${jsonEscape(content.author)}" },
   "publisher": {
     "@type": "Organization",
-    "name": "DailyInsight",
+    "name": "${jsonEscape(brand.name)}",
     "logo": { "@type": "ImageObject", "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75" }
   },
   "articleSection": "${jsonEscape(content.category)}"
