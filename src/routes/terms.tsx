@@ -8,12 +8,19 @@ export const Route = createFileRoute("/terms")({
       { title: `Terms of Service — ${SITE.name}` },
       { name: "description", content: `The terms and conditions for using ${SITE.name} and purchasing our products.` },
       { property: "og:title", content: `Terms of Service — ${SITE.name}` },
-      { property: "og:url", content: "/terms" },
+      { property: "og:description", content: `The terms and conditions for using ${SITE.name} and purchasing our products.` },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://breezysocial.com/terms" },
+      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: `Terms of Service — ${SITE.name}` },
+      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
     ],
-    links: [{ rel: "canonical", href: "/terms" }],
+    links: [{ rel: "canonical", href: "https://breezysocial.com/terms" }],
   }),
   component: TermsPage,
 });
+
 
 function TermsPage() {
   return (

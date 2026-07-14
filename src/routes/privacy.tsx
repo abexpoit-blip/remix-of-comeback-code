@@ -8,12 +8,19 @@ export const Route = createFileRoute("/privacy")({
       { title: `Privacy Policy — ${SITE.name}` },
       { name: "description", content: `How ${SITE.name} collects, uses, and protects your personal information.` },
       { property: "og:title", content: `Privacy Policy — ${SITE.name}` },
-      { property: "og:url", content: "/privacy" },
+      { property: "og:description", content: `How ${SITE.name} collects, uses, and protects your personal information.` },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://breezysocial.com/privacy" },
+      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: `Privacy Policy — ${SITE.name}` },
+      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
     ],
-    links: [{ rel: "canonical", href: "/privacy" }],
+    links: [{ rel: "canonical", href: "https://breezysocial.com/privacy" }],
   }),
   component: PrivacyPage,
 });
+
 
 function PrivacyPage() {
   return (

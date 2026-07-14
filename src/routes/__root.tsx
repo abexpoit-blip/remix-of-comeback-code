@@ -55,8 +55,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Sleepox — Smart Link Cloaking for Facebook Ads" },
-      { name: "description", content: "Bot-filtered redirect links for Facebook Ads to monetization offers." },
+      { title: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
+      { name: "description", content: "Thoughtfully designed tools for better sleep, sharper focus, and easier travel. Free shipping over $50. 30-day returns." },
+      { property: "og:site_name", content: "BreezySocial" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: "index, follow" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -73,6 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
+
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
   shellComponent: RootDocument,
