@@ -1001,18 +1001,18 @@ ${robots}
   }
 </style>
 </head><body>
-<div class="topbar">📰 Trusted reporting since 2014  ·  Updated daily  ·  Subscribe for free</div>
+<div class="topbar">📰 ${brand.tagline}  ·  Updated daily  ·  Free to read</div>
 <nav class="nav"><div class="nav-inner">
-  <div class="logo">Daily<span>Insight</span></div>
+  <div class="logo">${brand.name}</div>
   <div class="nav-links">
-    <a href="#">News</a><a href="#">Health</a><a href="#">Money</a>
-    <a href="#">Tech</a><a href="#">Lifestyle</a><a href="#">Travel</a>
+    <a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a>
   </div>
 </div></nav>
 
 <div class="layout">
 <article>
-  <div class="crumbs"><a href="#">Home</a> › <a href="#">${content.category}</a> › Article</div>
+  <div class="crumbs"><a href="/">Home</a> › <span>${content.category}</span> › Article</div>
   <span class="cat-pill">${content.category}</span>
   <h1>${content.title}</h1>
   <p class="deck">${content.description}</p>
@@ -1023,13 +1023,11 @@ ${robots}
       ${dateStr} · 5 min read
     </div>
     <div class="share-row">
-      <a href="#" class="share-btn" aria-label="Share on Facebook">f</a>
-      <a href="#" class="share-btn" aria-label="Share on Twitter">𝕏</a>
-      <a href="#" class="share-btn" aria-label="Share via link">🔗</a>
+      <a href="/" class="share-btn" aria-label="Home">⌂</a>
     </div>
   </div>
   <img class="hero" src="${content.heroImage}" alt="${content.title}" loading="eager" width="1200" height="630">
-  <p class="hero-cap">Photo: Editorial / DailyInsight</p>
+  <p class="hero-cap">Photo: Editorial / ${brand.name}</p>
   <p class="intro">${content.intro}</p>
   ${content.paragraphs.slice(0, 2).map((p) => `<p>${p}</p>`).join("\n  ")}
   <div class="ad-slot"><small>Advertisement</small><div class="ad-slot-inner">Sponsored content</div></div>
@@ -1038,20 +1036,19 @@ ${robots}
     <h3>★ Key Takeaways</h3>
     <ul>${content.highlights.map((h) => `<li>${h}</li>`).join("")}</ul>
   </div>
-  <p>The full breakdown — including expert quotes, downloadable checklist, and the step-by-step guide — is available in the complete report below. Readers who acted on these tips early are already seeing measurable results.</p>
+  <p>You'll find the full details — including sources, notes, and a short summary — in the complete report below. Read at your own pace and share only what feels useful.</p>
   <div class="tags">
-    <a href="#" class="tag">#${content.category.toLowerCase().replace(/[^a-z]/g,"")}</a>
-    <a href="#" class="tag">#trending</a>
-    <a href="#" class="tag">#2026</a>
-    <a href="#" class="tag">#expert-tips</a>
+    <span class="tag">#${content.category.toLowerCase().replace(/[^a-z]/g,"")}</span>
+    <span class="tag">#daily-read</span>
+    <span class="tag">#${today.getFullYear()}</span>
   </div>
 </article>
 
 <aside>
   <div class="newsletter">
     <h3>Get the Daily Brief</h3>
-    <p>The 5 stories everyone is talking about. Free.</p>
-    <input type="email" placeholder="your@email.com">
+    <p>A short recap in your inbox. Free.</p>
+    <input type="email" placeholder="your@email.com" aria-label="Email address">
     <button type="button">Subscribe Free</button>
   </div>
   <div class="side-card">
@@ -1063,9 +1060,9 @@ ${robots}
 </div>
 
 <footer>
-  <strong>DailyInsight</strong>
-  © ${today.getFullYear()} DailyInsight Media · Trusted journalism since 2014<br>
-  <a href="#">About</a> · <a href="#">Editorial Standards</a> · <a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="#">Contact</a>
+  <strong>${brand.name}</strong>
+  © ${today.getFullYear()} ${brand.name} · ${brand.tagline}<br>
+  <a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a>
 </footer>
 </body></html>`;
 }
