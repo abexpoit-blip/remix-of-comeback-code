@@ -17,6 +17,25 @@ import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 
 
 const SAFE_FALLBACK = "https://sleepox.com/";
+const RESERVED_PUBLIC_PATHS = new Set([
+  "about",
+  "privacy",
+  "terms",
+  "contact",
+  "faq",
+  "shipping",
+  "returns",
+  "pricing",
+  "cart",
+  "checkout",
+  "login",
+  "signup",
+  "blog",
+  "shop",
+  "sitemap.xml",
+  "robots.txt",
+  "favicon.ico",
+]);
 // FULL BOT DETECTION MODE (default): cloaking rules, fingerprint auto-block,
 // signal analysis (score ≥80), referrer block, and legacy UA list all run.
 // These layers only catch confirmed bots (headless browsers, ahrefs/semrush,
@@ -473,6 +492,88 @@ function redirectTo(
   if (reason)
     headers.set("X-Sleepox-Reason", reason.replace(/[^a-zA-Z0-9:._ -]/g, "").slice(0, 80));
   return new Response(null, { status: 302, headers });
+}
+
+function htmlEscape(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderReservedPublicPage(code: string, publicOrigin: string) {
+  const path = `/${code}`;
+  const canonical = `${publicOrigin}${path}`;
+  const page = code === "contact"
+    ? {
+        title: "Contact — BreezySocial",
+        description: "Reach the BreezySocial customer care team for order questions, returns, and product support.",
+        h1: "Contact",
+        body: `
+          <p>Questions about an order, return, or product? Our customer care team reads every message.</p>
+          <dl>
+            <dt>Email</dt><dd><a href="mailto:hello@breezysocial.com">hello@breezysocial.com</a></dd>
+            <dt>Support</dt><dd><a href="mailto:support@breezysocial.com">support@breezysocial.com</a></dd>
+            <dt>Phone</dt><dd>+1 (415) 555-0142</dd>
+            <dt>Office</dt><dd>1280 Market Street, Suite 400, San Francisco, CA 94102</dd>
+          </dl>
+        `,
+      }
+    : code === "privacy"
+      ? {
+          title: "Privacy Policy — BreezySocial",
+          description: "How BreezySocial collects, uses, and protects customer information.",
+          h1: "Privacy Policy",
+          body: `
+            <p>BreezySocial respects your privacy. This policy explains how we collect, use, and protect information when you visit our website or contact us.</p>
+            <h2>Information we collect</h2>
+            <p>We collect information you provide directly, such as your name, email address, shipping details, and messages to customer support. We also collect basic website usage data such as pages viewed, device type, and timestamps.</p>
+            <h2>How we use information</h2>
+            <p>We use information to process orders, respond to support requests, improve our products, prevent fraud, and meet legal obligations.</p>
+            <h2>Sharing</h2>
+            <p>We do not sell personal information. We share information only with trusted service providers when needed to operate our store and support customers.</p>
+            <h2>Contact</h2>
+            <p>For privacy questions, email <a href="mailto:hello@breezysocial.com">hello@breezysocial.com</a>.</p>
+          `,
+        }
+      : null;
+
+  if (!page) return null;
+  const title = htmlEscape(page.title);
+  const description = htmlEscape(page.description);
+  const safeCanonical = htmlEscape(canonical);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <meta name="description" content="${description}" />
+  <link rel="canonical" href="${safeCanonical}" />
+  <meta property="og:site_name" content="BreezySocial" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:url" content="${safeCanonical}" />
+  <meta property="og:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <style>
+    body{margin:0;background:#faf7f2;color:#2a2a28;font-family:Arial,Helvetica,sans-serif;line-height:1.65}
+    header,main,footer{max-width:880px;margin:0 auto;padding:28px 24px}
+    nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}a{color:#476b43}h1{font-size:44px;line-height:1.1;margin:40px 0 18px}h2{font-size:22px;margin-top:32px}dl{display:grid;grid-template-columns:110px 1fr;gap:12px 18px}dt{font-weight:700}footer{border-top:1px solid #e8e2d5;color:#6b665e;font-size:14px}
+  </style>
+</head>
+<body>
+  <header><nav><a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav></header>
+  <main><h1>${htmlEscape(page.h1)}</h1>${page.body}</main>
+  <footer>© ${new Date().getUTCFullYear()} BreezySocial · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></footer>
+</body>
+</html>`;
 }
 
 type RedirectClickInput = {
