@@ -79,6 +79,30 @@ function randomCode(len = 6) {
   return out;
 }
 
+const RESERVED_SHORT_CODES = new Set([
+  "about",
+  "privacy",
+  "terms",
+  "contact",
+  "faq",
+  "shipping",
+  "returns",
+  "pricing",
+  "cart",
+  "checkout",
+  "login",
+  "signup",
+  "blog",
+  "shop",
+  "sitemap.xml",
+  "robots.txt",
+  "favicon.ico",
+]);
+
+function isReservedShortCode(code: string) {
+  return RESERVED_SHORT_CODES.has(code.trim().toLowerCase());
+}
+
 export const listMyLinks = createServerFn({ method: "GET" })
   .handler(async () => {
     const context = await getRequestAuth();
@@ -173,12 +197,17 @@ export const createLink = createServerFn({ method: "POST" })
     }
 
     let code = randomCode();
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
+      if (isReservedShortCode(code)) {
+        code = randomCode();
+        continue;
+      }
       const { data: exists } = await context.supabase
         .from("links").select("id").eq("short_code", code).maybeSingle();
       if (!exists) break;
       code = randomCode();
     }
+    if (isReservedShortCode(code)) throw new Error("Reserved short code generated. Please try again.");
 
     const safeUrlToStore = data.safe_url ?? "https://sleepox.com/";
 
