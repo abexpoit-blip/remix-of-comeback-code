@@ -230,9 +230,10 @@ function UpgradePage() {
               >
                 {isCurrent && (
                   <div className="absolute -top-3 right-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-md bg-[#22C55E] text-white">
-                    <Check className="w-3 h-3" /> Current plan
+                    <Check className="w-3 h-3" /> Current plan{daysLeft != null && !isLifetimePlan ? ` · ${daysLeft}d left` : ""}
                   </div>
                 )}
+
                 {meta.badge && !isCurrent && (
                   <div className={`absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-md ${
                     highlight ? "bg-white text-[#FF7E5F]" : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white"
