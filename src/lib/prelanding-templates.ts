@@ -818,12 +818,12 @@ function attrEscape(s: string): string {
 // og:description, or og:image. Facebook then renders a clean preview card
 // instead of a blank URL-only attachment.
 const OG_FALLBACK = {
-  title: "Today's Featured Story — DailyInsight",
+  title: "Today's Featured Story",
   description:
-    "A short, easy-to-read story from the DailyInsight desk. Updated daily with practical, friendly reporting.",
+    "A short, easy-to-read story from the editorial desk. Updated daily with practical, friendly reporting.",
   heroImage:
     "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1200&q=75",
-  author: "DailyInsight Editorial",
+  author: "Editorial Desk",
   category: "Featured",
 } as const;
 
