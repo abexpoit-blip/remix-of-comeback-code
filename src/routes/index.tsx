@@ -31,10 +31,17 @@ export const Route = createFileRoute("/")({
           { property: "og:title", content: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
           { property: "og:description", content: "Curated sleep, wellness, and travel gadgets. Free shipping over $50." },
           { property: "og:type", content: "website" },
-          { property: "og:url", content: "/" },
+          { property: "og:url", content: "https://breezysocial.com/" },
+          { property: "og:image", content: "https://breezysocial.com/og-default.png" },
+          { property: "og:image:width", content: "1200" },
+          { property: "og:image:height", content: "630" },
+          { name: "twitter:card", content: "summary_large_image" },
+          { name: "twitter:title", content: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
+          { name: "twitter:description", content: "Curated sleep, wellness, and travel gadgets. Free shipping over $50." },
+          { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
         ],
         links: [
-          { rel: "canonical", href: "/" },
+          { rel: "canonical", href: "https://breezysocial.com/" },
           { rel: "preconnect", href: "https://fonts.googleapis.com" },
           { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
           {
@@ -77,10 +84,14 @@ export const Route = createFileRoute("/")({
         },
         { property: "og:title", content: "Sleepox — Smart Link Manager" },
         { property: "og:description", content: "Shorten, route, and measure every link with sub-30ms edge redirects and live analytics." },
-        { property: "og:url", content: "/" },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: "https://sleepox.com/" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: "Sleepox — Smart Link Manager" },
+        { name: "twitter:description", content: "Shorten, route, and measure every link with sub-30ms edge redirects and live analytics." },
       ],
       links: [
-        { rel: "canonical", href: "/" },
+        { rel: "canonical", href: "https://sleepox.com/" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
         {
@@ -90,6 +101,7 @@ export const Route = createFileRoute("/")({
       ],
     };
   },
+
   component: HomeRouter,
 });
 
