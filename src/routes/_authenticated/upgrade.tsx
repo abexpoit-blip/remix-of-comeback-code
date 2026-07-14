@@ -323,25 +323,36 @@ function UpgradePage() {
 
 
                 {/* CTA */}
-                <button
-                  disabled={isFree || isCurrent || buyMut.isPending}
-                  onClick={() => buyMut.mutate(p.slug)}
-                  className={`mt-7 w-full rounded-2xl py-3.5 text-sm font-bold transition-all ${
-                    isCurrent
-                      ? "bg-[#22C55E] text-white cursor-not-allowed"
-                      : isFree
-                      ? highlight ? "bg-white/20 text-white/70 cursor-not-allowed" : "bg-[#FFEDD5] text-[#A8907A] cursor-not-allowed"
-                      : highlight
-                        ? "bg-white text-[#FF7E5F] hover:bg-white/95 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]"
-                        : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white hover:opacity-95 shadow-[0_10px_30px_-10px_rgba(255,126,95,0.5)]"
-                  }`}
-                >
-                  {isCurrent
-                    ? "✓ Your current plan"
-                    : buyMut.isPending && buyMut.variables === p.slug
-                      ? "Creating invoice…"
-                      : meta.ctaLabel}
-                </button>
+                {(() => {
+                  const isRenewable = isCurrent && canRenewCurrent;
+                  const disabled = isFree || (isCurrent && !isRenewable) || buyMut.isPending;
+                  return (
+                    <button
+                      disabled={disabled}
+                      onClick={() => buyMut.mutate(p.slug)}
+                      className={`mt-7 w-full rounded-2xl py-3.5 text-sm font-bold transition-all ${
+                        isRenewable
+                          ? "bg-[#2D1B0D] text-white hover:bg-[#4A3728] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)]"
+                          : isCurrent
+                            ? "bg-[#22C55E] text-white cursor-not-allowed"
+                            : isFree
+                              ? highlight ? "bg-white/20 text-white/70 cursor-not-allowed" : "bg-[#FFEDD5] text-[#A8907A] cursor-not-allowed"
+                              : highlight
+                                ? "bg-white text-[#FF7E5F] hover:bg-white/95 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]"
+                                : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white hover:opacity-95 shadow-[0_10px_30px_-10px_rgba(255,126,95,0.5)]"
+                      }`}
+                    >
+                      {buyMut.isPending && buyMut.variables === p.slug
+                        ? "Creating invoice…"
+                        : isRenewable
+                          ? `↻ Renew · +30 days${daysLeft != null ? ` (stacks on ${daysLeft}d left)` : ""}`
+                          : isCurrent
+                            ? "✓ Your current plan"
+                            : meta.ctaLabel}
+                    </button>
+                  );
+                })()}
+
               </div>
             );
           })}
