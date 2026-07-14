@@ -921,7 +921,7 @@ ${robots}
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${titleAttr}">
-<meta property="og:site_name" content="DailyInsight">
+<meta property="og:site_name" content="${brandNameAttr}">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="${today.toISOString()}">
 <meta property="article:author" content="${authorAttr}">
