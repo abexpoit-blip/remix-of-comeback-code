@@ -124,10 +124,10 @@ function UpgradePage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from("profiles").select("plan_slug").eq("id", u.user.id).maybeSingle(),
+        supabase.from("profiles").select("plan_slug, plan_expires_at").eq("id", u.user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle(),
       ]);
-      return { plan_slug: p?.plan_slug, isAdmin: !!r };
+      return { plan_slug: p?.plan_slug, plan_expires_at: (p as any)?.plan_expires_at ?? null, isAdmin: !!r };
     },
   });
   const rawPlan = (myProfile?.plan_slug || "free").toLowerCase();
@@ -135,6 +135,14 @@ function UpgradePage() {
   const currentPlan =
     rawPlan === "pro_monthly" ? "monthly" :
     rawPlan === "unlimited" ? "lifetime" : rawPlan;
+  const planExpiresAt = myProfile?.plan_expires_at ? new Date(myProfile.plan_expires_at) : null;
+  const isLifetimePlan = currentPlan === "lifetime";
+  // Renewable = paid recurring plan that has an expiry (not lifetime, not free)
+  const canRenewCurrent = !isLifetimePlan && currentPlan !== "free" && !!planExpiresAt;
+  const daysLeft = planExpiresAt
+    ? Math.max(0, Math.ceil((planExpiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+
 
   const { data: ordersList } = useQuery({
     queryKey: ["my-orders"],
