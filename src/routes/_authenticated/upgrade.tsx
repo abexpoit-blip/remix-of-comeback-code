@@ -124,10 +124,10 @@ function UpgradePage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from("profiles").select("plan_slug").eq("id", u.user.id).maybeSingle(),
+        supabase.from("profiles").select("plan_slug, plan_expires_at").eq("id", u.user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle(),
       ]);
-      return { plan_slug: p?.plan_slug, isAdmin: !!r };
+      return { plan_slug: p?.plan_slug, plan_expires_at: (p as any)?.plan_expires_at ?? null, isAdmin: !!r };
     },
   });
   const rawPlan = (myProfile?.plan_slug || "free").toLowerCase();
@@ -135,6 +135,14 @@ function UpgradePage() {
   const currentPlan =
     rawPlan === "pro_monthly" ? "monthly" :
     rawPlan === "unlimited" ? "lifetime" : rawPlan;
+  const planExpiresAt = myProfile?.plan_expires_at ? new Date(myProfile.plan_expires_at) : null;
+  const isLifetimePlan = currentPlan === "lifetime";
+  // Renewable = paid recurring plan that has an expiry (not lifetime, not free)
+  const canRenewCurrent = !isLifetimePlan && currentPlan !== "free" && !!planExpiresAt;
+  const daysLeft = planExpiresAt
+    ? Math.max(0, Math.ceil((planExpiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+
 
   const { data: ordersList } = useQuery({
     queryKey: ["my-orders"],
@@ -222,9 +230,10 @@ function UpgradePage() {
               >
                 {isCurrent && (
                   <div className="absolute -top-3 right-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-md bg-[#22C55E] text-white">
-                    <Check className="w-3 h-3" /> Current plan
+                    <Check className="w-3 h-3" /> Current plan{daysLeft != null && !isLifetimePlan ? ` · ${daysLeft}d left` : ""}
                   </div>
                 )}
+
                 {meta.badge && !isCurrent && (
                   <div className={`absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-md ${
                     highlight ? "bg-white text-[#FF7E5F]" : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white"
@@ -314,25 +323,36 @@ function UpgradePage() {
 
 
                 {/* CTA */}
-                <button
-                  disabled={isFree || isCurrent || buyMut.isPending}
-                  onClick={() => buyMut.mutate(p.slug)}
-                  className={`mt-7 w-full rounded-2xl py-3.5 text-sm font-bold transition-all ${
-                    isCurrent
-                      ? "bg-[#22C55E] text-white cursor-not-allowed"
-                      : isFree
-                      ? highlight ? "bg-white/20 text-white/70 cursor-not-allowed" : "bg-[#FFEDD5] text-[#A8907A] cursor-not-allowed"
-                      : highlight
-                        ? "bg-white text-[#FF7E5F] hover:bg-white/95 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]"
-                        : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white hover:opacity-95 shadow-[0_10px_30px_-10px_rgba(255,126,95,0.5)]"
-                  }`}
-                >
-                  {isCurrent
-                    ? "✓ Your current plan"
-                    : buyMut.isPending && buyMut.variables === p.slug
-                      ? "Creating invoice…"
-                      : meta.ctaLabel}
-                </button>
+                {(() => {
+                  const isRenewable = isCurrent && canRenewCurrent;
+                  const disabled = isFree || (isCurrent && !isRenewable) || buyMut.isPending;
+                  return (
+                    <button
+                      disabled={disabled}
+                      onClick={() => buyMut.mutate(p.slug)}
+                      className={`mt-7 w-full rounded-2xl py-3.5 text-sm font-bold transition-all ${
+                        isRenewable
+                          ? "bg-[#2D1B0D] text-white hover:bg-[#4A3728] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)]"
+                          : isCurrent
+                            ? "bg-[#22C55E] text-white cursor-not-allowed"
+                            : isFree
+                              ? highlight ? "bg-white/20 text-white/70 cursor-not-allowed" : "bg-[#FFEDD5] text-[#A8907A] cursor-not-allowed"
+                              : highlight
+                                ? "bg-white text-[#FF7E5F] hover:bg-white/95 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]"
+                                : "bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white hover:opacity-95 shadow-[0_10px_30px_-10px_rgba(255,126,95,0.5)]"
+                      }`}
+                    >
+                      {buyMut.isPending && buyMut.variables === p.slug
+                        ? "Creating invoice…"
+                        : isRenewable
+                          ? `↻ Renew · +30 days${daysLeft != null ? ` (stacks on ${daysLeft}d left)` : ""}`
+                          : isCurrent
+                            ? "✓ Your current plan"
+                            : meta.ctaLabel}
+                    </button>
+                  );
+                })()}
+
               </div>
             );
           })}

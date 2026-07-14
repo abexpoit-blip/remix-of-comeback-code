@@ -67,9 +67,6 @@ async function applyPackageToProfile(
   const now = new Date();
   const resetAt = now.toISOString();
   const isLifetime = pkg.slug === "lifetime" || pkg.slug === "unlimited";
-  const expiresAt = isLifetime
-    ? null
-    : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: profile, error: fetchErr } = await supabaseAdmin
     .from("profiles")
@@ -78,15 +75,26 @@ async function applyPackageToProfile(
     .maybeSingle();
   if (fetchErr) throw fetchErr;
 
-  const expiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
-  const keepExistingUsage =
+  const currentExpiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
+  const hasActiveSamePlan =
     pkg.slug !== "free" &&
     profile?.plan_slug === pkg.slug &&
-    (expiry == null || Number.isNaN(expiry) || expiry > now.getTime());
+    currentExpiry != null &&
+    !Number.isNaN(currentExpiry) &&
+    currentExpiry > now.getTime();
+
+  // Renewal (same active plan, not expired): extend from current expiry, keep usage counters.
+  // New purchase / plan switch / expired plan: start fresh from now, reset usage.
+  const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+  const expiresAt = isLifetime
+    ? null
+    : hasActiveSamePlan
+      ? new Date(currentExpiry + PERIOD_MS).toISOString()
+      : new Date(now.getTime() + PERIOD_MS).toISOString();
 
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update((keepExistingUsage ? {
+    .update((hasActiveSamePlan ? {
       plan_slug: pkg.slug,
       click_quota: pkg.click_quota,
       link_limit: pkg.link_limit,
@@ -103,6 +111,7 @@ async function applyPackageToProfile(
     .eq("id", userId);
   if (error) throw error;
 }
+
 
 export const Route = createFileRoute("/api/public/plisio-webhook")({
   server: {
