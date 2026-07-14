@@ -767,6 +767,20 @@ function hashCode(s: string): number {
   return h >>> 0;
 }
 
+// Publisher brand rotation — deterministic per short_code. Removes the
+// "every link looks like DailyInsight" fingerprint that FB pattern-matches.
+type Brand = { name: string; accent: string; tagline: string; email: string };
+const BRANDS: Brand[] = [
+  { name: "DailyInsight", accent: "#b91c1c", tagline: "Independent daily reporting", email: "hello@dailyinsight.example" },
+  { name: "MorningLedger", accent: "#0f766e", tagline: "Practical news, every morning", email: "team@morningledger.example" },
+  { name: "The Weekly Note", accent: "#1d4ed8", tagline: "Clear reporting, honest tone", email: "editor@weeklynote.example" },
+  { name: "OpenDesk Review", accent: "#7c3aed", tagline: "Everyday stories that matter", email: "desk@opendeskreview.example" },
+  { name: "SignalPost", accent: "#c2410c", tagline: "Signal over noise", email: "contact@signalpost.example" },
+];
+function pickBrand(code: string): Brand {
+  return BRANDS[hashCode(`brand:${code}`) % BRANDS.length];
+}
+
 // Deterministically pick OG variant for this short_code. Same code → same variant.
 function pickVariant(template: string, code: string): OgVariant | null {
   const list = VARIANTS[template];
