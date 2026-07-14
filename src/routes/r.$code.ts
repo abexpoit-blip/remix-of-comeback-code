@@ -1109,6 +1109,27 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const fwdHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
   const fwdProto = (request.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
   const publicOrigin = fwdHost ? `${fwdProto}://${fwdHost.split(",")[0].trim()}` : url.origin;
+  const normalizedCode = code.trim().toLowerCase();
+  if (RESERVED_PUBLIC_PATHS.has(normalizedCode)) {
+    const reservedHtml = renderReservedPublicPage(normalizedCode, publicOrigin);
+    if (!reservedHtml) return new Response("Not Found", { status: 404 });
+    if (request.method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=300",
+        },
+      });
+    }
+    return new Response(reservedHtml, {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+      },
+    });
+  }
   const ua = request.headers.get("user-agent") || "";
 
   const referer = request.headers.get("referer") || "";
