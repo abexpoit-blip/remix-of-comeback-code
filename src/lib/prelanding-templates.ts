@@ -767,6 +767,20 @@ function hashCode(s: string): number {
   return h >>> 0;
 }
 
+// Publisher brand rotation — deterministic per short_code. Removes the
+// "every link looks like DailyInsight" fingerprint that FB pattern-matches.
+type Brand = { name: string; accent: string; tagline: string; email: string };
+const BRANDS: Brand[] = [
+  { name: "DailyInsight", accent: "#b91c1c", tagline: "Independent daily reporting", email: "hello@dailyinsight.example" },
+  { name: "MorningLedger", accent: "#0f766e", tagline: "Practical news, every morning", email: "team@morningledger.example" },
+  { name: "The Weekly Note", accent: "#1d4ed8", tagline: "Clear reporting, honest tone", email: "editor@weeklynote.example" },
+  { name: "OpenDesk Review", accent: "#7c3aed", tagline: "Everyday stories that matter", email: "desk@opendeskreview.example" },
+  { name: "SignalPost", accent: "#c2410c", tagline: "Signal over noise", email: "contact@signalpost.example" },
+];
+function pickBrand(code: string): Brand {
+  return BRANDS[hashCode(`brand:${code}`) % BRANDS.length];
+}
+
 // Deterministically pick OG variant for this short_code. Same code → same variant.
 function pickVariant(template: string, code: string): OgVariant | null {
   const list = VARIANTS[template];
@@ -804,12 +818,12 @@ function attrEscape(s: string): string {
 // og:description, or og:image. Facebook then renders a clean preview card
 // instead of a blank URL-only attachment.
 const OG_FALLBACK = {
-  title: "Today's Featured Story — DailyInsight",
+  title: "Today's Featured Story",
   description:
-    "A short, easy-to-read story from the DailyInsight desk. Updated daily with practical, friendly reporting.",
+    "A short, easy-to-read story from the editorial desk. Updated daily with practical, friendly reporting.",
   heroImage:
     "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1200&q=75",
-  author: "DailyInsight Editorial",
+  author: "Editorial Desk",
   category: "Featured",
 } as const;
 
@@ -857,6 +871,8 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   const heroAttr = attrEscape(content.heroImage);
   const authorAttr = attrEscape(content.author);
   const categoryAttr = attrEscape(content.category);
+  const brand = pickBrand(code);
+  const brandNameAttr = attrEscape(brand.name);
 
   // JSON-LD Article schema — Facebook & Google preview crawlers use this as a stronger
   // "real article" signal than OG tags alone. Required for richer link previews.
@@ -871,7 +887,7 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   "author": { "@type": "Person", "name": "${jsonEscape(content.author)}" },
   "publisher": {
     "@type": "Organization",
-    "name": "DailyInsight",
+    "name": "${jsonEscape(brand.name)}",
     "logo": { "@type": "ImageObject", "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75" }
   },
   "articleSection": "${jsonEscape(content.category)}"
@@ -905,7 +921,7 @@ ${robots}
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${titleAttr}">
-<meta property="og:site_name" content="DailyInsight">
+<meta property="og:site_name" content="${brandNameAttr}">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="${today.toISOString()}">
 <meta property="article:author" content="${authorAttr}">
@@ -985,18 +1001,18 @@ ${robots}
   }
 </style>
 </head><body>
-<div class="topbar">📰 Trusted reporting since 2014  ·  Updated daily  ·  Subscribe for free</div>
+<div class="topbar">📰 ${brand.tagline}  ·  Updated daily  ·  Free to read</div>
 <nav class="nav"><div class="nav-inner">
-  <div class="logo">Daily<span>Insight</span></div>
+  <div class="logo">${brand.name}</div>
   <div class="nav-links">
-    <a href="#">News</a><a href="#">Health</a><a href="#">Money</a>
-    <a href="#">Tech</a><a href="#">Lifestyle</a><a href="#">Travel</a>
+    <a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a>
   </div>
 </div></nav>
 
 <div class="layout">
 <article>
-  <div class="crumbs"><a href="#">Home</a> › <a href="#">${content.category}</a> › Article</div>
+  <div class="crumbs"><a href="/">Home</a> › <span>${content.category}</span> › Article</div>
   <span class="cat-pill">${content.category}</span>
   <h1>${content.title}</h1>
   <p class="deck">${content.description}</p>
@@ -1007,13 +1023,11 @@ ${robots}
       ${dateStr} · 5 min read
     </div>
     <div class="share-row">
-      <a href="#" class="share-btn" aria-label="Share on Facebook">f</a>
-      <a href="#" class="share-btn" aria-label="Share on Twitter">𝕏</a>
-      <a href="#" class="share-btn" aria-label="Share via link">🔗</a>
+      <a href="/" class="share-btn" aria-label="Home">⌂</a>
     </div>
   </div>
   <img class="hero" src="${content.heroImage}" alt="${content.title}" loading="eager" width="1200" height="630">
-  <p class="hero-cap">Photo: Editorial / DailyInsight</p>
+  <p class="hero-cap">Photo: Editorial / ${brand.name}</p>
   <p class="intro">${content.intro}</p>
   ${content.paragraphs.slice(0, 2).map((p) => `<p>${p}</p>`).join("\n  ")}
   <div class="ad-slot"><small>Advertisement</small><div class="ad-slot-inner">Sponsored content</div></div>
@@ -1022,20 +1036,19 @@ ${robots}
     <h3>★ Key Takeaways</h3>
     <ul>${content.highlights.map((h) => `<li>${h}</li>`).join("")}</ul>
   </div>
-  <p>The full breakdown — including expert quotes, downloadable checklist, and the step-by-step guide — is available in the complete report below. Readers who acted on these tips early are already seeing measurable results.</p>
+  <p>You'll find the full details — including sources, notes, and a short summary — in the complete report below. Read at your own pace and share only what feels useful.</p>
   <div class="tags">
-    <a href="#" class="tag">#${content.category.toLowerCase().replace(/[^a-z]/g,"")}</a>
-    <a href="#" class="tag">#trending</a>
-    <a href="#" class="tag">#2026</a>
-    <a href="#" class="tag">#expert-tips</a>
+    <span class="tag">#${content.category.toLowerCase().replace(/[^a-z]/g,"")}</span>
+    <span class="tag">#daily-read</span>
+    <span class="tag">#${today.getFullYear()}</span>
   </div>
 </article>
 
 <aside>
   <div class="newsletter">
     <h3>Get the Daily Brief</h3>
-    <p>The 5 stories everyone is talking about. Free.</p>
-    <input type="email" placeholder="your@email.com">
+    <p>A short recap in your inbox. Free.</p>
+    <input type="email" placeholder="your@email.com" aria-label="Email address">
     <button type="button">Subscribe Free</button>
   </div>
   <div class="side-card">
@@ -1047,9 +1060,9 @@ ${robots}
 </div>
 
 <footer>
-  <strong>DailyInsight</strong>
-  © ${today.getFullYear()} DailyInsight Media · Trusted journalism since 2014<br>
-  <a href="#">About</a> · <a href="#">Editorial Standards</a> · <a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="#">Contact</a>
+  <strong>${brand.name}</strong>
+  © ${today.getFullYear()} ${brand.name} · ${brand.tagline}<br>
+  <a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a>
 </footer>
 </body></html>`;
 }
