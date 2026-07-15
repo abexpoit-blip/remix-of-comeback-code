@@ -169,6 +169,147 @@ type LiveAnalyticsSummary = {
   cohorts?: Array<{ source: string; total: number; humans: number; bots?: number }>;
 };
 
+type LiveAnalyticsEvent = NonNullable<LiveAnalyticsSummary["events"]>[number];
+
+const LIVE_ANALYTICS_RPC = "get_live_analytics_summary";
+
+function isMissingLiveAnalyticsRpc(error: any) {
+  const text = `${error?.code ?? ""} ${error?.message ?? ""} ${error?.details ?? ""}`;
+  return /PGRST202|schema cache|function .*get_live_analytics_summary|no matches were found/i.test(text);
+}
+
+function emptyLiveAnalyticsSummary(): LiveAnalyticsSummary {
+  return {
+    last60s: 0,
+    cps5m: 0,
+    humans1h: 0,
+    bots1h: 0,
+    last24h: 0,
+    last24hHumans: 0,
+    last24hBots: 0,
+    links: [],
+    events: [],
+    countries: [],
+    cohorts: [],
+  };
+}
+
+async function countClicks(supabase: any, linkIds: string[], since: string, isBot?: boolean) {
+  let query = supabase
+    .from("clicks")
+    .select("id", { count: "exact", head: true })
+    .in("link_id", linkIds)
+    .gte("created_at", since);
+
+  if (typeof isBot === "boolean") query = query.eq("is_bot", isBot);
+
+  const { count, error } = await query;
+  if (error) throw new Error(error.message);
+  return Number(count ?? 0);
+}
+
+function sourceFromReferer(host: string | null | undefined) {
+  if (!host) return "direct";
+  const h = host.toLowerCase();
+  if (h.includes("facebook") || h.includes("fb.")) return "facebook";
+  if (h.includes("instagram")) return "instagram";
+  if (h.includes("tiktok")) return "tiktok";
+  if (h.includes("twitter") || h.includes("x.com")) return "twitter";
+  if (h.includes("youtube")) return "youtube";
+  if (h.includes("google")) return "google";
+  if (h.includes("bing")) return "bing";
+  if (h.includes("reddit")) return "reddit";
+  if (h.includes("telegram") || h.includes("t.me")) return "telegram";
+  if (h.includes("whatsapp")) return "whatsapp";
+  return "other";
+}
+
+async function loadLiveAnalyticsFallback({ supabase, userId }: AnalyticsContext): Promise<LiveAnalyticsSummary> {
+  const { data: linksRaw, error: linksError } = await supabase
+    .from("links")
+    .select("id, short_code, title")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (linksError) throw new Error(linksError.message);
+
+  const links = (linksRaw ?? []) as Array<{ id: string; short_code: string; title: string | null }>;
+  const linkIds = links.map((l) => l.id);
+  if (linkIds.length === 0) return emptyLiveAnalyticsSummary();
+
+  const now = Date.now();
+  const since60s = new Date(now - 60_000).toISOString();
+  const since5m = new Date(now - 300_000).toISOString();
+  const since1h = new Date(now - 3_600_000).toISOString();
+  const since24h = new Date(now - 86_400_000).toISOString();
+
+  const [last60s, last5m, humans1h, bots1h, last24h, last24hHumans, last24hBots, eventsRes] = await Promise.all([
+    countClicks(supabase, linkIds, since60s),
+    countClicks(supabase, linkIds, since5m),
+    countClicks(supabase, linkIds, since1h, false),
+    countClicks(supabase, linkIds, since1h, true),
+    countClicks(supabase, linkIds, since24h),
+    countClicks(supabase, linkIds, since24h, false),
+    countClicks(supabase, linkIds, since24h, true),
+    supabase
+      .from("clicks")
+      .select("id, link_id, country, ua, is_bot, routed_to, referer_host, bot_reason, created_at")
+      .in("link_id", linkIds)
+      .gte("created_at", since24h)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  if (eventsRes.error) throw new Error(eventsRes.error.message);
+
+  const linkLookup = new Map(links.map((l) => [l.id, l]));
+  const events = ((eventsRes.data ?? []) as LiveAnalyticsEvent[]).map((event) => ({
+    ...event,
+    short_code: linkLookup.get(event.link_id)?.short_code ?? null,
+    title: linkLookup.get(event.link_id)?.title ?? null,
+  }));
+
+  const countriesMap = new Map<string, { code: string; count: number; humans: number; bots: number }>();
+  const cohortsMap = new Map<string, { source: string; total: number; humans: number; bots: number }>();
+
+  for (const event of events) {
+    const code = (event.country ?? "??").toUpperCase();
+    const country = countriesMap.get(code) ?? { code, count: 0, humans: 0, bots: 0 };
+    country.count += 1;
+    if (event.is_bot) country.bots += 1;
+    else country.humans += 1;
+    countriesMap.set(code, country);
+
+    const source = sourceFromReferer(event.referer_host ?? null);
+    const cohort = cohortsMap.get(source) ?? { source, total: 0, humans: 0, bots: 0 };
+    cohort.total += 1;
+    if (event.is_bot) cohort.bots += 1;
+    else cohort.humans += 1;
+    cohortsMap.set(source, cohort);
+  }
+
+  return {
+    last60s,
+    cps5m: last5m,
+    humans1h,
+    bots1h,
+    last24h,
+    last24hHumans,
+    last24hBots,
+    links,
+    events,
+    countries: [...countriesMap.values()].sort((a, b) => b.count - a.count).slice(0, 12),
+    cohorts: [...cohortsMap.values()].sort((a, b) => b.total - a.total).slice(0, 8),
+  };
+}
+
+async function loadLiveAnalyticsSummary(context: AnalyticsContext): Promise<LiveAnalyticsSummary> {
+  const { data, error } = await context.supabase.rpc(LIVE_ANALYTICS_RPC as never, { _user_id: context.userId } as never);
+  if (!error) return (data ?? emptyLiveAnalyticsSummary()) as LiveAnalyticsSummary;
+  if (isMissingLiveAnalyticsRpc(error)) return loadLiveAnalyticsFallback(context);
+  throw new Error(error.message);
+}
+
 const BROWSER_META: Record<string, { slug: string; color: string }> = {
   Edge: { slug: "microsoftedge", color: "0078D4" },
   Opera: { slug: "opera", color: "FF1B2D" },
@@ -220,18 +361,15 @@ export function emptyAnalytics() {
 }
 
 export async function loadAnalyticsData({ supabase, userId }: AnalyticsContext) {
-  const [aggRes, liveRes] = await Promise.all([
+  const [aggRes, live] = await Promise.all([
     supabase.rpc("get_analytics_summary" as never, {
       _user_id: userId,
       _days: 7,
     } as never),
-    supabase.rpc("get_live_analytics_summary" as never, {
-      _user_id: userId,
-    } as never),
+    loadLiveAnalyticsSummary({ supabase, userId }).catch(() => null),
   ]);
   const { data: aggRaw, error: aggErr } = aggRes;
   if (aggErr) throw new Error(aggErr.message);
-  const live = (liveRes.error ? null : liveRes.data) as LiveAnalyticsSummary | null;
 
   const agg = (aggRaw ?? { empty: true }) as AnalyticsAgg & { empty?: boolean };
   if (agg.empty || !agg.links) return emptyAnalytics();
@@ -502,9 +640,7 @@ export async function loadLinkDrilldown({ supabase, userId, linkId }: AnalyticsC
 }
 
 export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
-  const { data, error } = await supabase.rpc("get_live_analytics_summary" as never, { _user_id: userId } as never);
-  if (error) throw new Error(error.message);
-  const summary = (data ?? {}) as LiveAnalyticsSummary;
+  const summary = await loadLiveAnalyticsSummary({ supabase, userId });
   const typedLinks = (summary.links ?? []) as Array<{ id: string; short_code: string; title: string | null }>;
   const linkIds = typedLinks.map((l) => l.id);
   if (linkIds.length === 0) {
