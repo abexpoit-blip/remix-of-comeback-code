@@ -718,7 +718,7 @@ async function flushClickBatch() {
   } catch (error) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
-    const retriable = /abort|timeout|upstream|temporar|network|fetch|invalid response|pldbgapi|call stack/i.test(raw);
+    const retriable = /abort|timeout|upstream|temporar|network|fetch|invalid response|pldbgapi|call stack|schema cache|ECONN|EAI_AGAIN|connection pool|502|503|504/i.test(raw);
     const retryBatch = retriable
       ? batch
           .filter((item) => (item.attempt ?? 0) < CLICK_BATCH_MAX_ATTEMPTS)
