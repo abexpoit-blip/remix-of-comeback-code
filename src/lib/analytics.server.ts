@@ -143,6 +143,32 @@ type AnalyticsAgg = {
   liveEvents: Array<{ id: string; link_id: string; country: string | null; ua: string | null; is_bot: boolean; routed_to: string; created_at: string }>;
 };
 
+type LiveAnalyticsSummary = {
+  last60s?: number;
+  cps5m?: number;
+  humans1h?: number;
+  bots1h?: number;
+  last24h?: number;
+  last24hHumans?: number;
+  last24hBots?: number;
+  links?: Array<{ id: string; short_code: string; title: string | null }>;
+  events?: Array<{
+    id: string;
+    link_id: string;
+    short_code?: string | null;
+    title?: string | null;
+    country: string | null;
+    ua: string | null;
+    is_bot: boolean;
+    routed_to?: string | null;
+    referer_host?: string | null;
+    bot_reason?: string | null;
+    created_at: string;
+  }>;
+  countries?: Array<{ code: string; count: number; humans?: number; bots?: number }>;
+  cohorts?: Array<{ source: string; total: number; humans: number; bots?: number }>;
+};
+
 const BROWSER_META: Record<string, { slug: string; color: string }> = {
   Edge: { slug: "microsoftedge", color: "0078D4" },
   Opera: { slug: "opera", color: "FF1B2D" },
@@ -194,11 +220,18 @@ export function emptyAnalytics() {
 }
 
 export async function loadAnalyticsData({ supabase, userId }: AnalyticsContext) {
-  const { data: aggRaw, error: aggErr } = await supabase.rpc("get_analytics_summary" as never, {
-    _user_id: userId,
-    _days: 7,
-  } as never);
+  const [aggRes, liveRes] = await Promise.all([
+    supabase.rpc("get_analytics_summary" as never, {
+      _user_id: userId,
+      _days: 7,
+    } as never),
+    supabase.rpc("get_live_analytics_summary" as never, {
+      _user_id: userId,
+    } as never),
+  ]);
+  const { data: aggRaw, error: aggErr } = aggRes;
   if (aggErr) throw new Error(aggErr.message);
+  const live = (liveRes.error ? null : liveRes.data) as LiveAnalyticsSummary | null;
 
   const agg = (aggRaw ?? { empty: true }) as AnalyticsAgg & { empty?: boolean };
   if (agg.empty || !agg.links) return emptyAnalytics();
@@ -208,9 +241,9 @@ export async function loadAnalyticsData({ supabase, userId }: AnalyticsContext) 
   const realBots = Number(agg.bots ?? 0);
   const displayBots = hideBots(realBots);
   const displayTotal = humans + displayBots;
-  const last24h = Number(agg.last24h ?? 0);
-  const last24hHumans = Number(agg.last24hHumans ?? 0);
-  const last60s = Number(agg.last60s ?? 0);
+  const last24h = Number(live?.last24h ?? agg.last24h ?? 0);
+  const last24hHumans = Number(live?.last24hHumans ?? agg.last24hHumans ?? 0);
+  const last60s = Number(live?.last60s ?? agg.last60s ?? 0);
   const cps = String(last60s);
   const uniqueVisitors = Number(agg.unique ?? agg.uniqueVisitors ?? agg.unique_ips ?? 0);
 
@@ -333,7 +366,8 @@ export async function loadAnalyticsData({ supabase, userId }: AnalyticsContext) 
     };
   });
 
-  const liveEvents = (agg.liveEvents ?? []).map((c) => {
+  const latestEvents = live?.events?.length ? live.events : agg.liveEvents;
+  const liveEvents = (latestEvents ?? []).map((c) => {
     const dev = deviceFromUA(c.ua);
     const br = browserFromUA(c.ua);
     const cc = (c.country ?? "??").toUpperCase();
@@ -348,7 +382,7 @@ export async function loadAnalyticsData({ supabase, userId }: AnalyticsContext) 
       browserSlug: br.slug,
       browserColor: br.color,
       isBot: c.is_bot,
-      routed: c.routed_to,
+      routed: c.routed_to ?? "offer",
     };
   });
 
@@ -468,8 +502,10 @@ export async function loadLinkDrilldown({ supabase, userId, linkId }: AnalyticsC
 }
 
 export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
-  const { data: links } = await supabase.from("links").select("id, short_code, title").eq("user_id", userId);
-  const typedLinks = (links ?? []) as Array<{ id: string; short_code: string; title: string | null }>;
+  const { data, error } = await supabase.rpc("get_live_analytics_summary" as never, { _user_id: userId } as never);
+  if (error) throw new Error(error.message);
+  const summary = (data ?? {}) as LiveAnalyticsSummary;
+  const typedLinks = (summary.links ?? []) as Array<{ id: string; short_code: string; title: string | null }>;
   const linkIds = typedLinks.map((l) => l.id);
   if (linkIds.length === 0) {
     return {
@@ -481,54 +517,7 @@ export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
       cohorts: [] as Array<{ source: string; total: number; humans: number; humanRate: number }>,
     };
   }
-
-  const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
-  const modernWithSource = await supabase
-    .from("clicks")
-    .select("id, link_id, country, ua, is_bot, referer_host, created_at")
-    .in("link_id", linkIds)
-    .gte("created_at", dayAgo)
-    .order("created_at", { ascending: false })
-    .limit(5000);
-
-  const modern = modernWithSource.error
-    ? await supabase
-        .from("clicks")
-        .select("id, link_id, country, ua, is_bot, created_at")
-        .in("link_id", linkIds)
-        .gte("created_at", dayAgo)
-        .order("created_at", { ascending: false })
-        .limit(5000)
-    : modernWithSource;
-
-  const legacy = modern.error
-    ? await supabase
-        .from("clicks")
-        .select("id, link_id, country, user_agent, is_bot, referer_host, created_at")
-        .in("link_id", linkIds)
-        .gte("created_at", dayAgo)
-        .order("created_at", { ascending: false })
-        .limit(5000)
-    : { data: null };
-
-  const clicks = (((modern.error ? legacy.data : modern.data) ?? []) as unknown) as Array<{ id: string; link_id: string; country: string | null; ua?: string | null; user_agent?: string | null; is_bot: boolean; referer_host?: string | null; created_at: string }>;
   const linkLookup = new Map(typedLinks.map((l) => [l.id, l]));
-  const now = Date.now();
-  const fiveMinAgo = new Date(now - 300_000).toISOString();
-  const oneHourAgo = new Date(now - 3_600_000).toISOString();
-
-  // Use server-side COUNT to avoid PostgREST 1000-row cap
-  const [cps5mRes, humans1hRes, bots1hRes] = await Promise.all([
-    supabase.from("clicks").select("*", { count: "exact", head: true })
-      .in("link_id", linkIds).gte("created_at", fiveMinAgo),
-    supabase.from("clicks").select("*", { count: "exact", head: true })
-      .in("link_id", linkIds).gte("created_at", oneHourAgo).eq("is_bot", false),
-    supabase.from("clicks").select("*", { count: "exact", head: true })
-      .in("link_id", linkIds).gte("created_at", oneHourAgo).eq("is_bot", true),
-  ]);
-  const last5m = cps5mRes.count ?? 0;
-  const humans1h = humans1hRes.count ?? 0;
-  const bots1h = bots1hRes.count ?? 0;
 
   const classifySrc = (host: string | null): string => {
     if (!host) return "direct";
@@ -546,9 +535,9 @@ export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
     return "other";
   };
 
-  const events = clicks.slice(0, 50).map((c) => {
+  const events = (summary.events ?? []).slice(0, 50).map((c) => {
     const cc = (c.country ?? "??").toUpperCase();
-    const ua = c.ua ?? c.user_agent ?? null;
+    const ua = c.ua ?? null;
     const dev = deviceFromUA(ua);
     const br = browserFromUA(ua);
     const os = osFromUA(ua);
@@ -556,7 +545,7 @@ export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
     return {
       id: c.id,
       created_at: c.created_at,
-      short_code: linkLookup.get(c.link_id)?.short_code ?? "—",
+      short_code: c.short_code ?? linkLookup.get(c.link_id)?.short_code ?? "—",
       country: cc,
       flag: COUNTRIES[cc]?.flag ?? "🌐",
       countryName: COUNTRIES[cc]?.name ?? cc,
@@ -571,40 +560,32 @@ export async function loadLiveFeed({ supabase, userId }: AnalyticsContext) {
     };
   });
 
-  const countryMap = new Map<string, number>();
-  clicks.forEach((c) => {
-    const k = (c.country ?? "??").toUpperCase();
-    countryMap.set(k, (countryMap.get(k) ?? 0) + 1);
-  });
-  const totalForPct = Math.max(1, clicks.length);
-  const countries = [...countryMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 12)
-    .map(([code, count]) => ({
+  const totalForPct = Math.max(1, Number(summary.last24h ?? 0));
+  const countries = (summary.countries ?? []).map((c) => {
+    const code = (c.code ?? "??").toUpperCase();
+    const count = Number(c.count ?? 0);
+    return {
       code,
       flag: COUNTRIES[code]?.flag ?? "🌐",
       name: COUNTRIES[code]?.name ?? code,
       count,
       pct: Math.round((count / totalForPct) * 100),
-    }));
-
-  const cohortMap = new Map<string, { total: number; humans: number }>();
-  clicks.forEach((c) => {
-    const src = classifySrc(c.referer_host ?? null);
-    const cur = cohortMap.get(src) ?? { total: 0, humans: 0 };
-    cur.total++;
-    if (!c.is_bot) cur.humans++;
-    cohortMap.set(src, cur);
+    };
   });
-  const cohorts = [...cohortMap.entries()]
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 8)
-    .map(([source, v]) => ({
-      source,
-      total: v.total,
-      humans: v.humans,
-      humanRate: v.total ? Math.round((v.humans / v.total) * 100) : 0,
-    }));
 
-  return { cps5m: last5m, humans1h, bots1h, events, countries, cohorts };
+  const cohorts = (summary.cohorts ?? []).map((v) => ({
+    source: v.source,
+    total: Number(v.total ?? 0),
+    humans: Number(v.humans ?? 0),
+    humanRate: Number(v.total ?? 0) ? Math.round((Number(v.humans ?? 0) / Number(v.total ?? 0)) * 100) : 0,
+  }));
+
+  return {
+    cps5m: Number(summary.cps5m ?? 0),
+    humans1h: Number(summary.humans1h ?? 0),
+    bots1h: Number(summary.bots1h ?? 0),
+    events,
+    countries,
+    cohorts,
+  };
 }
