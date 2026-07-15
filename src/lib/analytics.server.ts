@@ -169,6 +169,8 @@ type LiveAnalyticsSummary = {
   cohorts?: Array<{ source: string; total: number; humans: number; bots?: number }>;
 };
 
+type LiveAnalyticsEvent = NonNullable<LiveAnalyticsSummary["events"]>[number];
+
 const LIVE_ANALYTICS_RPC = "get_live_analytics_summary";
 
 function isMissingLiveAnalyticsRpc(error: any) {
@@ -261,7 +263,7 @@ async function loadLiveAnalyticsFallback({ supabase, userId }: AnalyticsContext)
   if (eventsRes.error) throw new Error(eventsRes.error.message);
 
   const linkLookup = new Map(links.map((l) => [l.id, l]));
-  const events = ((eventsRes.data ?? []) as Array<LiveAnalyticsSummary["events"] extends Array<infer T> ? T : never>).map((event) => ({
+  const events = ((eventsRes.data ?? []) as LiveAnalyticsEvent[]).map((event) => ({
     ...event,
     short_code: linkLookup.get(event.link_id)?.short_code ?? null,
     title: linkLookup.get(event.link_id)?.title ?? null,
