@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 
-import { getDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
+import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
 
 import { getPrimaryShortenerDomain } from "@/lib/shortener-domains.functions";
 import { getClickResetNotice, dismissClickResetNotice } from "@/lib/click-reset.functions";
@@ -35,9 +35,21 @@ function fmtCompact(n: number) {
   return n.toLocaleString();
 }
 
+function formatRelativeTime(iso: string) {
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diffSec < 10) return "just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const m = Math.floor(diffSec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 function DashboardPage() {
   const qc = useQueryClient();
   const dash = useServerFn(getDashboardData);
+  const refreshDash = useServerFn(refreshDashboardData);
   const create = useServerFn(createLink);
   const remove = useServerFn(deleteLink);
   const toggle = useServerFn(toggleLink);
@@ -60,11 +72,21 @@ function DashboardPage() {
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => dash(),
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    refetchInterval: 60_000,
+    staleTime: Infinity,          // Hybrid: never auto-stale, cache-first from DB
+    gcTime: 30 * 60_000,
+    refetchInterval: false,       // No auto-refetch — user controls freshness
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchOnReconnect: false,
+  });
+
+  const refreshMut = useMutation({
+    mutationFn: () => refreshDash(),
+    onSuccess: (data) => {
+      qc.setQueryData(["dashboard"], data);
+      toast.success("Dashboard updated");
+    },
+    onError: (e: Error) => toast.error(e.message || "Refresh failed"),
   });
 
   const [adsterra, setAdsterra] = useState("");
@@ -80,17 +102,17 @@ function DashboardPage() {
     onSuccess: () => {
       toast.success("Link created");
       setAdsterra(""); setSafe(""); setTitle(""); setShowCreate(false);
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshMut.mutate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => remove({ data: { id } }),
-    onSuccess: () => { toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
+    onSuccess: () => { toast.success("Deleted"); refreshMut.mutate(); },
   });
   const togMut = useMutation({
     mutationFn: (v: { id: string; is_active: boolean }) => toggle({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+    onSuccess: () => refreshMut.mutate(),
   });
 
   const onSubmit = (e: FormEvent) => {
@@ -365,11 +387,25 @@ function DashboardPage() {
               <div className="p-5 flex justify-between items-center flex-wrap gap-3">
                 <div>
                   <h4 className="text-lg font-bold text-[#2D1B0D]" style={display}>Recent Campaigns</h4>
-                  <p className="text-[11px] text-[#A38D7D] mt-0.5">Showing {filtered.length} of {links.length}</p>
+                  <p className="text-[11px] text-[#A38D7D] mt-0.5">
+                    Showing {filtered.length} of {links.length}
+                    {(dashQ.data as any)?._cachedAt && (
+                      <span className="ml-2 text-[#A38D7D]/70">
+                        · Updated {formatRelativeTime((dashQ.data as any)._cachedAt)}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all"><Filter className="w-4 h-4" /></button>
-                  <button onClick={() => qc.invalidateQueries({ queryKey: ["dashboard"] })} className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all"><RefreshCw className="w-4 h-4" /></button>
+                  <button
+                    onClick={() => refreshMut.mutate()}
+                    disabled={refreshMut.isPending}
+                    title="Refresh dashboard (fetch latest data)"
+                    className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshMut.isPending ? "animate-spin" : ""}`} />
+                  </button>
                 </div>
               </div>
 

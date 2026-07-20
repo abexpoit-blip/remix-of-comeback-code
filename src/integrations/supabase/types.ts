@@ -505,6 +505,24 @@ export type Database = {
           },
         ]
       }
+      dashboard_cache: {
+        Row: {
+          data: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          data?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       domain_health_checks: {
         Row: {
           blacklist_sources: Json | null
