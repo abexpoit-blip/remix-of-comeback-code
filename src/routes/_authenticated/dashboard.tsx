@@ -91,17 +91,17 @@ function DashboardPage() {
     onSuccess: () => {
       toast.success("Link created");
       setAdsterra(""); setSafe(""); setTitle(""); setShowCreate(false);
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshMut.mutate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => remove({ data: { id } }),
-    onSuccess: () => { toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
+    onSuccess: () => { toast.success("Deleted"); refreshMut.mutate(); },
   });
   const togMut = useMutation({
     mutationFn: (v: { id: string; is_active: boolean }) => toggle({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+    onSuccess: () => refreshMut.mutate(),
   });
 
   const onSubmit = (e: FormEvent) => {
