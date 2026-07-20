@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 
-import { getDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
+import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
 
 import { getPrimaryShortenerDomain } from "@/lib/shortener-domains.functions";
 import { getClickResetNotice, dismissClickResetNotice } from "@/lib/click-reset.functions";
