@@ -38,6 +38,7 @@ function fmtCompact(n: number) {
 function DashboardPage() {
   const qc = useQueryClient();
   const dash = useServerFn(getDashboardData);
+  const refreshDash = useServerFn(refreshDashboardData);
   const create = useServerFn(createLink);
   const remove = useServerFn(deleteLink);
   const toggle = useServerFn(toggleLink);
