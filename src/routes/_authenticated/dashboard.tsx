@@ -61,11 +61,21 @@ function DashboardPage() {
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => dash(),
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    refetchInterval: 60_000,
+    staleTime: Infinity,          // Hybrid: never auto-stale, cache-first from DB
+    gcTime: 30 * 60_000,
+    refetchInterval: false,       // No auto-refetch — user controls freshness
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchOnReconnect: false,
+  });
+
+  const refreshMut = useMutation({
+    mutationFn: () => refreshDash(),
+    onSuccess: (data) => {
+      qc.setQueryData(["dashboard"], data);
+      toast.success("Dashboard updated");
+    },
+    onError: (e: Error) => toast.error(e.message || "Refresh failed"),
   });
 
   const [adsterra, setAdsterra] = useState("");
