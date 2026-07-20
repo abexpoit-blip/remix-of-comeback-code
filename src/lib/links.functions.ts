@@ -112,73 +112,127 @@ export const listMyLinks = createServerFn({ method: "GET" })
   });
 
 
+type DashboardPayload = {
+  links: any[];
+  customDomains: string[];
+  profile: any;
+  stats: {
+    clicksByDay: Record<string, number>;
+    countryStats: Record<string, number>;
+    mobilePct: number;
+    uniqueVisitors: number;
+    perLinkDaily: Record<string, number[]>;
+  };
+  _cachedAt?: string | null;
+  _fresh?: boolean;
+};
+
+async function computeDashboardPayload(context: Awaited<ReturnType<typeof getRequestAuth>>): Promise<DashboardPayload> {
+  const linksRes = await selectLinks(context.supabase);
+  const linkIds = (linksRes.data ?? []).map((l: any) => l.id);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [profileRes, statsRes, domainsRes, archivedRes] = await Promise.all([
+    context.supabase.from("profiles").select(
+      "id, email, full_name, plan_slug, link_limit, links_used, click_quota, clicks_used, ours_clicks, plan_expires_at, avatar_url, is_banned, clicks_period_start"
+    ).eq("id", context.userId).single(),
+    context.supabase.rpc("get_dashboard_stats" as never, { _user_id: context.userId } as never),
+    context.supabase.from("custom_domains").select("domain").eq("user_id", context.userId).eq("verified", true),
+    linkIds.length
+      ? context.supabase.from("daily_stats").select("day, human_clicks").in("link_id", linkIds).gte("day", thirtyDaysAgo)
+      : Promise.resolve({ data: [] as any[], error: null as any }),
+  ]);
+  if (linksRes.error) throw new Error(linksRes.error.message);
+  if (profileRes.error) throw new Error(profileRes.error.message);
+
+  const links = linksRes.data ?? [];
+  const customDomains = (domainsRes.data ?? []).map((d: any) => d.domain);
+
+  type DashStats = {
+    clicksByDay: Record<string, number>;
+    countryStats: Record<string, number>;
+    mobilePct: number;
+    uniqueVisitors: number;
+    perLinkDaily: Record<string, number[]>;
+  };
+  const stats = (statsRes.data as DashStats | null) ?? {
+    clicksByDay: {}, countryStats: {}, mobilePct: 0, uniqueVisitors: 0, perLinkDaily: {},
+  };
+
+  const perLinkDaily: Record<string, number[]> = {};
+  for (const l of links) {
+    const arr = stats.perLinkDaily?.[l.id];
+    perLinkDaily[l.id] = Array.isArray(arr) && arr.length === 7
+      ? arr.map(Number) : new Array(7).fill(0);
+  }
+
+  const clicksByDay: Record<string, number> = {};
+  (archivedRes.data ?? []).forEach((row: any) => {
+    const k = row.day;
+    clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(row.human_clicks ?? 0);
+  });
+
+  for (let i = 29; i >= 0; i--) {
+    const k = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(stats.clicksByDay?.[k] ?? 0);
+  }
+
+  return {
+    links,
+    customDomains,
+    profile: profileRes.data,
+    stats: {
+      clicksByDay,
+      countryStats: stats.countryStats ?? {},
+      mobilePct: Number(stats.mobilePct ?? 0),
+      uniqueVisitors: Number(stats.uniqueVisitors ?? 0),
+      perLinkDaily,
+    },
+  };
+}
+
+async function saveDashboardCache(userId: string, payload: DashboardPayload) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // strip meta fields before persisting
+    const { _cachedAt, _fresh, ...cacheable } = payload;
+    await supabaseAdmin
+      .from("dashboard_cache" as never)
+      .upsert({ user_id: userId, data: cacheable as never, updated_at: new Date().toISOString() } as never);
+  } catch (e) {
+    console.error("[dashboard-cache] save failed", e);
+  }
+}
+
 export const getDashboardData = createServerFn({ method: "GET" })
   .handler(async () => {
     const context = await getRequestAuth();
-    // M1/M2 fix: fetch links once, then use linksRes.data for daily_stats; cap window to 30 days
-    const linksRes = await selectLinks(context.supabase);
-    const linkIds = (linksRes.data ?? []).map((l: any) => l.id);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    const [profileRes, statsRes, domainsRes, archivedRes] = await Promise.all([
-      // M8 fix: explicit column list — never SELECT * on profiles for client payloads
-      context.supabase.from("profiles").select(
-        "id, email, full_name, plan_slug, link_limit, links_used, click_quota, clicks_used, ours_clicks, plan_expires_at, avatar_url, is_banned, clicks_period_start"
-      ).eq("id", context.userId).single(),
-      context.supabase.rpc("get_dashboard_stats" as never, { _user_id: context.userId } as never),
-      context.supabase.from("custom_domains").select("domain").eq("user_id", context.userId).eq("verified", true),
-      linkIds.length
-        ? context.supabase.from("daily_stats").select("day, human_clicks").in("link_id", linkIds).gte("day", thirtyDaysAgo)
-        : Promise.resolve({ data: [] as any[], error: null as any }),
-    ]);
-    if (linksRes.error) throw new Error(linksRes.error.message);
-    if (profileRes.error) throw new Error(profileRes.error.message);
 
-    const links = linksRes.data ?? [];
-    const customDomains = (domainsRes.data ?? []).map((d: any) => d.domain);
+    // 1) Try cache first — instant load, zero DB pressure on heavy RPC
+    const cacheRes = await context.supabase
+      .from("dashboard_cache" as never)
+      .select("data, updated_at")
+      .eq("user_id", context.userId)
+      .maybeSingle();
 
-    type DashStats = {
-      clicksByDay: Record<string, number>;
-      countryStats: Record<string, number>;
-      mobilePct: number;
-      uniqueVisitors: number;
-      perLinkDaily: Record<string, number[]>;
-    };
-    const stats = (statsRes.data as DashStats | null) ?? {
-      clicksByDay: {}, countryStats: {}, mobilePct: 0, uniqueVisitors: 0, perLinkDaily: {},
-    };
-
-    const perLinkDaily: Record<string, number[]> = {};
-    for (const l of links) {
-      const arr = stats.perLinkDaily?.[l.id];
-      perLinkDaily[l.id] = Array.isArray(arr) && arr.length === 7
-        ? arr.map(Number) : new Array(7).fill(0);
+    const cached = cacheRes.data as { data: DashboardPayload; updated_at: string } | null;
+    if (cached?.data) {
+      return { ...cached.data, _cachedAt: cached.updated_at, _fresh: false } satisfies DashboardPayload;
     }
 
-    const clicksByDay: Record<string, number> = {};
-    // Merge archived daily stats with live stats
-    (archivedRes.data ?? []).forEach((row: any) => {
-      const k = row.day;
-      clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(row.human_clicks ?? 0);
-    });
-
-    for (let i = 29; i >= 0; i--) {
-      const k = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-      clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(stats.clicksByDay?.[k] ?? 0);
-    }
-
-    return {
-      links,
-      customDomains,
-      profile: profileRes.data,
-      stats: {
-        clicksByDay,
-        countryStats: stats.countryStats ?? {},
-        mobilePct: Number(stats.mobilePct ?? 0),
-        uniqueVisitors: Number(stats.uniqueVisitors ?? 0),
-        perLinkDaily,
-      },
-    };
+    // 2) No cache yet → compute + save so next visit is instant
+    const fresh = await computeDashboardPayload(context);
+    await saveDashboardCache(context.userId, fresh);
+    return { ...fresh, _cachedAt: new Date().toISOString(), _fresh: true } satisfies DashboardPayload;
   });
+
+export const refreshDashboardData = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const context = await getRequestAuth();
+    const fresh = await computeDashboardPayload(context);
+    await saveDashboardCache(context.userId, fresh);
+    return { ...fresh, _cachedAt: new Date().toISOString(), _fresh: true } satisfies DashboardPayload;
+  });
+
 
 export const createLink = createServerFn({ method: "POST" })
   .inputValidator((d) =>
