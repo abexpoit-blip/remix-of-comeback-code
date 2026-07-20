@@ -376,11 +376,25 @@ function DashboardPage() {
               <div className="p-5 flex justify-between items-center flex-wrap gap-3">
                 <div>
                   <h4 className="text-lg font-bold text-[#2D1B0D]" style={display}>Recent Campaigns</h4>
-                  <p className="text-[11px] text-[#A38D7D] mt-0.5">Showing {filtered.length} of {links.length}</p>
+                  <p className="text-[11px] text-[#A38D7D] mt-0.5">
+                    Showing {filtered.length} of {links.length}
+                    {(dashQ.data as any)?._cachedAt && (
+                      <span className="ml-2 text-[#A38D7D]/70">
+                        · Updated {formatRelativeTime((dashQ.data as any)._cachedAt)}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all"><Filter className="w-4 h-4" /></button>
-                  <button onClick={() => qc.invalidateQueries({ queryKey: ["dashboard"] })} className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all"><RefreshCw className="w-4 h-4" /></button>
+                  <button
+                    onClick={() => refreshMut.mutate()}
+                    disabled={refreshMut.isPending}
+                    title="Refresh dashboard (fetch latest data)"
+                    className="w-9 h-9 rounded-lg border border-[#FFEDD5] text-[#A38D7D] hover:text-[#FF7E5F] hover:border-[#FF7E5F]/40 flex items-center justify-center transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshMut.isPending ? "animate-spin" : ""}`} />
+                  </button>
                 </div>
               </div>
 
