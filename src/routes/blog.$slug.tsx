@@ -3,6 +3,7 @@ import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
 import { getArticle, getProduct, SITE, type Article, type Product } from "@/lib/breezy-data";
 import { ARTICLE_BODIES, BLOG_IMAGES } from "@/lib/breezy-content";
+import { buildOg } from "@/lib/og-meta";
 
 export const Route = createFileRoute("/blog/$slug")({
   loader: ({ params }) => {
@@ -14,22 +15,25 @@ export const Route = createFileRoute("/blog/$slug")({
     const a = loaderData?.article;
     if (!a) return { meta: [{ title: "Article not found — BreezySocial" }] };
     const imgUrl = BLOG_IMAGES[a.slug] ? `https://breezysocial.com${BLOG_IMAGES[a.slug]}` : undefined;
+    const { meta, links } = buildOg({
+      path: `/blog/${params.slug}`,
+      title: `${a.title} — ${SITE.name} Journal`,
+      description: a.excerpt,
+      image: imgUrl,
+      imageAlt: `${a.title} — illustration`,
+      type: "article",
+      updatedTime: a.date,
+      article: {
+        author: a.author,
+        publishedTime: a.date,
+        modifiedTime: a.date,
+        section: "Wellness & Sleep",
+        tags: ["sleep", "wellness", "gadgets", "focus"],
+      },
+    });
     return {
-      meta: [
-        { title: `${a.title} — BreezySocial` },
-        { name: "description", content: a.excerpt },
-        { property: "og:title", content: a.title },
-        { property: "og:description", content: a.excerpt },
-        { property: "og:type", content: "article" },
-        { property: "og:url", content: `https://breezysocial.com/blog/${params.slug}` },
-        ...(imgUrl ? [{ property: "og:image", content: imgUrl }, { name: "twitter:image", content: imgUrl }] : []),
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: a.title },
-        { name: "twitter:description", content: a.excerpt },
-        { property: "article:author", content: a.author },
-        { property: "article:published_time", content: a.date },
-      ],
-      links: [{ rel: "canonical", href: `https://breezysocial.com/blog/${params.slug}` }],
+      meta,
+      links,
       scripts: [
         {
           type: "application/ld+json",
@@ -40,8 +44,14 @@ export const Route = createFileRoute("/blog/$slug")({
             description: a.excerpt,
             image: imgUrl,
             author: { "@type": "Person", name: a.author, jobTitle: a.authorRole },
-            publisher: { "@type": "Organization", name: SITE.name, url: "https://breezysocial.com" },
+            publisher: {
+              "@type": "Organization",
+              name: SITE.name,
+              url: "https://breezysocial.com",
+              logo: { "@type": "ImageObject", url: "https://breezysocial.com/og-default.png" },
+            },
             datePublished: a.date,
+            dateModified: a.date,
             mainEntityOfPage: `https://breezysocial.com/blog/${params.slug}`,
           }),
         },
