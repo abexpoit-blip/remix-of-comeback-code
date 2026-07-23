@@ -1,17 +1,20 @@
 /**
- * Facebook / Meta Link Debugger–compliant Open Graph metadata builder.
- * Guarantees every safe page / article ships the full set of tags the
- * FB Sharing Debugger validates: og:site_name, og:locale, og:image:*
- * (width/height/alt/type), twitter:card, canonical, and article/product
- * extensions when applicable.
+ * Host-agnostic Open Graph / Meta metadata builder.
  *
- * All URLs must be absolute for FB/Meta crawlers.
+ * Design goal — no cross-domain fingerprint. The safe pages / articles
+ * must NEVER hard-code a specific brand domain in canonical, og:url,
+ * og:image, or JSON-LD. Every URL self-references the origin the current
+ * request was actually served from (tekuc.com, breezysocial.com, or any
+ * future safe-content host), so Facebook / Meta / Google can't correlate
+ * the shortener with the safe-content brand through the returned tags.
+ *
+ * Callers must resolve the origin in the route loader
+ * (via `getRequestOrigin` from "@/lib/request-origin.functions") and
+ * pass it into `buildOg({ origin, ... })`.
  */
 
-export const SITE_ORIGIN = "https://breezysocial.com";
-export const SITE_NAME = "BreezySocial";
 export const OG_LOCALE = "en_US";
-export const OG_DEFAULT_IMAGE = `${SITE_ORIGIN}/og-default.png`;
+export const OG_DEFAULT_IMAGE_PATH = "/og-default.png";
 export const OG_DEFAULT_IMAGE_W = 1024;
 export const OG_DEFAULT_IMAGE_H = 1024;
 
@@ -25,19 +28,22 @@ export type MetaTag =
 export type LinkTag = { rel: string; href: string; [k: string]: any };
 
 export type BuildOgOptions = {
-  /** Absolute or root-relative path (e.g. "/about" or full URL). */
+  /** Absolute serving origin, e.g. "https://tekuc.com". REQUIRED to avoid host leaks. */
+  origin: string;
+  /** Root-relative path, e.g. "/blog/foo". */
   path: string;
   title: string;
   description: string;
-  /** Absolute image URL. Falls back to OG_DEFAULT_IMAGE. */
+  /** Root-relative image path (preferred) OR absolute URL. */
   image?: string;
   imageWidth?: number;
   imageHeight?: number;
   imageAlt?: string;
-  /** og:type — "website" | "article" | "product" | "profile". */
+  /** og:site_name — brand name for this host. Defaults to the host label. */
+  siteName?: string;
+  /** og:type. */
   type?: "website" | "article" | "product" | "profile";
   updatedTime?: string;
-  /** article extensions */
   article?: {
     author?: string;
     publishedTime?: string;
@@ -45,7 +51,6 @@ export type BuildOgOptions = {
     section?: string;
     tags?: string[];
   };
-  /** product extensions */
   product?: {
     price?: number | string;
     currency?: string;
@@ -55,19 +60,31 @@ export type BuildOgOptions = {
   };
 };
 
-function toAbsolute(path: string): string {
-  if (!path) return SITE_ORIGIN;
-  if (/^https?:\/\//i.test(path)) return path;
-  return `${SITE_ORIGIN}${path.startsWith("/") ? "" : "/"}${path}`;
+function stripTrailingSlash(u: string): string {
+  return u.endsWith("/") ? u.slice(0, -1) : u;
 }
 
-/**
- * Returns the full FB-Debugger-compliant meta array + canonical link.
- * Merge/spread the returned arrays into your route's head() output.
- */
+/** Resolve any URL/path against `origin`. Absolute inputs are returned as-is. */
+export function absoluteUrl(origin: string, pathOrUrl: string): string {
+  if (!pathOrUrl) return stripTrailingSlash(origin);
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const o = stripTrailingSlash(origin);
+  return `${o}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+}
+
+/** Derive a friendly site name from an origin ("https://tekuc.com" → "tekuc.com"). */
+export function hostLabel(origin: string): string {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return origin.replace(/^https?:\/\//, "");
+  }
+}
+
 export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag[] } {
-  const url = toAbsolute(opts.path);
-  const image = opts.image ?? OG_DEFAULT_IMAGE;
+  const origin = stripTrailingSlash(opts.origin);
+  const url = absoluteUrl(origin, opts.path);
+  const image = absoluteUrl(origin, opts.image ?? OG_DEFAULT_IMAGE_PATH);
   const imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
   const imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
   const imgAlt = opts.imageAlt ?? opts.title;
@@ -76,15 +93,14 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     : image.endsWith(".webp") ? "image/webp" : "image/png";
   const type = opts.type ?? "website";
   const updated = opts.updatedTime ?? new Date().toISOString();
+  const siteName = opts.siteName ?? hostLabel(origin);
 
   const meta: MetaTag[] = [
-    // Base SEO
     { title: opts.title },
     { name: "description", content: opts.description },
     { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
 
-    // Open Graph (Facebook / Meta)
-    { property: "og:site_name", content: SITE_NAME },
+    { property: "og:site_name", content: siteName },
     { property: "og:locale", content: OG_LOCALE },
     { property: "og:type", content: type },
     { property: "og:title", content: opts.title },
@@ -92,7 +108,6 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     { property: "og:url", content: url },
     { property: "og:updated_time", content: updated },
 
-    // Image (all four sub-tags required by FB Sharing Debugger)
     { property: "og:image", content: image },
     { property: "og:image:secure_url", content: image },
     { property: "og:image:type", content: imgType },
@@ -100,7 +115,6 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     { property: "og:image:height", content: String(imgH) },
     { property: "og:image:alt", content: imgAlt },
 
-    // Twitter / X card
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: opts.title },
     { name: "twitter:description", content: opts.description },
@@ -124,7 +138,6 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     if (opts.product.availability) meta.push({ property: "product:availability", content: opts.product.availability });
     if (opts.product.brand) meta.push({ property: "product:brand", content: opts.product.brand });
     if (opts.product.condition) meta.push({ property: "product:condition", content: opts.product.condition });
-    // og:price alias — some crawlers still key off this
     if (opts.product.price != null) meta.push({ property: "og:price:amount", content: String(opts.product.price) });
     if (opts.product.currency) meta.push({ property: "og:price:currency", content: opts.product.currency });
   }

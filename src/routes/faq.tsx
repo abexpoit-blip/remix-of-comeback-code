@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { buildOg } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/faq")({
-  head: () => {
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://tekuc.com";
     const { meta, links } = buildOg({
+      origin,
       path: "/faq",
       title: "FAQ — BreezySocial Help Center",
       description: "Shipping times, returns, warranty coverage, product care, and account help — every common BreezySocial question answered in one place.",

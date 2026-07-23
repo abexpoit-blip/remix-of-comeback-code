@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
-import { buildOg } from "@/lib/og-meta";
+import { buildOg, absoluteUrl } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/about")({
-  head: () => {
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://tekuc.com";
     const { meta, links } = buildOg({
+      origin,
       path: "/about",
       title: `About — ${SITE.name}`,
       description: `Founded in San Francisco in ${SITE.founded}, ${SITE.name} designs smart gadgets for calm, modern living. Meet our team and our mission.`,
@@ -22,15 +26,15 @@ export const Route = createFileRoute("/about")({
             "@context": "https://schema.org",
             "@type": "AboutPage",
             name: `About — ${SITE.name}`,
-            url: "https://breezysocial.com/about",
+            url: absoluteUrl(origin, "/about"),
             mainEntity: {
               "@type": "Organization",
               name: SITE.name,
               foundingDate: String(SITE.founded),
               email: SITE.email,
               address: SITE.address,
-              url: "https://breezysocial.com",
-              logo: "https://breezysocial.com/og-default.png",
+              url: absoluteUrl(origin, "/"),
+              logo: absoluteUrl(origin, "/og-default.png"),
             },
           }),
         },

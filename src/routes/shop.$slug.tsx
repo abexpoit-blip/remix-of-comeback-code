@@ -6,21 +6,24 @@ import { getProduct, PRODUCTS, SITE, type Product } from "@/lib/breezy-data";
 import { PRODUCT_IMAGES } from "@/lib/breezy-content";
 import { getReviews } from "@/lib/breezy-reviews";
 import { useCart } from "@/lib/cart-context";
-import { buildOg } from "@/lib/og-meta";
+import { buildOg, absoluteUrl } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/shop/$slug")({
-  loader: ({ params }) => {
+  loader: async ({ params }) => {
     const product = getProduct(params.slug);
     if (!product) throw notFound();
-    return { product };
+    const { origin } = await getRequestOrigin();
+    return { product, origin };
   },
   head: ({ loaderData, params }) => {
     const p = loaderData?.product;
-    if (!p) return { meta: [{ title: "Product not found — BreezySocial" }] };
-    const imgUrl = PRODUCT_IMAGES[p.slug]
-      ? `https://breezysocial.com${PRODUCT_IMAGES[p.slug]}`
-      : undefined;
+    const origin = loaderData?.origin ?? "https://tekuc.com";
+    if (!p) return { meta: [{ title: "Product not found" }] };
+    const imgPath = PRODUCT_IMAGES[p.slug];
+    const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;
     const { meta, links } = buildOg({
+      origin,
       path: `/shop/${params.slug}`,
       title: `${p.name} — $${p.price} · ${SITE.name}`,
       description: p.shortDesc,
@@ -54,7 +57,7 @@ export const Route = createFileRoute("/shop/$slug")({
               price: p.price,
               priceCurrency: "USD",
               availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-              url: `https://breezysocial.com/shop/${params.slug}`,
+              url: absoluteUrl(origin, `/shop/${params.slug}`),
               itemCondition: "https://schema.org/NewCondition",
             },
             aggregateRating: {
