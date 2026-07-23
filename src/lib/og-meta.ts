@@ -116,7 +116,6 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     : image.endsWith(".webp") ? "image/webp" : "image/png";
   const type = opts.type ?? "website";
   const updated = opts.updatedTime ?? new Date().toISOString();
-  const siteName = opts.siteName ?? hostLabel(origin);
 
   const meta: MetaTag[] = [
     { title: opts.title },
