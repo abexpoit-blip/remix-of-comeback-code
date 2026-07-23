@@ -162,7 +162,7 @@ export const Route = createFileRoute("/api/public/og-image.png")({
           }
         }
 
-        return new Response(png, {
+        return new Response(new Uint8Array(png), {
           status: 200,
           headers: {
             "content-type": "image/png",
