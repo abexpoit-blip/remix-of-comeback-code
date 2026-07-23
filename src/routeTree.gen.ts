@@ -43,6 +43,7 @@ import { Route as AuthenticatedDomainsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedControlPanelRouteImport } from './routes/_authenticated/control-panel'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
 import { Route as ApiPublicPreviewPrelandingCodeRouteImport } from './routes/api/public/preview-prelanding.$code'
 import { Route as ApiPublicHooksDomainHealthScanRouteImport } from './routes/api/public/hooks/domain-health-scan'
@@ -219,6 +220,12 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicSafePoolRefreshRoute =
+  ApiPublicSafePoolRefreshRouteImport.update({
+    id: '/api/public/safe-pool-refresh',
+    path: '/api/public/safe-pool-refresh',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPlisioWebhookRoute = ApiPublicPlisioWebhookRouteImport.update({
   id: '/api/public/plisio-webhook',
   path: '/api/public/plisio-webhook',
@@ -272,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -309,6 +317,7 @@ export interface FileRoutesByTo {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog': typeof BlogIndexRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -349,6 +358,7 @@ export interface FileRoutesById {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog/'
     | '/api/public/plisio-webhook'
+    | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/preview-prelanding/$code'
   fileRoutesByTo: FileRoutesByTo
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog'
     | '/api/public/plisio-webhook'
+    | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/preview-prelanding/$code'
   id:
@@ -465,6 +477,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog/'
     | '/api/public/plisio-webhook'
+    | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/preview-prelanding/$code'
   fileRoutesById: FileRoutesById
@@ -492,6 +505,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   RCodeRoute: typeof RCodeRoute
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
+  ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
   ApiPublicPreviewPrelandingCodeRoute: typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -736,6 +750,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/safe-pool-refresh': {
+      id: '/api/public/safe-pool-refresh'
+      path: '/api/public/safe-pool-refresh'
+      fullPath: '/api/public/safe-pool-refresh'
+      preLoaderRoute: typeof ApiPublicSafePoolRefreshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/plisio-webhook': {
       id: '/api/public/plisio-webhook'
       path: '/api/public/plisio-webhook'
@@ -835,6 +856,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   RCodeRoute: RCodeRoute,
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
+  ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,
   ApiPublicPreviewPrelandingCodeRoute: ApiPublicPreviewPrelandingCodeRoute,
 }
