@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback } from "react";
 export const SHORT_DOMAINS = [
   { host: "tekuc.com", label: "tekuc.com" },
   { host: "breezysocial.com", label: "breezysocial.com" },
-  { host: "sleepox.com", label: "sleepox.com" },
 ] as const;
 
 export type ShortDomainHost = (typeof SHORT_DOMAINS)[number]["host"];
