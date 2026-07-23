@@ -305,6 +305,9 @@ function AuthenticatedLayout() {
         <ImpersonationBanner />
         <Outlet />
       </main>
+
+      {/* Login-time notice popup (premium modal, once per session) */}
+      <BroadcastLoginPopup />
     </div>
   );
 }
