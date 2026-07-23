@@ -124,6 +124,30 @@ export function maybeRunHealthCheck(): void {
     });
 }
 
+/**
+ * Force a full-pool re-check RIGHT NOW, bypassing the throttle interval.
+ * Awaitable — use from an admin trigger route.
+ */
+export async function forceHealthCheck(): Promise<Array<{ url: string; healthy: boolean; status: number | null }>> {
+  // Clear all prior unhealthy marks so a recovered URL gets a clean slate.
+  health.clear();
+  if (inflightCheck) await inflightCheck;
+  lastFullCheckAt = Date.now();
+  const p = Promise.allSettled(SAFE_PAGE_POOL.map(headCheck)).then(() => undefined);
+  inflightCheck = p.finally(() => { inflightCheck = null; });
+  await p;
+  const now = Date.now();
+  return SAFE_PAGE_POOL.map((url) => {
+    const h = health.get(url);
+    return {
+      url,
+      healthy: !h || h.unhealthyUntil <= now,
+      status: h?.lastStatus ?? null,
+    };
+  });
+}
+
+
 export type SafePagePick = {
   url: string;
   index: number;

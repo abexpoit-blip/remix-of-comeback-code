@@ -990,30 +990,49 @@ async function getProfileQuota(userId: string): Promise<{ click_quota: number | 
       cacheSet(profileQuotaCache, userId, l2, PROFILE_L1_TTL_MS);
       return l2;
     }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 900);
-    try {
-      const query = supabaseAdmin
-        .from("profiles")
-        .select("click_quota, clicks_used")
-        .eq("id", userId)
-        .maybeSingle();
-      const { data, error } = await (query as any).abortSignal(ctrl.signal);
-      if (error) throw error;
-      cacheSet(profileQuotaCache, userId, data ?? null, PROFILE_L1_TTL_MS);
-      redisSetAsync(L2_PROFILE_PREFIX + userId, data ?? null, PROFILE_CACHE_TTL_MS);
-      return data ?? null;
-    } catch (error) {
-      console.error("redirect profile lookup failed", {
-        userId,
-        message: (error as Error)?.message || String(error),
-      });
-      // STALE-ON-ERROR: prefer expired profile data over redirect failure.
-      return cacheGetStale(profileQuotaCache, userId);
-    } finally {
-      clearTimeout(timer);
+
+    // Attempt PostgREST lookup with retry on transient schema-cache / connection-pool errors.
+    // Schema cache reload (PostgREST) briefly returns "Could not query the database for the
+    // schema cache. Retrying." — bumping timeout + one linear retry absorbs that window
+    // without dropping the redirect to STALE.
+    const MAX_ATTEMPTS = 2;
+    const TIMEOUT_MS = 2500;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const query = supabaseAdmin
+          .from("profiles")
+          .select("click_quota, clicks_used")
+          .eq("id", userId)
+          .maybeSingle();
+        const { data, error } = await (query as any).abortSignal(ctrl.signal);
+        if (error) throw error;
+        cacheSet(profileQuotaCache, userId, data ?? null, PROFILE_L1_TTL_MS);
+        redisSetAsync(L2_PROFILE_PREFIX + userId, data ?? null, PROFILE_CACHE_TTL_MS);
+        return data ?? null;
+      } catch (error) {
+        lastErr = error;
+        const msg = (error as Error)?.message || String(error);
+        const retriable =
+          attempt < MAX_ATTEMPTS &&
+          /schema cache|abort|timeout|ECONN|EAI_AGAIN|connection pool|upstream|502|503|504/i.test(msg);
+        if (!retriable) break;
+        // 250ms backoff — long enough for PostgREST schema reload to settle.
+        await new Promise((r) => setTimeout(r, 250));
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    console.error("redirect profile lookup failed", {
+      userId,
+      message: (lastErr as Error)?.message || String(lastErr),
+    });
+    // STALE-ON-ERROR: prefer expired profile data over redirect failure.
+    return cacheGetStale(profileQuotaCache, userId);
   })();
+
 
   profileInflight.set(userId, promise);
   try { return await promise; } finally { profileInflight.delete(userId); }
