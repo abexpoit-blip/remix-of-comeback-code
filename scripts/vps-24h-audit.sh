@@ -3,7 +3,54 @@
 set +e
 cd /opt/sleepox-app-new 2>/dev/null || true
 
-PSQL="docker exec -i supabase-db psql -U postgres -d postgres -A -F$'\t' -P pager=off"
+DB_CONTAINER="${DB_CONTAINER:-$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)}"
+
+if [ -n "$DB_CONTAINER" ]; then
+  PSQL="docker exec -i $DB_CONTAINER psql -U postgres -d postgres -A -F$'\t' -P pager=off"
+else
+  PSQL=""
+fi
+
+if [ -z "$PSQL" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  URL="${SUPABASE_URL:-${VITE_SUPABASE_URL:-}}"
+  KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+
+  if [ -z "$URL" ] || [ -z "$KEY" ]; then
+    echo "❌ Database container and REST credentials are both unavailable."
+    exit 1
+  fi
+
+  rpc() {
+    local function_name="$1"
+    local body="${2:-{}}"
+    curl --silent --show-error --fail-with-body \
+      "$URL/rest/v1/rpc/$function_name" \
+      -H "apikey: $KEY" \
+      -H "Authorization: Bearer $KEY" \
+      -H "Content-Type: application/json" \
+      --data-raw "$body"
+    echo
+  }
+
+  echo "════════════════════════════════════════════════════════"
+  echo "REST FALLBACK — FAST 24H TRAFFIC AUDIT"
+  echo "════════════════════════════════════════════════════════"
+  echo "=== last-hour click stats ==="
+  rpc get_last_hour_click_stats '{}'
+  echo "=== admin overview (exact 24h) ==="
+  rpc get_admin_overview_stats '{}'
+  echo "=== bot reasons 24h ==="
+  rpc admin_bot_reasons '{"_hours":24,"_limit":15}'
+  echo "=== fb blocked 24h ==="
+  rpc admin_fb_blocked_count '{"_hours":24}'
+  echo "=== top countries 24h ==="
+  rpc admin_top_countries '{"_days":1,"_limit":10}'
+  exit 0
+fi
 
 echo "════════════════════════════════════════════════════════"
 echo "1) LAST 24H TRAFFIC OVERVIEW"
