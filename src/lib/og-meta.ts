@@ -103,8 +103,6 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
   if (opts.image) {
     image = absoluteUrl(origin, opts.image);
   } else {
-    // Lazy import to keep this module free of route-time deps.
-    const { buildOgImageUrl } = require("./og-image-url") as typeof import("./og-image-url");
     image = buildOgImageUrl(origin, {
       title: opts.title,
       brand: siteName,
