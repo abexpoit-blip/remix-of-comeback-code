@@ -8,6 +8,7 @@ import { consumeDailyRedirect } from "@/lib/app-settings.functions";
 import { BrandLogo } from "@/components/brand-logo";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { BroadcastBell } from "@/components/broadcast-bell";
+import { BroadcastLoginPopup } from "@/components/broadcast-login-popup";
 
 export const Route = createFileRoute("/_authenticated")({
   head: () => ({
