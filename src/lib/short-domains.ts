@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 
 export const SHORT_DOMAINS = [
+  { host: "tekuc.com", label: "tekuc.com" },
   { host: "breezysocial.com", label: "breezysocial.com" },
   { host: "sleepox.com", label: "sleepox.com" },
 ] as const;
@@ -8,7 +9,7 @@ export const SHORT_DOMAINS = [
 export type ShortDomainHost = (typeof SHORT_DOMAINS)[number]["host"];
 
 const STORAGE_KEY = "sleepox.shortDomain";
-const DEFAULT_HOST: ShortDomainHost = "breezysocial.com";
+const DEFAULT_HOST: ShortDomainHost = "tekuc.com";
 
 function isValidHost(h: string | null): h is ShortDomainHost {
   return !!h && SHORT_DOMAINS.some((d) => d.host === h);
