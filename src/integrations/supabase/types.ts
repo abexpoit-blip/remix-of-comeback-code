@@ -685,6 +685,24 @@ export type Database = {
           },
         ]
       }
+      hourly_stats_cache: {
+        Row: {
+          id: boolean
+          stats: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          stats?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          stats?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       links: {
         Row: {
           adsterra_direct_link: string | null
@@ -1299,6 +1317,7 @@ export type Database = {
         Args: { _limit?: number }
         Returns: Json
       }
+      refresh_hourly_stats_cache: { Args: never; Returns: undefined }
       reset_all_clicks: { Args: never; Returns: Json }
       restore_paid_quota_from_reset_snapshot: {
         Args: { _reset_id?: string }
