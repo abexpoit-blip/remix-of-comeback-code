@@ -172,7 +172,7 @@ export function BroadcastLoginPopup() {
           </h2>
 
           <div className="text-[15px] leading-relaxed text-[#5A554C] max-h-[38vh] overflow-y-auto pr-1">
-            <BroadcastMarkdown text={current.body} />
+            <BroadcastMarkdown>{current.body}</BroadcastMarkdown>
           </div>
         </div>
 
