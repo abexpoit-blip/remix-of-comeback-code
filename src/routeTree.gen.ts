@@ -45,7 +45,6 @@ import { Route as AuthenticatedControlPanelRouteImport } from './routes/_authent
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
-import { Route as ApiPublicOgImageDotpngRouteImport } from './routes/api/public/og-image[.]png'
 import { Route as ApiPublicPreviewPrelandingCodeRouteImport } from './routes/api/public/preview-prelanding.$code'
 import { Route as ApiPublicHooksDomainHealthScanRouteImport } from './routes/api/public/hooks/domain-health-scan'
 
@@ -232,11 +231,6 @@ const ApiPublicPlisioWebhookRoute = ApiPublicPlisioWebhookRouteImport.update({
   path: '/api/public/plisio-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicOgImageDotpngRoute = ApiPublicOgImageDotpngRouteImport.update({
-  id: '/api/public/og-image.png',
-  path: '/api/public/og-image.png',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicPreviewPrelandingCodeRoute =
   ApiPublicPreviewPrelandingCodeRouteImport.update({
     id: '/api/public/preview-prelanding/$code',
@@ -284,7 +278,6 @@ export interface FileRoutesByFullPath {
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
-  '/api/public/og-image.png': typeof ApiPublicOgImageDotpngRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -323,7 +316,6 @@ export interface FileRoutesByTo {
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog': typeof BlogIndexRoute
-  '/api/public/og-image.png': typeof ApiPublicOgImageDotpngRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -365,7 +357,6 @@ export interface FileRoutesById {
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
-  '/api/public/og-image.png': typeof ApiPublicOgImageDotpngRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -407,7 +398,6 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/shop/$slug'
     | '/blog/'
-    | '/api/public/og-image.png'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
@@ -446,7 +436,6 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/shop/$slug'
     | '/blog'
-    | '/api/public/og-image.png'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
@@ -487,7 +476,6 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/shop/$slug'
     | '/blog/'
-    | '/api/public/og-image.png'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
@@ -516,7 +504,6 @@ export interface RootRouteChildren {
   SxVault9k2m7xRoute: typeof SxVault9k2m7xRoute
   TermsRoute: typeof TermsRoute
   RCodeRoute: typeof RCodeRoute
-  ApiPublicOgImageDotpngRoute: typeof ApiPublicOgImageDotpngRoute
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
@@ -777,13 +764,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPlisioWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/og-image.png': {
-      id: '/api/public/og-image.png'
-      path: '/api/public/og-image.png'
-      fullPath: '/api/public/og-image.png'
-      preLoaderRoute: typeof ApiPublicOgImageDotpngRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/preview-prelanding/$code': {
       id: '/api/public/preview-prelanding/$code'
       path: '/api/public/preview-prelanding/$code'
@@ -875,7 +855,6 @@ const rootRouteChildren: RootRouteChildren = {
   SxVault9k2m7xRoute: SxVault9k2m7xRoute,
   TermsRoute: TermsRoute,
   RCodeRoute: RCodeRoute,
-  ApiPublicOgImageDotpngRoute: ApiPublicOgImageDotpngRoute,
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,
