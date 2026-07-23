@@ -1,23 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
+import { buildOg } from "@/lib/og-meta";
 
 export const Route = createFileRoute("/size-guide")({
-  head: () => ({
-    meta: [
-      { title: "Size Guide — BreezySocial" },
-      { name: "description", content: "Find your perfect fit. Sizing charts for our headphones, glasses, posture corrector, and travel gear." },
-      { property: "og:title", content: "Size Guide — BreezySocial" },
-      { property: "og:description", content: "Fit guides for all BreezySocial wearable gear." },
-      { property: "og:url", content: "https://breezysocial.com/size-guide" },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Size Guide — BreezySocial" },
-      { name: "twitter:description", content: "Fit guides for all BreezySocial wearable gear." },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/size-guide" }],
-  }),
+  head: () => {
+    const { meta, links } = buildOg({
+      path: "/size-guide",
+      title: "Size Guide — BreezySocial Wearables",
+      description: "Find your perfect fit. Detailed sizing charts and measurement tips for BreezySocial headphones, blue-light glasses, posture corrector, and travel gear.",
+      imageAlt: "BreezySocial wearable gear size guide",
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: SizeGuidePage,
 });
 
