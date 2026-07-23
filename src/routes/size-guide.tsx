@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { buildOg } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/size-guide")({
-  head: () => {
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://tekuc.com";
     const { meta, links } = buildOg({
+      origin,
       path: "/size-guide",
       title: "Size Guide — BreezySocial Wearables",
       description: "Find your perfect fit. Detailed sizing charts and measurement tips for BreezySocial headphones, blue-light glasses, posture corrector, and travel gear.",
