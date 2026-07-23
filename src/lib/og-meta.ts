@@ -90,9 +90,26 @@ export function hostLabel(origin: string): string {
 export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag[] } {
   const origin = stripTrailingSlash(opts.origin);
   const url = absoluteUrl(origin, opts.path);
-  const image = absoluteUrl(origin, opts.image ?? OG_DEFAULT_IMAGE_PATH);
-  const imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
-  const imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
+  const siteName = opts.siteName ?? hostLabel(origin);
+  // If no explicit image was passed, use the on-demand generator so each
+  // page gets a unique, content-addressed, cache-forever OG image.
+  let image: string;
+  let imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
+  let imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
+  if (opts.image) {
+    image = absoluteUrl(origin, opts.image);
+  } else {
+    // Lazy import to keep this module free of route-time deps.
+    const { buildOgImageUrl } = require("./og-image-url") as typeof import("./og-image-url");
+    image = buildOgImageUrl(origin, {
+      title: opts.title,
+      brand: siteName,
+      eyebrow: opts.ogImageEyebrow,
+      variant: opts.ogImageVariant,
+    });
+    imgW = 1200;
+    imgH = 630;
+  }
   const imgAlt = opts.imageAlt ?? opts.title;
   const imgType = image.endsWith(".jpg") || image.endsWith(".jpeg")
     ? "image/jpeg"
