@@ -9,6 +9,7 @@ export type LogSource =
   | "bot_detect"
   | "country_lookup"
   | "db"
+  | "meta_crawler_block"
   | "other";
 
 export async function logServerError(
