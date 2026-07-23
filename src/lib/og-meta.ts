@@ -12,6 +12,10 @@
  * (via `getRequestOrigin` from "@/lib/request-origin.functions") and
  * pass it into `buildOg({ origin, ... })`.
  */
+import { buildOgImageUrl } from "./og-image-url";
+
+
+
 
 export const OG_LOCALE = "en_US";
 export const OG_DEFAULT_IMAGE_PATH = "/og-default.png";
@@ -34,7 +38,9 @@ export type BuildOgOptions = {
   path: string;
   title: string;
   description: string;
-  /** Root-relative image path (preferred) OR absolute URL. */
+  /** Root-relative image path (preferred) OR absolute URL. If omitted, an
+   *  on-demand server-generated image based on `title` + `brand` + `variant`
+   *  is used (stable, content-addressed URL, cached forever). */
   image?: string;
   imageWidth?: number;
   imageHeight?: number;
@@ -44,6 +50,10 @@ export type BuildOgOptions = {
   /** og:type. */
   type?: "website" | "article" | "product" | "profile";
   updatedTime?: string;
+  /** Eyebrow label used only when the dynamic OG image is generated. */
+  ogImageEyebrow?: string;
+  /** Color variant used only when the dynamic OG image is generated. */
+  ogImageVariant?: "sage" | "sand" | "ink" | "sunrise" | "ocean";
   article?: {
     author?: string;
     publishedTime?: string;
@@ -84,16 +94,30 @@ export function hostLabel(origin: string): string {
 export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag[] } {
   const origin = stripTrailingSlash(opts.origin);
   const url = absoluteUrl(origin, opts.path);
-  const image = absoluteUrl(origin, opts.image ?? OG_DEFAULT_IMAGE_PATH);
-  const imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
-  const imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
+  const siteName = opts.siteName ?? hostLabel(origin);
+  // If no explicit image was passed, use the on-demand generator so each
+  // page gets a unique, content-addressed, cache-forever OG image.
+  let image: string;
+  let imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
+  let imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
+  if (opts.image) {
+    image = absoluteUrl(origin, opts.image);
+  } else {
+    image = buildOgImageUrl(origin, {
+      title: opts.title,
+      brand: siteName,
+      eyebrow: opts.ogImageEyebrow,
+      variant: opts.ogImageVariant,
+    });
+    imgW = 1200;
+    imgH = 630;
+  }
   const imgAlt = opts.imageAlt ?? opts.title;
   const imgType = image.endsWith(".jpg") || image.endsWith(".jpeg")
     ? "image/jpeg"
     : image.endsWith(".webp") ? "image/webp" : "image/png";
   const type = opts.type ?? "website";
   const updated = opts.updatedTime ?? new Date().toISOString();
-  const siteName = opts.siteName ?? hostLabel(origin);
 
   const meta: MetaTag[] = [
     { title: opts.title },
