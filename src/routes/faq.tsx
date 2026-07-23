@@ -1,37 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
+import { buildOg } from "@/lib/og-meta";
 
 export const Route = createFileRoute("/faq")({
-  head: () => ({
-    meta: [
-      { title: "FAQ — BreezySocial" },
-      { name: "description", content: "Answers to common questions about shipping, returns, warranty, and our products." },
-      { property: "og:title", content: "Frequently Asked Questions — BreezySocial" },
-      { property: "og:description", content: "Shipping, returns, warranty, and product care — all in one place." },
-      { property: "og:url", content: "https://breezysocial.com/faq" },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Frequently Asked Questions — BreezySocial" },
-      { name: "twitter:description", content: "Shipping, returns, warranty, and product care — all in one place." },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/faq" }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: FAQS.map((f) => ({
-            "@type": "Question",
-            name: f.q,
-            acceptedAnswer: { "@type": "Answer", text: f.a },
-          })),
-        }),
-      },
-    ],
-  }),
+  head: () => {
+    const { meta, links } = buildOg({
+      path: "/faq",
+      title: "FAQ — BreezySocial Help Center",
+      description: "Shipping times, returns, warranty coverage, product care, and account help — every common BreezySocial question answered in one place.",
+      imageAlt: "BreezySocial FAQ and help center",
+      type: "website",
+    });
+    return {
+      meta,
+      links,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: FAQS.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a },
+            })),
+          }),
+        },
+      ],
+    };
+  },
   component: FaqPage,
 });
 
