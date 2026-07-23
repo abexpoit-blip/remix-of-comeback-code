@@ -6,6 +6,7 @@ import { getProduct, PRODUCTS, SITE, type Product } from "@/lib/breezy-data";
 import { PRODUCT_IMAGES } from "@/lib/breezy-content";
 import { getReviews } from "@/lib/breezy-reviews";
 import { useCart } from "@/lib/cart-context";
+import { buildOg } from "@/lib/og-meta";
 
 export const Route = createFileRoute("/shop/$slug")({
   loader: ({ params }) => {
@@ -19,19 +20,24 @@ export const Route = createFileRoute("/shop/$slug")({
     const imgUrl = PRODUCT_IMAGES[p.slug]
       ? `https://breezysocial.com${PRODUCT_IMAGES[p.slug]}`
       : undefined;
+    const { meta, links } = buildOg({
+      path: `/shop/${params.slug}`,
+      title: `${p.name} — $${p.price} · ${SITE.name}`,
+      description: p.shortDesc,
+      image: imgUrl,
+      imageAlt: `${p.name} — product photo`,
+      type: "product",
+      product: {
+        price: p.price,
+        currency: "USD",
+        availability: p.inStock ? "in stock" : "out of stock",
+        brand: SITE.name,
+        condition: "new",
+      },
+    });
     return {
-      meta: [
-        { title: `${p.name} — BreezySocial` },
-        { name: "description", content: p.shortDesc },
-        { property: "og:title", content: `${p.name} — $${p.price}` },
-        { property: "og:description", content: p.shortDesc },
-        { property: "og:type", content: "product" },
-        { property: "og:url", content: `/shop/${params.slug}` },
-        ...(imgUrl ? [{ property: "og:image", content: imgUrl }, { name: "twitter:image", content: imgUrl }, { name: "twitter:card", content: "summary_large_image" }] : []),
-        { property: "product:price:amount", content: String(p.price) },
-        { property: "product:price:currency", content: "USD" },
-      ],
-      links: [{ rel: "canonical", href: `/shop/${params.slug}` }],
+      meta,
+      links,
       scripts: [
         {
           type: "application/ld+json",
@@ -40,13 +46,16 @@ export const Route = createFileRoute("/shop/$slug")({
             "@type": "Product",
             name: p.name,
             description: p.longDesc,
+            image: imgUrl,
             brand: { "@type": "Brand", name: SITE.name },
+            sku: p.slug,
             offers: {
               "@type": "Offer",
               price: p.price,
               priceCurrency: "USD",
               availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
               url: `https://breezysocial.com/shop/${params.slug}`,
+              itemCondition: "https://schema.org/NewCondition",
             },
             aggregateRating: {
               "@type": "AggregateRating",

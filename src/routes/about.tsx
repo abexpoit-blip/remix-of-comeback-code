@@ -1,24 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
+import { buildOg } from "@/lib/og-meta";
 
 export const Route = createFileRoute("/about")({
-  head: () => ({
-    meta: [
-      { title: `About — ${SITE.name}` },
-      { name: "description", content: `Founded in San Francisco in ${SITE.founded}, BreezySocial designs smart gadgets for calm, modern living.` },
-      { property: "og:title", content: `About — ${SITE.name}` },
-      { property: "og:description", content: "Our story, our team, and what we believe about thoughtful product design." },
-      { property: "og:url", content: "https://breezysocial.com/about" },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: `About — ${SITE.name}` },
-      { name: "twitter:description", content: "Our story, our team, and what we believe about thoughtful product design." },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/about" }],
-  }),
+  head: () => {
+    const { meta, links } = buildOg({
+      path: "/about",
+      title: `About — ${SITE.name}`,
+      description: `Founded in San Francisco in ${SITE.founded}, ${SITE.name} designs smart gadgets for calm, modern living. Meet our team and our mission.`,
+      imageAlt: `${SITE.name} — About our team and mission`,
+      type: "website",
+    });
+    return {
+      meta,
+      links,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "AboutPage",
+            name: `About — ${SITE.name}`,
+            url: "https://breezysocial.com/about",
+            mainEntity: {
+              "@type": "Organization",
+              name: SITE.name,
+              foundingDate: String(SITE.founded),
+              email: SITE.email,
+              address: SITE.address,
+              url: "https://breezysocial.com",
+              logo: "https://breezysocial.com/og-default.png",
+            },
+          }),
+        },
+      ],
+    };
+  },
   component: AboutPage,
 });
 
