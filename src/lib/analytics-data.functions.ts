@@ -48,9 +48,9 @@ export const getAnalyticsData = createServerFn({ method: "GET" })
       stage = "load-rpc";
       // Wrap DB work in a hard timeout — never let it hold a worker for 60s+.
       const data = await withTimeout(
-        loadAnalyticsData(context),
+        loadAnalyticsData(context) as Promise<ReturnType<typeof emptyAnalytics>>,
         ANALYTICS_HARD_TIMEOUT_MS,
-        { ...emptyAnalytics(), _degraded: true } as any,
+        emptyAnalytics(),
         `loadAnalyticsData(user=${context.userId})`,
       );
       const tDone = Date.now();
