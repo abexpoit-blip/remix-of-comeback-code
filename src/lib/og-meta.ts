@@ -34,7 +34,9 @@ export type BuildOgOptions = {
   path: string;
   title: string;
   description: string;
-  /** Root-relative image path (preferred) OR absolute URL. */
+  /** Root-relative image path (preferred) OR absolute URL. If omitted, an
+   *  on-demand server-generated image based on `title` + `brand` + `variant`
+   *  is used (stable, content-addressed URL, cached forever). */
   image?: string;
   imageWidth?: number;
   imageHeight?: number;
@@ -44,6 +46,10 @@ export type BuildOgOptions = {
   /** og:type. */
   type?: "website" | "article" | "product" | "profile";
   updatedTime?: string;
+  /** Eyebrow label used only when the dynamic OG image is generated. */
+  ogImageEyebrow?: string;
+  /** Color variant used only when the dynamic OG image is generated. */
+  ogImageVariant?: "sage" | "sand" | "ink" | "sunrise" | "ocean";
   article?: {
     author?: string;
     publishedTime?: string;
