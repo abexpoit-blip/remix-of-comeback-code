@@ -3,19 +3,24 @@ import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
 import { getArticle, getProduct, SITE, type Article, type Product } from "@/lib/breezy-data";
 import { ARTICLE_BODIES, BLOG_IMAGES } from "@/lib/breezy-content";
-import { buildOg } from "@/lib/og-meta";
+import { buildOg, absoluteUrl } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/blog/$slug")({
-  loader: ({ params }) => {
+  loader: async ({ params }) => {
     const article = getArticle(params.slug);
     if (!article) throw notFound();
-    return { article };
+    const { origin } = await getRequestOrigin();
+    return { article, origin };
   },
   head: ({ loaderData, params }) => {
     const a = loaderData?.article;
-    if (!a) return { meta: [{ title: "Article not found — BreezySocial" }] };
-    const imgUrl = BLOG_IMAGES[a.slug] ? `https://breezysocial.com${BLOG_IMAGES[a.slug]}` : undefined;
+    const origin = loaderData?.origin ?? "https://tekuc.com";
+    if (!a) return { meta: [{ title: "Article not found" }] };
+    const imgPath = BLOG_IMAGES[a.slug];
+    const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;
     const { meta, links } = buildOg({
+      origin,
       path: `/blog/${params.slug}`,
       title: `${a.title} — ${SITE.name} Journal`,
       description: a.excerpt,
@@ -47,12 +52,12 @@ export const Route = createFileRoute("/blog/$slug")({
             publisher: {
               "@type": "Organization",
               name: SITE.name,
-              url: "https://breezysocial.com",
-              logo: { "@type": "ImageObject", url: "https://breezysocial.com/og-default.png" },
+              url: absoluteUrl(origin, "/"),
+              logo: { "@type": "ImageObject", url: absoluteUrl(origin, "/og-default.png") },
             },
             datePublished: a.date,
             dateModified: a.date,
-            mainEntityOfPage: `https://breezysocial.com/blog/${params.slug}`,
+            mainEntityOfPage: absoluteUrl(origin, `/blog/${params.slug}`),
           }),
         },
       ],
