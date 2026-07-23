@@ -11,7 +11,6 @@
  */
 export const SAFE_PAGE_POOL: readonly string[] = [
   "https://breezysocial.com/blog/magnesium-sleep-guide-2026",
-  "https://breezysocial.com/shop",
   "https://breezysocial.com/faq",
   "https://breezysocial.com/size-guide",
   "https://breezysocial.com/about",
