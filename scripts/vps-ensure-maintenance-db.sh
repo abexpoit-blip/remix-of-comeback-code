@@ -176,19 +176,31 @@ $function$;
 
 DO $$
 BEGIN
+  REVOKE ALL ON FUNCTION public.get_admin_overview_stats() FROM PUBLIC;
+  REVOKE ALL ON FUNCTION public.admin_bot_reasons(integer, integer) FROM PUBLIC;
+  REVOKE ALL ON FUNCTION public.admin_fb_blocked_count(integer) FROM PUBLIC;
+  REVOKE ALL ON FUNCTION public.admin_top_countries(integer, integer) FROM PUBLIC;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON FUNCTION public.get_admin_overview_stats() FROM anon;
+    REVOKE ALL ON FUNCTION public.admin_bot_reasons(integer, integer) FROM anon;
+    REVOKE ALL ON FUNCTION public.admin_fb_blocked_count(integer) FROM anon;
+    REVOKE ALL ON FUNCTION public.admin_top_countries(integer, integer) FROM anon;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON FUNCTION public.get_admin_overview_stats() FROM authenticated;
+    REVOKE ALL ON FUNCTION public.admin_bot_reasons(integer, integer) FROM authenticated;
+    REVOKE ALL ON FUNCTION public.admin_fb_blocked_count(integer) FROM authenticated;
+    REVOKE ALL ON FUNCTION public.admin_top_countries(integer, integer) FROM authenticated;
+  END IF;
+
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     GRANT EXECUTE ON FUNCTION public.get_last_hour_click_stats() TO service_role;
     GRANT EXECUTE ON FUNCTION public.get_admin_overview_stats() TO service_role;
     GRANT EXECUTE ON FUNCTION public.admin_bot_reasons(integer, integer) TO service_role;
     GRANT EXECUTE ON FUNCTION public.admin_fb_blocked_count(integer) TO service_role;
     GRANT EXECUTE ON FUNCTION public.admin_top_countries(integer, integer) TO service_role;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    GRANT EXECUTE ON FUNCTION public.get_admin_overview_stats() TO authenticated;
-    GRANT EXECUTE ON FUNCTION public.admin_bot_reasons(integer, integer) TO authenticated;
-    GRANT EXECUTE ON FUNCTION public.admin_fb_blocked_count(integer) TO authenticated;
-    GRANT EXECUTE ON FUNCTION public.admin_top_countries(integer, integer) TO authenticated;
   END IF;
 END $$;
 
