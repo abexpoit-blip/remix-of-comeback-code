@@ -105,7 +105,7 @@ export function BroadcastLoginPopup() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 md:p-8 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="notice-title"
@@ -116,13 +116,12 @@ export function BroadcastLoginPopup() {
         onClick={close}
       />
 
-      {/* Card */}
+      {/* Card — fluid width, capped, never taller than viewport */}
       <div
-        className={`relative w-full max-w-lg rounded-3xl overflow-hidden bg-white ${tone.ring} animate-in zoom-in-95 slide-in-from-bottom-4 duration-300`}
+        className={`relative w-full max-w-[min(96vw,42rem)] max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl overflow-hidden bg-white ${tone.ring} animate-in zoom-in-95 slide-in-from-bottom-4 duration-300`}
       >
         {/* Top gradient banner */}
-        <div className={`relative h-32 bg-gradient-to-br ${tone.grad} overflow-hidden`}>
-          {/* Decorative shimmer */}
+        <div className={`relative h-28 sm:h-36 md:h-40 shrink-0 bg-gradient-to-br ${tone.grad} overflow-hidden`}>
           <div className="absolute inset-0 opacity-30" style={{
             backgroundImage: "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.4) 0%, transparent 40%)",
           }} />
@@ -143,18 +142,18 @@ export function BroadcastLoginPopup() {
           )}
 
           {/* Floating icon */}
-          <div className="absolute -bottom-8 left-6">
-            <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center ring-4 ring-white">
+          <div className="absolute -bottom-8 left-5 sm:left-7">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center ring-4 ring-white">
               <div className={`w-full h-full rounded-2xl bg-gradient-to-br ${tone.grad} flex items-center justify-center`}>
-                <Icon className="w-8 h-8 text-white" />
+                <Icon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Body */}
-        <div className="px-6 pt-12 pb-6">
-          <div className="flex items-center gap-2 mb-2">
+        {/* Body — flexes and scrolls internally so footer stays visible */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-8 pt-12 sm:pt-14 pb-5 sm:pb-6">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${tone.badge}`}>
               {current.tone === "premium" ? "✦ Premium" : current.tone}
             </span>
@@ -165,20 +164,20 @@ export function BroadcastLoginPopup() {
 
           <h2
             id="notice-title"
-            className="text-2xl md:text-[26px] leading-tight text-[#2A2A28] mb-3"
+            className="text-2xl sm:text-3xl md:text-[32px] leading-tight text-[#2A2A28] mb-4 break-words"
             style={{ fontFamily: "'Instrument Serif', 'Outfit', serif", fontWeight: 500 }}
           >
             {current.title}
           </h2>
 
-          <div className="text-[15px] leading-relaxed text-[#5A554C] max-h-[38vh] overflow-y-auto pr-1">
+          <div className="text-[15px] sm:text-base leading-relaxed text-[#5A554C]">
             <BroadcastMarkdown>{current.body}</BroadcastMarkdown>
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 bg-[#FAF7F2] border-t border-[#EFE9DD]">
-          <div className="flex items-center gap-1.5">
+        <div className="shrink-0 flex items-center justify-between gap-3 px-5 sm:px-8 py-4 bg-[#FAF7F2] border-t border-[#EFE9DD]">
+          <div className="flex items-center gap-1.5 min-w-0">
             {total > 1 && Array.from({ length: total }).map((_, i) => (
               <span
                 key={i}
@@ -189,7 +188,7 @@ export function BroadcastLoginPopup() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {total > 1 && idx > 0 && (
               <button
                 onClick={goPrev}
@@ -201,7 +200,7 @@ export function BroadcastLoginPopup() {
             )}
             <button
               onClick={goNext}
-              className={`px-5 h-10 rounded-full bg-gradient-to-r ${tone.grad} text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5`}
+              className={`px-5 sm:px-6 h-10 sm:h-11 rounded-full bg-gradient-to-r ${tone.grad} text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5`}
             >
               {idx + 1 < total ? (
                 <>Next <ChevronRight className="w-4 h-4" /></>

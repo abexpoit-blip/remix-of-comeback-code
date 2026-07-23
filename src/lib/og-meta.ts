@@ -13,9 +13,7 @@
  * pass it into `buildOg({ origin, ... })`.
  */
 
-
-
-
+import { brandForOrigin, rebrand } from "./brand-registry";
 
 export const OG_LOCALE = "en_US";
 export const OG_DEFAULT_IMAGE_PATH = "/og-default.png";
@@ -94,14 +92,18 @@ export function hostLabel(origin: string): string {
 export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag[] } {
   const origin = stripTrailingSlash(opts.origin);
   const url = absoluteUrl(origin, opts.path);
-  const siteName = opts.siteName ?? hostLabel(origin);
+  const brand = brandForOrigin(origin);
+  const siteName = opts.siteName ?? brand.name;
+  // Rebrand title/description so each host presents a distinct brand to crawlers.
+  const title = rebrand(opts.title, origin);
+  const description = rebrand(opts.description, origin);
   // Static default image — dynamic PNG generator removed (native module
   // could not be bundled for Worker builds). Callers that want per-page
   // artwork should pass `opts.image` explicitly.
   const image = absoluteUrl(origin, opts.image ?? OG_DEFAULT_IMAGE_PATH);
   const imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
   const imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
-  const imgAlt = opts.imageAlt ?? opts.title;
+  const imgAlt = rebrand(opts.imageAlt ?? title, origin);
   const imgType = image.endsWith(".jpg") || image.endsWith(".jpeg")
     ? "image/jpeg"
     : image.endsWith(".webp") ? "image/webp" : "image/png";
@@ -109,15 +111,15 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
   const updated = opts.updatedTime ?? new Date().toISOString();
 
   const meta: MetaTag[] = [
-    { title: opts.title },
-    { name: "description", content: opts.description },
+    { title },
+    { name: "description", content: description },
     { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
 
     { property: "og:site_name", content: siteName },
     { property: "og:locale", content: OG_LOCALE },
     { property: "og:type", content: type },
-    { property: "og:title", content: opts.title },
-    { property: "og:description", content: opts.description },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
     { property: "og:url", content: url },
     { property: "og:updated_time", content: updated },
 
@@ -129,8 +131,8 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
     { property: "og:image:alt", content: imgAlt },
 
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:title", content: opts.title },
-    { name: "twitter:description", content: opts.description },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: description },
     { name: "twitter:image", content: image },
     { name: "twitter:image:alt", content: imgAlt },
   ];
