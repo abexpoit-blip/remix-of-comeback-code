@@ -11,7 +11,8 @@
  * Callers must resolve the origin in the route loader
  * (via `getRequestOrigin` from "@/lib/request-origin.functions") and
  * pass it into `buildOg({ origin, ... })`.
- */
+import { buildOgImageUrl } from "./og-image-url";
+
 
 export const OG_LOCALE = "en_US";
 export const OG_DEFAULT_IMAGE_PATH = "/og-default.png";
