@@ -226,7 +226,7 @@ function QuickGuide() {
           </div>
           <div>
             <p className="font-bold text-[#2D1B0D]" style={display}>How to add your domain (3 easy steps)</p>
-            <p className="text-xs text-[#7D6452] mt-0.5">English + বাংলা beginner guide</p>
+            <p className="text-xs text-[#7D6452] mt-0.5">Simple beginner guide — takes 2 minutes</p>
           </div>
         </div>
         <span className="text-xs font-semibold text-[#FF7E5F] uppercase tracking-wider">{open ? "Hide" : "Show"}</span>
@@ -235,24 +235,19 @@ function QuickGuide() {
         <div className="px-5 pb-5 grid md:grid-cols-3 gap-4">
           <GuideStep
             n={1}
-            title="Choose a subdomain"
-            titleBn="সাবডোমেইন বেছে নিন"
-            body="Pick something short like go.yoursite.com or link.yoursite.com. Type it in the box above and click Add."
-            bodyBn="ছোট একটা সাবডোমেইন নিন যেমন go.yoursite.com বা link.yoursite.com। উপরের বক্সে টাইপ করে Add চাপুন।"
+            title="Type your subdomain"
+            body="In the box above, type a short subdomain like go.yoursite.com or link.yoursite.com. Then click Add."
           />
           <GuideStep
             n={2}
-            title="Add 2 DNS records"
-            titleBn="২টি DNS রেকর্ড যোগ করুন"
-            body={`Open your registrar's DNS panel and add the CNAME + TXT record we show. Use the "Copy" button — no typos!`}
-            bodyBn={`আপনার registrar-এর DNS panel-এ গিয়ে আমাদের দেওয়া CNAME + TXT রেকর্ড দুটো add করুন। "Copy" বাটন ব্যবহার করুন।`}
+            title="Copy 2 DNS records"
+            title2="Paste them in your domain panel"
+            body={`We show you 1 CNAME and 1 TXT record. Click the "Copy" button on each, open your domain's DNS panel (link below), and paste them as new records. Save.`}
           />
           <GuideStep
             n={3}
-            title="Auto-verify"
-            titleBn="অটো ভেরিফাই"
-            body="We check DNS every 6 seconds automatically. Usually verifies in 1–3 minutes. Green ✓ = ready to use!"
-            bodyBn="আমরা প্রতি ৬ সেকেন্ডে DNS check করি। সাধারণত ১–৩ মিনিটে verify হয়। সবুজ ✓ আসলেই ready!"
+            title="Wait for green ✓"
+            body="We auto-check your DNS every 6 seconds. Most domains verify in 1–3 minutes. When you see the green tick, your domain is live!"
           />
           <div className="md:col-span-3 flex flex-wrap gap-2 pt-2">
             <span className="text-xs text-[#5D4538] font-semibold mr-1 self-center">Quick DNS panel:</span>
@@ -274,16 +269,15 @@ function QuickGuide() {
   );
 }
 
-function GuideStep({ n, title, titleBn, body, bodyBn }: { n: number; title: string; titleBn: string; body: string; bodyBn: string }) {
+function GuideStep({ n, title, title2, body }: { n: number; title: string; title2?: string; body: string }) {
   return (
     <div className="p-4 rounded-2xl bg-white border border-[#FFEDD5]">
       <div className="flex items-center gap-2 mb-2">
         <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] text-white text-sm font-bold flex items-center justify-center">{n}</span>
         <p className="font-bold text-[#2D1B0D] text-sm" style={display}>{title}</p>
       </div>
+      {title2 && <p className="text-[11px] text-[#FF7E5F] font-semibold mb-1.5">{title2}</p>}
       <p className="text-xs text-[#5D4538] leading-relaxed">{body}</p>
-      <p className="text-xs text-[#7D6452] leading-relaxed mt-1.5 italic">{bodyBn}</p>
-      <p className="text-[10px] uppercase tracking-wider text-[#FF7E5F] font-bold mt-2">{titleBn}</p>
     </div>
   );
 }
@@ -451,9 +445,7 @@ function DomainCard({
 
           <div className="p-4 rounded-2xl bg-[#FFF5EC] border border-[#FFEDD5]">
             <p className="text-xs text-[#5D4538] leading-relaxed">
-              <strong className="text-[#2D1B0D]">How it works:</strong> Point a CNAME from your domain to <span className="font-mono">{CNAME_TARGET}</span>, then add the TXT record above to prove ownership. DNS usually propagates in 1–3 minutes.
-              <br />
-              <span className="italic text-[#7D6452]">বাংলা: আপনার domain-এর DNS panel-এ CNAME এবং TXT দুটো record add করুন — কপি বাটন ব্যবহার করুন। ১–৩ মিনিটে auto verify হয়ে যাবে।</span>
+              <strong className="text-[#2D1B0D]">How it works:</strong> Add the CNAME record (points your domain to <span className="font-mono">{CNAME_TARGET}</span>) and the TXT record (proves you own the domain). Use the Copy buttons — no typing needed. DNS usually updates in 1–3 minutes and we verify automatically.
             </p>
           </div>
 
