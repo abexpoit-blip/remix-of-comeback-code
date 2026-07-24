@@ -232,7 +232,49 @@ function QuickGuide() {
         <span className="text-xs font-semibold text-[#FF7E5F] uppercase tracking-wider">{open ? "Hide" : "Show"}</span>
       </button>
       {open && (
-        <div className="px-5 pb-5 grid md:grid-cols-3 gap-4">
+        <div className="px-5 pb-5 space-y-4">
+          {/* MUST READ warning — which domains to buy / not to buy */}
+          <div className="rounded-2xl border-2 border-red-400 bg-gradient-to-br from-red-50 to-orange-50 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider animate-pulse">⚠ Must Read</span>
+              <p className="font-bold text-red-900 text-sm" style={display}>Domain Buying Rules — Read Before You Buy</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              {/* GOOD */}
+              <div className="rounded-xl bg-white border border-green-300 p-3">
+                <p className="text-xs font-bold text-green-700 mb-2 uppercase tracking-wider">✅ Safe to Buy</p>
+                <ul className="text-xs text-[#2D1B0D] space-y-1.5 leading-relaxed">
+                  <li>• <strong>Fresh new domain</strong> (never used before)</li>
+                  <li>• <strong>Clean .com / .net / .org / .co</strong> extensions</li>
+                  <li>• <strong>Brandable name</strong> (looks like a real business: <em>e.g. shopnex.com, kartly.co</em>)</li>
+                  <li>• <strong>Short & easy to spell</strong> (6–14 letters)</li>
+                  <li>• <strong>Buy from trusted registrars:</strong> Namecheap, Cloudflare, Namesilo, Porkbun</li>
+                </ul>
+              </div>
+
+              {/* BAD */}
+              <div className="rounded-xl bg-white border border-red-300 p-3">
+                <p className="text-xs font-bold text-red-700 mb-2 uppercase tracking-wider">❌ Never Buy</p>
+                <ul className="text-xs text-[#2D1B0D] space-y-1.5 leading-relaxed">
+                  <li>• <strong>Expired / dropped domains</strong> — old bad history, may be Meta/Google blacklisted</li>
+                  <li>• <strong>Free TLDs:</strong> .tk .ml .ga .cf .gq .xyz .top .click .work .buzz (Facebook auto-flags)</li>
+                  <li>• <strong>Copycat / brand names</strong> (amaz0n-shop.com, nikee-store.com — instant ban)</li>
+                  <li>• <strong>Domains with numbers/dashes</strong> (buy-now-cheap-24.com looks spammy)</li>
+                  <li>• <strong>Auction / backorder domains</strong> from GoDaddy Auctions, Sedo (check history first)</li>
+                  <li>• <strong>Adult / gambling / crypto</strong> keywords in name</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-lg bg-yellow-100 border border-yellow-300 p-2.5">
+              <p className="text-[11px] text-yellow-900 leading-relaxed">
+                <strong>💡 Pro tip:</strong> Before buying, check the domain on <a href="https://www.facebook.com/debug/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Facebook Debugger</a> and <a href="https://transparencyreport.google.com/safe-browsing/search" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Google Safe Browsing</a>. If either shows a warning — <strong>do not buy</strong>. Also search the domain on Google — if old spam pages show up, skip it.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4">
           <GuideStep
             n={1}
             title="Type your subdomain"
@@ -262,6 +304,7 @@ function QuickGuide() {
                 {r.label} <ExternalLink className="w-3 h-3 text-[#7D6452]" />
               </a>
             ))}
+          </div>
           </div>
         </div>
       )}
