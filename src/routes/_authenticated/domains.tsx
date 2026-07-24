@@ -313,17 +313,6 @@ function GuideStep({ n, title, body }: { n: number; title: string; body: string 
     </div>
   );
 }
-  return (
-    <div className="p-4 rounded-2xl bg-white border border-[#FFEDD5]">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] text-white text-sm font-bold flex items-center justify-center">{n}</span>
-        <p className="font-bold text-[#2D1B0D] text-sm" style={display}>{title}</p>
-      </div>
-      {title2 && <p className="text-[11px] text-[#FF7E5F] font-semibold mb-1.5">{title2}</p>}
-      <p className="text-xs text-[#5D4538] leading-relaxed">{body}</p>
-    </div>
-  );
-}
 
 function DomainCard({
   dom,
