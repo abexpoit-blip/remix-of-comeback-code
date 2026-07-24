@@ -305,6 +305,7 @@ function QuickGuide() {
               </a>
             ))}
           </div>
+          </div>
         </div>
       )}
     </div>
