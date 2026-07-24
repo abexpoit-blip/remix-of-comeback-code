@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.custom_domains TO authenticated; GRANT ALL ON public.custom_domains TO service_role;
