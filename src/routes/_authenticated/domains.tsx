@@ -226,7 +226,7 @@ function QuickGuide() {
           </div>
           <div>
             <p className="font-bold text-[#2D1B0D]" style={display}>How to add your domain (3 easy steps)</p>
-            <p className="text-xs text-[#7D6452] mt-0.5">English + বাংলা beginner guide</p>
+            <p className="text-xs text-[#7D6452] mt-0.5">Simple beginner guide — takes 2 minutes</p>
           </div>
         </div>
         <span className="text-xs font-semibold text-[#FF7E5F] uppercase tracking-wider">{open ? "Hide" : "Show"}</span>
