@@ -2,8 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Custom Domains is a Lifetime-only feature.
-const LIFETIME_PLANS = new Set(["lifetime", "unlimited"]);
+// Custom Domains is available to all paid members.
+const PAID_PLANS = new Set([
+  "monthly",
+  "pro_monthly",
+  "pro",
+  "yearly",
+  "lifetime",
+  "unlimited",
+  "premium",
+  "starter",
+  "business",
+  "enterprise",
+]);
+
+// The public CNAME target every custom domain points to.
+export const CNAME_TARGET = "sleepox.com";
 
 const domainRegex = /^(?!:\/\/)([a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,}$/;
 
@@ -23,9 +37,41 @@ async function assertPaid(supabase: any, userId: string) {
     .eq("id", userId)
     .maybeSingle();
   const slug = (profile?.plan_slug ?? "free").toLowerCase();
-  if (!LIFETIME_PLANS.has(slug)) {
-    throw new Error("Custom Domains is a Lifetime-only feature. Upgrade to the Lifetime plan to add a domain.");
+  if (!PAID_PLANS.has(slug)) {
+    throw new Error("Custom Domains is a paid feature. Upgrade your plan to add a domain.");
   }
+}
+
+// --- DNS helpers (Cloudflare DoH; works in edge runtime) ---
+async function dohQuery(name: string, type: "A" | "TXT" | "CNAME" | "NS"): Promise<string[]> {
+  try {
+    const r = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`,
+      { headers: { accept: "application/dns-json" } },
+    );
+    const j: any = await r.json();
+    return (j?.Answer ?? []).map((a: any) => String(a?.data ?? "").replace(/^"|"$/g, ""));
+  } catch {
+    return [];
+  }
+}
+
+// Registrar / DNS provider hints from nameservers, for a tailored 1-click guide.
+function detectProvider(nameservers: string[]): { id: string; label: string; dashUrl: string } {
+  const ns = nameservers.join(" ").toLowerCase();
+  if (ns.includes("cloudflare")) return { id: "cloudflare", label: "Cloudflare", dashUrl: "https://dash.cloudflare.com/" };
+  if (ns.includes("registrar-servers.com") || ns.includes("namecheaphosting"))
+    return { id: "namecheap", label: "Namecheap", dashUrl: "https://ap.www.namecheap.com/domains/list/" };
+  if (ns.includes("domaincontrol.com") || ns.includes("godaddy"))
+    return { id: "godaddy", label: "GoDaddy", dashUrl: "https://dcc.godaddy.com/manage/dns" };
+  if (ns.includes("namesilo")) return { id: "namesilo", label: "Namesilo", dashUrl: "https://www.namesilo.com/account_domains.php" };
+  if (ns.includes("hostinger") || ns.includes("hostgator"))
+    return { id: "hostinger", label: "Hostinger", dashUrl: "https://hpanel.hostinger.com/domains" };
+  if (ns.includes("dnsimple")) return { id: "dnsimple", label: "DNSimple", dashUrl: "https://dnsimple.com/" };
+  if (ns.includes("awsdns")) return { id: "route53", label: "AWS Route 53", dashUrl: "https://console.aws.amazon.com/route53/" };
+  if (ns.includes("google") || ns.includes("googledomains"))
+    return { id: "google", label: "Google Domains", dashUrl: "https://domains.google.com/registrar" };
+  return { id: "other", label: "Your DNS provider", dashUrl: "" };
 }
 
 export const listCustomDomains = createServerFn({ method: "GET" })
@@ -38,7 +84,7 @@ export const listCustomDomains = createServerFn({ method: "GET" })
       .eq("id", userId)
       .maybeSingle();
     const slug = (profile?.plan_slug ?? "free").toLowerCase();
-    const isPaid = LIFETIME_PLANS.has(slug);
+    const isPaid = PAID_PLANS.has(slug);
 
     const { data, error } = await supabase
       .from("custom_domains")
@@ -46,7 +92,7 @@ export const listCustomDomains = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return { domains: data ?? [], isPaid, planSlug: slug };
+    return { domains: data ?? [], isPaid, planSlug: slug, cnameTarget: CNAME_TARGET };
   });
 
 export const addCustomDomain = createServerFn({ method: "POST" })
@@ -58,9 +104,9 @@ export const addCustomDomain = createServerFn({ method: "POST" })
     const { supabase, userId } = context as any;
     await assertPaid(supabase, userId);
     const domain = normalize(data.domain);
-    if (!domainRegex.test(domain)) throw new Error("Invalid domain format (e.g. links.yoursite.com)");
+    if (!domainRegex.test(domain)) throw new Error("Invalid domain format (e.g. go.yoursite.com)");
 
-    // M6 fix: RLS-scoped check missed other users' rows; use admin client for global uniqueness
+    // Global uniqueness (RLS-scoped select would miss other users' rows)
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
       .from("custom_domains")
@@ -72,8 +118,6 @@ export const addCustomDomain = createServerFn({ method: "POST" })
       throw new Error("This domain is already registered by another account.");
     }
 
-    // Generate verification token in app code (don't rely on DB default
-    // which uses extensions.gen_random_bytes — may be missing on self-host).
     const tokenBytes = new Uint8Array(16);
     crypto.getRandomValues(tokenBytes);
     const verification_token = Array.from(tokenBytes)
@@ -86,9 +130,13 @@ export const addCustomDomain = createServerFn({ method: "POST" })
       .select("id, domain, verification_token, verified, created_at")
       .single();
     if (error) throw new Error(`Could not save domain: ${error.message}`);
-    return inserted;
+    return { ...inserted, cnameTarget: CNAME_TARGET };
   });
 
+/**
+ * Enhanced verify: checks TXT + CNAME, detects registrar from nameservers,
+ * flips `verified = true` when both records are correct. Safe to poll.
+ */
 export const verifyCustomDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
@@ -103,58 +151,62 @@ export const verifyCustomDomain = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!row) throw new Error("Domain not found.");
 
-    // DNS TXT lookup via Cloudflare's public DoH (works in edge runtime)
     const txtName = `_sleepox-verify.${row.domain}`;
-    const cnameName = row.domain;
 
-    let txtOk = false;
-    let cnameOk = false;
-    let cnameTarget = "";
+    // Run all lookups in parallel for speed.
+    const rootParts = row.domain.split(".");
+    const rootDomain = rootParts.length > 2 ? rootParts.slice(-2).join(".") : row.domain;
+    const [txtAnswers, cnameAnswers, aAnswers, nsAnswers] = await Promise.all([
+      dohQuery(txtName, "TXT"),
+      dohQuery(row.domain, "CNAME"),
+      dohQuery(row.domain, "A"),
+      dohQuery(rootDomain, "NS"),
+    ]);
 
-    try {
-      const r = await fetch(
-        `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(txtName)}&type=TXT`,
-        { headers: { accept: "application/dns-json" } },
-      );
-      const j: any = await r.json();
-      const answers: any[] = j?.Answer ?? [];
-      txtOk = answers.some((a) =>
-        String(a?.data ?? "")
-          .replace(/^"|"$/g, "")
-          .includes(row.verification_token),
-      );
-    } catch { /* ignore */ }
+    const txtOk = txtAnswers.some((v) => v.includes(row.verification_token));
+    const cnameTarget = cnameAnswers.find((v) => v.toLowerCase().includes(CNAME_TARGET)) ?? cnameAnswers[0] ?? "";
+    const cnameOk = !!cnameAnswers.find((v) => v.toLowerCase().includes(CNAME_TARGET));
 
-    try {
-      const r = await fetch(
-        `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cnameName)}&type=CNAME`,
-        { headers: { accept: "application/dns-json" } },
-      );
-      const j: any = await r.json();
-      const answers: any[] = j?.Answer ?? [];
-      const match = answers.find((a) =>
-        String(a?.data ?? "").toLowerCase().includes("sleepox.com"),
-      );
-      cnameOk = !!match;
-      cnameTarget = match?.data ?? "";
-    } catch { /* ignore */ }
+    // Fallback: some registrars flatten subdomain CNAMEs into A records at edge.
+    // If A record resolves to a Cloudflare/Sleepox-fronted IP, treat as OK.
+    const aOk = aAnswers.length > 0 && cnameAnswers.length === 0
+      ? await (async () => {
+          // Look up A record of CNAME_TARGET; consider OK if they match.
+          const targetA = await dohQuery(CNAME_TARGET, "A");
+          return targetA.some((ip) => aAnswers.includes(ip));
+        })()
+      : false;
 
+    const pointsOk = cnameOk || aOk;
+    const provider = detectProvider(nsAnswers);
+
+    const base = {
+      txtOk,
+      cnameOk: pointsOk,
+      cnameTarget: cnameTarget || (aOk ? aAnswers[0] : ""),
+      nameservers: nsAnswers,
+      provider,
+    };
+
+    if (!txtOk && !pointsOk) {
+      return {
+        ok: false,
+        message: "DNS records not detected yet. Add both records at your registrar and try again in 1–2 minutes.",
+        ...base,
+      };
+    }
     if (!txtOk) {
       return {
         ok: false,
-        message: `TXT record not found. Add a TXT record at ${txtName} with value: ${row.verification_token}`,
-        txtOk,
-        cnameOk,
-        cnameTarget,
+        message: `TXT record missing. Add TXT at "${txtName}" with value: ${row.verification_token}`,
+        ...base,
       };
     }
-    if (!cnameOk) {
+    if (!pointsOk) {
       return {
         ok: false,
-        message: `CNAME record not pointing to sleepox.com. Add a CNAME at ${row.domain} → sleepox.com`,
-        txtOk,
-        cnameOk,
-        cnameTarget,
+        message: `CNAME not pointing to ${CNAME_TARGET}. Add a CNAME at ${row.domain} → ${CNAME_TARGET}`,
+        ...base,
       };
     }
 
@@ -163,7 +215,7 @@ export const verifyCustomDomain = createServerFn({ method: "POST" })
       .update({ verified: true, verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", row.id);
 
-    return { ok: true, message: "Domain verified successfully!", txtOk, cnameOk, cnameTarget };
+    return { ok: true, message: "Domain verified successfully! You can now use it for your links.", ...base };
   });
 
 export const deleteCustomDomain = createServerFn({ method: "POST" })

@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Globe, Plus, Check, X, Copy, Trash2, ShieldCheck, AlertCircle, Crown, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Globe, Plus, Check, X, Copy, Trash2, ShieldCheck, AlertCircle, Crown, RefreshCw,
+  ExternalLink, HelpCircle, Sparkles, Loader2,
+} from "lucide-react";
 import {
   listCustomDomains,
   addCustomDomain,
@@ -16,6 +19,17 @@ export const Route = createFileRoute("/_authenticated/domains")({
 });
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" } as const;
+const CNAME_TARGET = "sleepox.com";
+
+// Registrar quick-links (fallback list; server also detects provider).
+const REGISTRARS = [
+  { id: "cloudflare", label: "Cloudflare", url: "https://dash.cloudflare.com/" },
+  { id: "namecheap", label: "Namecheap", url: "https://ap.www.namecheap.com/domains/list/" },
+  { id: "godaddy", label: "GoDaddy", url: "https://dcc.godaddy.com/manage/dns" },
+  { id: "namesilo", label: "Namesilo", url: "https://www.namesilo.com/account_domains.php" },
+  { id: "hostinger", label: "Hostinger", url: "https://hpanel.hostinger.com/domains" },
+  { id: "google", label: "Google Domains", url: "https://domains.google.com/registrar" },
+];
 
 function DomainsPage() {
   const qc = useQueryClient();
@@ -32,22 +46,25 @@ function DomainsPage() {
 
   const [newDomain, setNewDomain] = useState("");
   const [actionMsg, setActionMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [autoPollId, setAutoPollId] = useState<string | null>(null);
 
   const add = useMutation({
     mutationFn: (domain: string) => addFn({ data: { domain } }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       setNewDomain("");
-      setActionMsg({ type: "ok", text: "Domain added. Now add the DNS records below and verify." });
+      setActionMsg({ type: "ok", text: "Domain added! Now add the 2 DNS records below. We'll auto-check every 6 seconds." });
       qc.invalidateQueries({ queryKey: ["custom-domains"] });
+      setAutoPollId(res.id); // start auto-verify polling
     },
     onError: (e: any) => setActionMsg({ type: "err", text: e?.message ?? "Failed to add domain" }),
   });
 
   const verify = useMutation({
     mutationFn: (id: string) => verifyFn({ data: { id } }),
-    onSuccess: (res: any) => {
+    onSuccess: (res: any, id) => {
       setActionMsg({ type: res.ok ? "ok" : "err", text: res.message });
       qc.invalidateQueries({ queryKey: ["custom-domains"] });
+      if (res.ok && autoPollId === id) setAutoPollId(null);
     },
     onError: (e: any) => setActionMsg({ type: "err", text: e?.message ?? "Verification failed" }),
   });
@@ -84,16 +101,16 @@ function DomainsPage() {
             <Crown className="w-7 h-7" />
           </div>
           <h1 className="text-3xl font-bold text-[#2D1B0D]" style={display}>
-            Custom Domains — Lifetime feature
+            Custom Domains — Paid feature
           </h1>
           <p className="text-[#5D4538] mt-3 max-w-md mx-auto">
-            Use your own domain (e.g. <span className="font-mono text-[#2D1B0D]">links.yoursite.com</span>) for every smart link. Available exclusively on the <span className="font-bold">Lifetime</span> plan.
+            Use your own domain (e.g. <span className="font-mono text-[#2D1B0D]">go.yoursite.com</span>) for every smart link. Available on all paid plans.
           </p>
           <Link
             to="/upgrade"
             className="inline-flex items-center gap-2 mt-6 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white font-bold shadow-lg shadow-orange-500/30 hover:scale-[1.02] transition-transform"
           >
-            <Crown className="w-4 h-4" /> Upgrade to Lifetime
+            <Crown className="w-4 h-4" /> Upgrade to unlock
           </Link>
         </div>
       </div>
@@ -108,14 +125,27 @@ function DomainsPage() {
           Custom Domains
         </h1>
         <p className="text-[#5D4538] text-sm mt-2 max-w-2xl">
-          Serve your smart links from your own domain. Add a subdomain (recommended) like <span className="font-mono text-[#2D1B0D]">go.yoursite.com</span> and verify ownership via DNS.
+          Serve your smart links from your own domain. Add a subdomain like{" "}
+          <span className="font-mono text-[#2D1B0D]">go.yoursite.com</span>, add 2 DNS records — we handle the rest automatically.
         </p>
       </header>
 
+      {/* Quick guide */}
+      <QuickGuide />
+
       {/* Add domain */}
       <section className="p-6 rounded-3xl bg-white/85 border border-white/90 backdrop-blur-2xl shadow-[0_8px_30px_rgba(255,126,95,0.08)]">
-        <h2 className="text-sm font-bold text-[#2D1B0D] uppercase tracking-wider mb-4" style={display}>Add a new domain</h2>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <h2 className="text-sm font-bold text-[#2D1B0D] uppercase tracking-wider mb-4" style={display}>
+          <Sparkles className="inline w-4 h-4 mr-1.5 -mt-0.5 text-[#FF7E5F]" />
+          Add a new domain
+        </h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (newDomain.trim() && !add.isPending) add.mutate(newDomain);
+          }}
+          className="flex flex-col sm:flex-row gap-3"
+        >
           <div className="flex-1 flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-[#FFEDD5] focus-within:border-[#FF7E5F]/50 transition">
             <Globe className="w-4 h-4 text-[#7D6452] shrink-0" />
             <input
@@ -123,16 +153,22 @@ function DomainsPage() {
               onChange={(e) => setNewDomain(e.target.value)}
               placeholder="go.yoursite.com"
               className="bg-transparent flex-1 outline-none text-sm text-[#2D1B0D] placeholder:text-[#A38D7D] font-mono"
+              autoComplete="off"
+              spellCheck={false}
             />
           </div>
           <button
-            onClick={() => add.mutate(newDomain)}
+            type="submit"
             disabled={!newDomain.trim() || add.isPending}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white font-bold shadow-lg shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] transition-transform"
           >
-            <Plus className="w-4 h-4" /> {add.isPending ? "Adding…" : "Add domain"}
+            {add.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            {add.isPending ? "Adding…" : "Add domain"}
           </button>
-        </div>
+        </form>
+        <p className="mt-3 text-xs text-[#7D6452]">
+          Tip: use a <span className="font-semibold text-[#2D1B0D]">subdomain</span> like <span className="font-mono">go.</span> or <span className="font-mono">link.</span> — keeps your main site untouched.
+        </p>
         {actionMsg && (
           <div
             className={`mt-4 flex items-start gap-2 p-3 rounded-xl text-sm ${
@@ -159,11 +195,15 @@ function DomainsPage() {
             <DomainCard
               key={dom.id}
               dom={dom}
-              onVerify={() => verify.mutate(dom.id)}
+              verifyFn={verifyFn}
+              autoPoll={autoPollId === dom.id}
+              onStopPoll={() => setAutoPollId(null)}
+              onVerified={() => qc.invalidateQueries({ queryKey: ["custom-domains"] })}
+              onManualVerify={() => verify.mutate(dom.id)}
               onDelete={() => {
                 if (confirm(`Delete ${dom.domain}? Links using this domain will stop working.`)) del.mutate(dom.id);
               }}
-              verifying={verify.isPending}
+              manualVerifying={verify.isPending && verify.variables === dom.id}
             />
           ))
         )}
@@ -172,18 +212,153 @@ function DomainsPage() {
   );
 }
 
+function QuickGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-3xl bg-gradient-to-br from-[#FFF5EC] to-white border border-[#FFEDD5]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-5 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white border border-[#FFEDD5] flex items-center justify-center">
+            <HelpCircle className="w-5 h-5 text-[#FF7E5F]" />
+          </div>
+          <div>
+            <p className="font-bold text-[#2D1B0D]" style={display}>How to add your domain (3 easy steps)</p>
+            <p className="text-xs text-[#7D6452] mt-0.5">English + বাংলা beginner guide</p>
+          </div>
+        </div>
+        <span className="text-xs font-semibold text-[#FF7E5F] uppercase tracking-wider">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && (
+        <div className="px-5 pb-5 grid md:grid-cols-3 gap-4">
+          <GuideStep
+            n={1}
+            title="Choose a subdomain"
+            titleBn="সাবডোমেইন বেছে নিন"
+            body="Pick something short like go.yoursite.com or link.yoursite.com. Type it in the box above and click Add."
+            bodyBn="ছোট একটা সাবডোমেইন নিন যেমন go.yoursite.com বা link.yoursite.com। উপরের বক্সে টাইপ করে Add চাপুন।"
+          />
+          <GuideStep
+            n={2}
+            title="Add 2 DNS records"
+            titleBn="২টি DNS রেকর্ড যোগ করুন"
+            body={`Open your registrar's DNS panel and add the CNAME + TXT record we show. Use the "Copy" button — no typos!`}
+            bodyBn={`আপনার registrar-এর DNS panel-এ গিয়ে আমাদের দেওয়া CNAME + TXT রেকর্ড দুটো add করুন। "Copy" বাটন ব্যবহার করুন।`}
+          />
+          <GuideStep
+            n={3}
+            title="Auto-verify"
+            titleBn="অটো ভেরিফাই"
+            body="We check DNS every 6 seconds automatically. Usually verifies in 1–3 minutes. Green ✓ = ready to use!"
+            bodyBn="আমরা প্রতি ৬ সেকেন্ডে DNS check করি। সাধারণত ১–৩ মিনিটে verify হয়। সবুজ ✓ আসলেই ready!"
+          />
+          <div className="md:col-span-3 flex flex-wrap gap-2 pt-2">
+            <span className="text-xs text-[#5D4538] font-semibold mr-1 self-center">Quick DNS panel:</span>
+            {REGISTRARS.map((r) => (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-[#FFEDD5] text-xs font-semibold text-[#2D1B0D] hover:border-[#FF7E5F]/50 transition"
+              >
+                {r.label} <ExternalLink className="w-3 h-3 text-[#7D6452]" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuideStep({ n, title, titleBn, body, bodyBn }: { n: number; title: string; titleBn: string; body: string; bodyBn: string }) {
+  return (
+    <div className="p-4 rounded-2xl bg-white border border-[#FFEDD5]">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] text-white text-sm font-bold flex items-center justify-center">{n}</span>
+        <p className="font-bold text-[#2D1B0D] text-sm" style={display}>{title}</p>
+      </div>
+      <p className="text-xs text-[#5D4538] leading-relaxed">{body}</p>
+      <p className="text-xs text-[#7D6452] leading-relaxed mt-1.5 italic">{bodyBn}</p>
+      <p className="text-[10px] uppercase tracking-wider text-[#FF7E5F] font-bold mt-2">{titleBn}</p>
+    </div>
+  );
+}
+
 function DomainCard({
   dom,
-  onVerify,
+  verifyFn,
+  autoPoll,
+  onStopPoll,
+  onVerified,
+  onManualVerify,
   onDelete,
-  verifying,
+  manualVerifying,
 }: {
   dom: any;
-  onVerify: () => void;
+  verifyFn: (args: any) => Promise<any>;
+  autoPoll: boolean;
+  onStopPoll: () => void;
+  onVerified: () => void;
+  onManualVerify: () => void;
   onDelete: () => void;
-  verifying: boolean;
+  manualVerifying: boolean;
 }) {
   const [open, setOpen] = useState(!dom.verified);
+  const [status, setStatus] = useState<{ txtOk: boolean; cnameOk: boolean; provider?: any; message?: string } | null>(null);
+  const [polling, setPolling] = useState(false);
+  const attemptsRef = useRef(0);
+
+  // Auto-polling: every 6s for up to 20 attempts (~2 min) after adding.
+  useEffect(() => {
+    if (!autoPoll || dom.verified) return;
+    setPolling(true);
+    attemptsRef.current = 0;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      attemptsRef.current += 1;
+      try {
+        const res = await verifyFn({ data: { id: dom.id } });
+        if (cancelled) return;
+        setStatus({ txtOk: res.txtOk, cnameOk: res.cnameOk, provider: res.provider, message: res.message });
+        if (res.ok) {
+          setPolling(false);
+          onVerified();
+          onStopPoll();
+          return;
+        }
+      } catch { /* ignore transient */ }
+      if (attemptsRef.current >= 20) {
+        setPolling(false);
+        onStopPoll();
+        return;
+      }
+      setTimeout(tick, 6000);
+    };
+    const t = setTimeout(tick, 3000); // first check after 3s
+    return () => { cancelled = true; clearTimeout(t); setPolling(false); };
+  }, [autoPoll, dom.id, dom.verified, verifyFn, onVerified, onStopPoll]);
+
+  const runManual = async () => {
+    onManualVerify();
+    try {
+      const res = await verifyFn({ data: { id: dom.id } });
+      setStatus({ txtOk: res.txtOk, cnameOk: res.cnameOk, provider: res.provider, message: res.message });
+    } catch { /* handled by parent */ }
+  };
+
+  const cnameName = dom.domain;
+  const txtName = `_sleepox-verify.${dom.domain}`;
+
+  const copyAll = () => {
+    const text = `CNAME  ${cnameName}  →  ${CNAME_TARGET}\nTXT    ${txtName}  →  ${dom.verification_token}`;
+    navigator.clipboard.writeText(text);
+  };
 
   return (
     <div className="p-6 rounded-3xl bg-white/85 border border-white/90 backdrop-blur-2xl shadow-[0_8px_30px_rgba(255,126,95,0.08)]">
@@ -202,6 +377,10 @@ function DomainCard({
           {dom.verified ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-700 text-xs font-bold">
               <ShieldCheck className="w-3.5 h-3.5" /> Verified
+            </span>
+          ) : polling ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/40 text-blue-700 text-xs font-bold">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Auto-checking…
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-700 text-xs font-bold">
@@ -226,33 +405,95 @@ function DomainCard({
 
       {open && (
         <div className="mt-6 pt-6 border-t border-[#FFEDD5] space-y-5">
+          {/* Live status */}
+          {!dom.verified && (
+            <div className="grid grid-cols-2 gap-3">
+              <StatusPill label="CNAME record" ok={status?.cnameOk ?? false} />
+              <StatusPill label="TXT record" ok={status?.txtOk ?? false} />
+            </div>
+          )}
+
           <div>
-            <h4 className="text-xs uppercase tracking-[0.2em] text-[#7D6452] font-bold mb-3">DNS Records (add at your registrar)</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs uppercase tracking-[0.2em] text-[#7D6452] font-bold">DNS Records (add at your registrar)</h4>
+              <button
+                onClick={copyAll}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2D1B0D] text-white text-xs font-bold hover:bg-[#3D2818] transition"
+              >
+                <Copy className="w-3 h-3" /> Copy all
+              </button>
+            </div>
             <div className="space-y-3">
-              <DnsRow type="CNAME" name={dom.domain} value="sleepox.com" />
-              <DnsRow type="TXT" name={`_sleepox-verify.${dom.domain}`} value={dom.verification_token} />
+              <DnsRow type="CNAME" name={cnameName} value={CNAME_TARGET} live={status?.cnameOk} />
+              <DnsRow type="TXT" name={txtName} value={dom.verification_token} live={status?.txtOk} />
             </div>
           </div>
+
+          {/* Registrar hint (from detected nameservers) */}
+          {status?.provider && status.provider.id !== "other" && status.provider.dashUrl && (
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-bold text-blue-900" style={display}>
+                  Looks like your DNS is on {status.provider.label}
+                </p>
+                <p className="text-xs text-blue-800 mt-0.5">Open the DNS panel directly and paste the records above.</p>
+              </div>
+              <a
+                href={status.provider.dashUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition"
+              >
+                Open {status.provider.label} <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+
           <div className="p-4 rounded-2xl bg-[#FFF5EC] border border-[#FFEDD5]">
             <p className="text-xs text-[#5D4538] leading-relaxed">
-              <strong className="text-[#2D1B0D]">How it works:</strong> Point a CNAME from your domain to <span className="font-mono">sleepox.com</span>, then add the TXT record above to prove ownership. DNS changes can take a few minutes (up to 24h on some providers).
+              <strong className="text-[#2D1B0D]">How it works:</strong> Point a CNAME from your domain to <span className="font-mono">{CNAME_TARGET}</span>, then add the TXT record above to prove ownership. DNS usually propagates in 1–3 minutes.
+              <br />
+              <span className="italic text-[#7D6452]">বাংলা: আপনার domain-এর DNS panel-এ CNAME এবং TXT দুটো record add করুন — কপি বাটন ব্যবহার করুন। ১–৩ মিনিটে auto verify হয়ে যাবে।</span>
             </p>
           </div>
-          <button
-            onClick={onVerify}
-            disabled={verifying}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2D1B0D] text-white text-sm font-bold hover:bg-[#3D2818] disabled:opacity-50 transition"
-          >
-            <RefreshCw className={`w-4 h-4 ${verifying ? "animate-spin" : ""}`} />
-            {verifying ? "Checking DNS…" : dom.verified ? "Re-check" : "Verify DNS"}
-          </button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={runManual}
+              disabled={manualVerifying || polling}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2D1B0D] text-white text-sm font-bold hover:bg-[#3D2818] disabled:opacity-50 transition"
+            >
+              <RefreshCw className={`w-4 h-4 ${manualVerifying || polling ? "animate-spin" : ""}`} />
+              {manualVerifying ? "Checking DNS…" : dom.verified ? "Re-check" : "Check now"}
+            </button>
+            {status?.message && !dom.verified && (
+              <span className={`text-xs ${status.txtOk && status.cnameOk ? "text-emerald-700" : "text-amber-700"}`}>
+                {status.message}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function DnsRow({ type, name, value }: { type: string; name: string; value: string }) {
+function StatusPill({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 p-3 rounded-xl border ${
+      ok ? "bg-emerald-50 border-emerald-200" : "bg-white border-[#FFEDD5]"
+    }`}>
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+        ok ? "bg-emerald-500 text-white" : "bg-[#FFEDD5] text-[#7D6452]"
+      }`}>
+        {ok ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+      </div>
+      <span className={`text-xs font-bold ${ok ? "text-emerald-800" : "text-[#7D6452]"}`}>{label}</span>
+    </div>
+  );
+}
+
+function DnsRow({ type, name, value, live }: { type: string; name: string; value: string; live?: boolean }) {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = (key: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -260,20 +501,25 @@ function DnsRow({ type, name, value }: { type: string; name: string; value: stri
     setTimeout(() => setCopied(null), 1500);
   };
   return (
-    <div className="grid grid-cols-12 gap-2 items-center p-3 rounded-xl bg-white border border-[#FFEDD5] text-xs">
-      <span className="col-span-2 inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#FF7E5F]/15 text-[#FF7E5F] font-bold font-mono">{type}</span>
+    <div className={`grid grid-cols-12 gap-2 items-center p-3 rounded-xl bg-white border text-xs ${
+      live === true ? "border-emerald-300 bg-emerald-50/40" : "border-[#FFEDD5]"
+    }`}>
+      <span className="col-span-2 inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#FF7E5F]/15 text-[#FF7E5F] font-bold font-mono">
+        {type}
+        {live === true && <Check className="w-3 h-3 ml-1 text-emerald-600" />}
+      </span>
       <div className="col-span-5 min-w-0 flex items-center gap-2">
         <span className="text-[10px] uppercase text-[#7D6452] shrink-0">Name</span>
         <code className="text-[#2D1B0D] font-mono truncate" title={name}>{name}</code>
-        <button onClick={() => copy("n", name)} className="ml-auto p-1 text-[#7D6452] hover:text-[#FF7E5F]" title="Copy">
-          {copied === "n" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+        <button onClick={() => copy(`n-${name}`, name)} className="ml-auto p-1 text-[#7D6452] hover:text-[#FF7E5F]" title="Copy">
+          {copied === `n-${name}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
       <div className="col-span-5 min-w-0 flex items-center gap-2">
         <span className="text-[10px] uppercase text-[#7D6452] shrink-0">Value</span>
         <code className="text-[#2D1B0D] font-mono truncate" title={value}>{value}</code>
-        <button onClick={() => copy("v", value)} className="ml-auto p-1 text-[#7D6452] hover:text-[#FF7E5F]" title="Copy">
-          {copied === "v" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+        <button onClick={() => copy(`v-${value}`, value)} className="ml-auto p-1 text-[#7D6452] hover:text-[#FF7E5F]" title="Copy">
+          {copied === `v-${value}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
     </div>
