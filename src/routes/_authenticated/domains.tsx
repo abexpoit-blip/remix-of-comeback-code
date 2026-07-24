@@ -445,9 +445,7 @@ function DomainCard({
 
           <div className="p-4 rounded-2xl bg-[#FFF5EC] border border-[#FFEDD5]">
             <p className="text-xs text-[#5D4538] leading-relaxed">
-              <strong className="text-[#2D1B0D]">How it works:</strong> Point a CNAME from your domain to <span className="font-mono">{CNAME_TARGET}</span>, then add the TXT record above to prove ownership. DNS usually propagates in 1–3 minutes.
-              <br />
-              <span className="italic text-[#7D6452]">বাংলা: আপনার domain-এর DNS panel-এ CNAME এবং TXT দুটো record add করুন — কপি বাটন ব্যবহার করুন। ১–৩ মিনিটে auto verify হয়ে যাবে।</span>
+              <strong className="text-[#2D1B0D]">How it works:</strong> Add the CNAME record (points your domain to <span className="font-mono">{CNAME_TARGET}</span>) and the TXT record (proves you own the domain). Use the Copy buttons — no typing needed. DNS usually updates in 1–3 minutes and we verify automatically.
             </p>
           </div>
 
