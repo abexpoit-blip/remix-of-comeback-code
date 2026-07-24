@@ -235,24 +235,19 @@ function QuickGuide() {
         <div className="px-5 pb-5 grid md:grid-cols-3 gap-4">
           <GuideStep
             n={1}
-            title="Choose a subdomain"
-            titleBn="সাবডোমেইন বেছে নিন"
-            body="Pick something short like go.yoursite.com or link.yoursite.com. Type it in the box above and click Add."
-            bodyBn="ছোট একটা সাবডোমেইন নিন যেমন go.yoursite.com বা link.yoursite.com। উপরের বক্সে টাইপ করে Add চাপুন।"
+            title="Type your subdomain"
+            body="In the box above, type a short subdomain like go.yoursite.com or link.yoursite.com. Then click Add."
           />
           <GuideStep
             n={2}
-            title="Add 2 DNS records"
-            titleBn="২টি DNS রেকর্ড যোগ করুন"
-            body={`Open your registrar's DNS panel and add the CNAME + TXT record we show. Use the "Copy" button — no typos!`}
-            bodyBn={`আপনার registrar-এর DNS panel-এ গিয়ে আমাদের দেওয়া CNAME + TXT রেকর্ড দুটো add করুন। "Copy" বাটন ব্যবহার করুন।`}
+            title="Copy 2 DNS records"
+            title2="Paste them in your domain panel"
+            body={`We show you 1 CNAME and 1 TXT record. Click the "Copy" button on each, open your domain's DNS panel (link below), and paste them as new records. Save.`}
           />
           <GuideStep
             n={3}
-            title="Auto-verify"
-            titleBn="অটো ভেরিফাই"
-            body="We check DNS every 6 seconds automatically. Usually verifies in 1–3 minutes. Green ✓ = ready to use!"
-            bodyBn="আমরা প্রতি ৬ সেকেন্ডে DNS check করি। সাধারণত ১–৩ মিনিটে verify হয়। সবুজ ✓ আসলেই ready!"
+            title="Wait for green ✓"
+            body="We auto-check your DNS every 6 seconds. Most domains verify in 1–3 minutes. When you see the green tick, your domain is live!"
           />
           <div className="md:col-span-3 flex flex-wrap gap-2 pt-2">
             <span className="text-xs text-[#5D4538] font-semibold mr-1 self-center">Quick DNS panel:</span>
