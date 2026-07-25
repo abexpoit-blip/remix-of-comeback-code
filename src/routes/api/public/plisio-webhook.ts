@@ -83,8 +83,9 @@ async function applyPackageToProfile(
     !Number.isNaN(currentExpiry) &&
     currentExpiry > now.getTime();
 
-  // Renewal (same active plan, not expired): extend from current expiry, keep usage counters.
-  // New purchase / plan switch / expired plan: start fresh from now, reset usage.
+  // Renewal (same active plan, not expired): extend expiry from current expiry.
+  // New purchase / plan switch / expired plan: start fresh from now.
+  // In BOTH cases the paid period grants a fresh click allowance, so usage resets.
   const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
   const expiresAt = isLifetime
     ? null
@@ -94,20 +95,15 @@ async function applyPackageToProfile(
 
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update((hasActiveSamePlan ? {
-      plan_slug: pkg.slug,
-      click_quota: pkg.click_quota,
-      link_limit: pkg.link_limit,
-      plan_expires_at: expiresAt,
-    } : {
+    .update({
       plan_slug: pkg.slug,
       click_quota: pkg.click_quota,
       link_limit: pkg.link_limit,
       clicks_used: 0,
       clicks_period_start: resetAt,
-      plan_started_at: resetAt,
+      ...(hasActiveSamePlan ? {} : { plan_started_at: resetAt }),
       plan_expires_at: expiresAt,
-    }) as any)
+    } as any)
     .eq("id", userId);
   if (error) throw error;
 }
