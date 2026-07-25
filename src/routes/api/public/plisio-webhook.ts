@@ -70,7 +70,7 @@ async function applyPackageToProfile(
 
   const { data: profile, error: fetchErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan_slug, plan_expires_at")
+    .select("plan_slug, plan_expires_at, click_quota, clicks_used")
     .eq("id", userId)
     .maybeSingle();
   if (fetchErr) throw fetchErr;
@@ -83,9 +83,10 @@ async function applyPackageToProfile(
     !Number.isNaN(currentExpiry) &&
     currentExpiry > now.getTime();
 
-  // Renewal (same active plan, not expired): extend expiry from current expiry.
-  // New purchase / plan switch / expired plan: start fresh from now.
-  // In BOTH cases the paid period grants a fresh click allowance, so usage resets.
+  // Renewal (same active plan, still valid): STACK — 30 more days AND the package's
+  // click allowance is ADDED on top of the current quota (usage counter untouched,
+  // so remaining clicks carry over instead of being lost).
+  // New purchase / plan switch / expired plan: fresh period, fresh quota, usage reset.
   const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
   const expiresAt = isLifetime
     ? null
@@ -93,17 +94,29 @@ async function applyPackageToProfile(
       ? new Date(currentExpiry + PERIOD_MS).toISOString()
       : new Date(now.getTime() + PERIOD_MS).toISOString();
 
+  const stackedQuota =
+    pkg.click_quota == null
+      ? null
+      : Number(profile?.click_quota ?? 0) + Number(pkg.click_quota);
+
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update({
-      plan_slug: pkg.slug,
-      click_quota: pkg.click_quota,
-      link_limit: pkg.link_limit,
-      clicks_used: 0,
-      clicks_period_start: resetAt,
-      ...(hasActiveSamePlan ? {} : { plan_started_at: resetAt }),
-      plan_expires_at: expiresAt,
-    } as any)
+    .update((hasActiveSamePlan
+      ? {
+          plan_slug: pkg.slug,
+          click_quota: stackedQuota,
+          link_limit: pkg.link_limit,
+          plan_expires_at: expiresAt,
+        }
+      : {
+          plan_slug: pkg.slug,
+          click_quota: pkg.click_quota,
+          link_limit: pkg.link_limit,
+          clicks_used: 0,
+          clicks_period_start: resetAt,
+          plan_started_at: resetAt,
+          plan_expires_at: expiresAt,
+        }) as any)
     .eq("id", userId);
   if (error) throw error;
 }
