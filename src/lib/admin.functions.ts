@@ -17,49 +17,59 @@ type PackageQuota = {
 
 async function applyPackageToProfileIds(userIds: string[], pkg: PackageQuota) {
   const ids = [...new Set(userIds)];
-  const resetAt = new Date().toISOString();
-  const nowMs = Date.now();
+  const now = new Date();
+  const resetAt = now.toISOString();
+  const nowMs = now.getTime();
+  const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+  const isLifetime = pkg.slug === "lifetime" || pkg.slug === "unlimited";
+  const isFree = pkg.slug === "free";
 
   const { data: profiles, error: fetchErr } = await supabaseAdmin
     .from("profiles")
-    .select("id, plan_slug, plan_expires_at")
+    .select("id, plan_slug, plan_expires_at, click_quota")
     .in("id", ids);
   if (fetchErr) throw new Error(fetchErr.message);
 
-  const shouldPreserveUsage = (profile: any) => {
-    if (pkg.slug === "free") return false;
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+
+  // Renewal = same paid plan that is still active → stack days + stack quota.
+  const isRenewal = (profile: any) => {
+    if (isFree || isLifetime) return false;
     if (profile?.plan_slug !== pkg.slug) return false;
     const expiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
-    return expiry == null || Number.isNaN(expiry) || expiry > nowMs;
+    return expiry != null && !Number.isNaN(expiry) && expiry > nowMs;
   };
 
-  const preserveIds = (profiles ?? []).filter(shouldPreserveUsage).map((p: any) => p.id);
-  const preserveSet = new Set(preserveIds);
-  const resetIds = ids.filter((id) => !preserveSet.has(id));
+  for (const id of ids) {
+    const profile = profileMap.get(id);
+    const renewal = isRenewal(profile);
 
-  const quotaUpdate = {
-    plan_slug: pkg.slug,
-    click_quota: pkg.click_quota,
-    link_limit: pkg.link_limit,
-  };
+    let update: Record<string, unknown>;
 
-  if (preserveIds.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("profiles")
-      .update(quotaUpdate as any)
-      .in("id", preserveIds);
-    if (error) throw new Error(error.message);
-  }
-
-  if (resetIds.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("profiles")
-      .update({
-        ...quotaUpdate,
+    if (renewal) {
+      const currentExpiry = new Date(profile.plan_expires_at).getTime();
+      update = {
+        plan_slug: pkg.slug,
+        click_quota:
+          pkg.click_quota == null ? null : Number(profile?.click_quota ?? 0) + Number(pkg.click_quota),
+        link_limit: pkg.link_limit,
+        plan_expires_at: new Date(currentExpiry + PERIOD_MS).toISOString(),
+      };
+    } else {
+      update = {
+        plan_slug: pkg.slug,
+        click_quota: pkg.click_quota,
+        link_limit: pkg.link_limit,
         clicks_used: 0,
         clicks_period_start: resetAt,
-      } as any)
-      .in("id", resetIds);
+        // Manual admin upgrades must also carry a visible start/expiry date,
+        // otherwise the control panel shows "—" for the plan period.
+        plan_started_at: isFree ? null : resetAt,
+        plan_expires_at: isFree || isLifetime ? null : new Date(nowMs + PERIOD_MS).toISOString(),
+      };
+    }
+
+    const { error } = await supabaseAdmin.from("profiles").update(update as any).eq("id", id);
     if (error) throw new Error(error.message);
   }
 }
