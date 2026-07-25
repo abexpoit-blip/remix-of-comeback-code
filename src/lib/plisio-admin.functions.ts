@@ -19,24 +19,22 @@ async function applyPackageToProfile(userId: string, pkg: { slug: string; click_
   if (fetchErr) throw new Error(fetchErr.message);
 
   const expiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
-  const keepExistingUsage =
+  const isRenewal =
     pkg.slug !== "free" &&
     profile?.plan_slug === pkg.slug &&
     (expiry == null || Number.isNaN(expiry) || expiry > Date.now());
 
+  // Renewal or new purchase — a paid period always grants a fresh click allowance.
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update((keepExistingUsage ? {
+    .update({
       plan_slug: pkg.slug,
       click_quota: pkg.click_quota,
       link_limit: pkg.link_limit,
-    } : {
-      click_quota: pkg.click_quota,
-      link_limit: pkg.link_limit,
-      plan_slug: pkg.slug,
       clicks_used: 0,
       clicks_period_start: resetAt,
-    }) as any)
+      ...(isRenewal ? {} : { plan_started_at: resetAt }),
+    } as any)
     .eq("id", userId);
   if (error) throw new Error(error.message);
 }
