@@ -24,6 +24,33 @@ export const createInvoice = createServerFn({ method: "POST" })
     if (pkgErr || !pkg) throw new Error("Package not found");
     if (Number(pkg.price_usd) <= 0) throw new Error("This package does not require payment");
 
+    // NEW RULE: an active paid plan cannot be renewed/re-bought with the SAME package
+    // until it expires. Users must upgrade to Lifetime or use a new account.
+    const norm = (s?: string | null) => {
+      const v = (s || "free").toLowerCase();
+      if (v === "pro_monthly") return "monthly";
+      if (v === "unlimited") return "lifetime";
+      return v;
+    };
+    const { data: myProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("plan_slug, plan_expires_at")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const currentPlan = norm(myProfile?.plan_slug);
+    const expiresAt = (myProfile as any)?.plan_expires_at ? new Date((myProfile as any).plan_expires_at) : null;
+    const stillActive = !!expiresAt && expiresAt.getTime() > Date.now();
+    if (currentPlan === "lifetime") {
+      throw new Error("You already have the Lifetime plan — no further purchase is needed.");
+    }
+    if (norm(pkg.slug) === currentPlan && stillActive) {
+      const daysLeft = Math.ceil((expiresAt!.getTime() - Date.now()) / 86400000);
+      throw new Error(
+        `Your ${pkg.name} plan is still active (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). The same package can only be purchased again after it expires. Upgrade to Lifetime, or use a new account for another ${pkg.name}.`
+      );
+    }
+
+
     // Add 2% network/processing fee so customer pays it ($5 -> $5.10, $50 -> $51.00)
     const chargeAmount = (Number(pkg.price_usd) * 1.02).toFixed(2);
 
