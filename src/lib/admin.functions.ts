@@ -313,33 +313,66 @@ export const adminBulkSetPlan = createServerFn({ method: "POST" })
     return { ok: true, updated: data.ids.length };
   });
 
-// Bulk fix: monthly users whose click_quota or link_limit ended up as NULL (unlimited bug)
-// or whose quotas exceed the configured monthly package limits. Re-applies the monthly package.
+// Repair paid-plan quota drift without applying/renewing a package. The expected
+// quota is derived from successful payments in the current plan cycle, so this
+// operation is idempotent: clicking it repeatedly cannot add quota or plan days.
 export const adminFixUnlimitedMonthly = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
-    const { data: pkg } = await supabaseAdmin
-      .from("packages").select("*").eq("slug", "monthly").maybeSingle();
-    if (!pkg) throw new Error("Monthly package not found");
 
-    const { data: rows, error: selErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, click_quota, link_limit")
-      .eq("plan_slug", "monthly");
-    if (selErr) throw new Error(selErr.message);
+    const [{ data: packages, error: pkgErr }, { data: profiles, error: profileErr }, { data: paidOrders, error: orderErr }] = await Promise.all([
+      supabaseAdmin.from("packages").select("slug, click_quota, link_limit"),
+      supabaseAdmin
+        .from("profiles")
+        .select("id, plan_slug, plan_started_at, click_quota, link_limit")
+        .neq("plan_slug", "free"),
+      supabaseAdmin
+        .from("upgrade_requests")
+        .select("user_id, package_slug, status, created_at")
+        .in("status", ["paid", "completed", "success", "finished"]),
+    ]);
+    if (pkgErr) throw new Error(pkgErr.message);
+    if (profileErr) throw new Error(profileErr.message);
+    if (orderErr) throw new Error(orderErr.message);
 
-    const targetClicks = pkg.click_quota;
-    const targetLinks = pkg.link_limit;
-    const affected = (rows ?? []).filter((r: any) => {
-      const cqBad = r.click_quota == null || (targetClicks != null && r.click_quota !== targetClicks);
-      const llBad = r.link_limit == null || (targetLinks != null && r.link_limit !== targetLinks);
-      return cqBad || llBad;
-    }).map((r: any) => r.id);
+    const packageMap = new Map((packages ?? []).map((pkg: any) => [pkg.slug, pkg]));
+    const ordersByUser = new Map<string, any[]>();
+    for (const order of paidOrders ?? []) {
+      const list = ordersByUser.get((order as any).user_id) ?? [];
+      list.push(order);
+      ordersByUser.set((order as any).user_id, list);
+    }
 
-    if (affected.length === 0) return { ok: true, fixed: 0, scanned: rows?.length ?? 0 };
-    await applyPackageToProfileIds(affected, pkg);
-    return { ok: true, fixed: affected.length, scanned: rows?.length ?? 0 };
+    let fixed = 0;
+    for (const profile of profiles ?? []) {
+      const pkg = packageMap.get((profile as any).plan_slug) as any;
+      if (!pkg) continue;
+
+      const isUnlimited = pkg.slug === "lifetime" || pkg.slug === "unlimited" || pkg.click_quota == null;
+      const startedMs = (profile as any).plan_started_at ? Date.parse((profile as any).plan_started_at) : Number.NaN;
+      // Invoice rows are created shortly before plan_started_at is written by
+      // the paid callback. Include a 24-hour margin so the first payment in the
+      // current cycle is not accidentally excluded.
+      const cycleCutoff = Number.isNaN(startedMs) ? Number.NEGATIVE_INFINITY : startedMs - 86_400_000;
+      const successfulPayments = (ordersByUser.get((profile as any).id) ?? []).filter((order: any) =>
+        order.package_slug === pkg.slug && Date.parse(order.created_at) >= cycleCutoff,
+      ).length;
+      const entitledPeriods = Math.max(1, successfulPayments);
+      const expectedClickQuota = isUnlimited ? null : Number(pkg.click_quota) * entitledPeriods;
+      const expectedLinkLimit = isUnlimited ? null : pkg.link_limit;
+
+      if ((profile as any).click_quota === expectedClickQuota && (profile as any).link_limit === expectedLinkLimit) continue;
+
+      const { error } = await supabaseAdmin
+        .from("profiles")
+        .update({ click_quota: expectedClickQuota, link_limit: expectedLinkLimit } as any)
+        .eq("id", (profile as any).id);
+      if (error) throw new Error(error.message);
+      fixed++;
+    }
+
+    return { ok: true, fixed, scanned: profiles?.length ?? 0 };
   });
 
 export const adminUserDetail = createServerFn({ method: "GET" })
@@ -904,7 +937,7 @@ export const adminResetAllClicks = createServerFn({ method: "POST" })
     return data ?? { ok: true };
   });
 
-// ===== Quota Sync: Test a user against a package (verifies trigger fires) =====
+// ===== Quota Sync: Read-only verification for one user/package =====
 export const adminTestQuotaSync = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
@@ -939,7 +972,22 @@ export const adminTestQuotaSync = createServerFn({ method: "POST" })
       push(`❌ Package "${data.package_slug}" not found.`);
       return { ok: false, log, before: profile, expected: null, after: null, pass: false, startedAt };
     }
-    push(`📦 Package "${pkg.slug}" expects click_quota=${pkg.click_quota}, link_limit=${pkg.link_limit}`);
+    const { data: paidOrders, error: orderErr } = await supabaseAdmin
+      .from("upgrade_requests")
+      .select("package_slug, status, created_at")
+      .eq("user_id", profile.id)
+      .eq("package_slug", pkg.slug)
+      .in("status", ["paid", "completed", "success", "finished"]);
+    if (orderErr) throw new Error(orderErr.message);
+
+    const startedMs = profile.plan_started_at ? Date.parse(profile.plan_started_at) : Number.NaN;
+    const cycleCutoff = Number.isNaN(startedMs) ? Number.NEGATIVE_INFINITY : startedMs - 86_400_000;
+    const successfulPayments = (paidOrders ?? []).filter((order: any) => Date.parse(order.created_at) >= cycleCutoff).length;
+    const entitledPeriods = Math.max(1, successfulPayments);
+    const unlimitedPlan = pkg.slug === "lifetime" || pkg.slug === "unlimited" || pkg.click_quota == null;
+    const expectedClickQuota = unlimitedPlan ? null : Number(pkg.click_quota) * entitledPeriods;
+    const expectedLinkLimit = unlimitedPlan ? null : pkg.link_limit;
+    push(`📦 Package "${pkg.slug}" has ${successfulPayments} successful payment(s) in this cycle; expected click_quota=${expectedClickQuota}, link_limit=${expectedLinkLimit}`);
 
     const before = {
       plan_slug: profile.plan_slug,
@@ -949,26 +997,18 @@ export const adminTestQuotaSync = createServerFn({ method: "POST" })
     };
     push(`BEFORE → plan=${before.plan_slug}, click_quota=${before.click_quota}, link_limit=${before.link_limit}, clicks_used=${before.clicks_used}`);
 
-    push(`Applying package via applyPackageToProfileIds() …`);
-    await applyPackageToProfileIds([profile.id], pkg as PackageQuota);
-    push(`✅ Update committed. Trigger trg_sync_profile_plan_quota should have fired.`);
-
-    const { data: after, error: aErr } = await supabaseAdmin
-      .from("profiles")
-      .select("plan_slug, click_quota, link_limit, clicks_used, plan_started_at, plan_expires_at")
-      .eq("id", profile.id)
-      .maybeSingle();
-    if (aErr) throw new Error(aErr.message);
+    push(`🔒 Read-only verification — no package, quota, usage, or expiry fields were changed.`);
+    const after = profile;
     push(`AFTER  → plan=${after?.plan_slug}, click_quota=${after?.click_quota}, link_limit=${after?.link_limit}, clicks_used=${after?.clicks_used}`);
 
     const planOk = after?.plan_slug === pkg.slug;
-    const cqOk = after?.click_quota === pkg.click_quota;
-    const llOk = after?.link_limit === pkg.link_limit;
+    const cqOk = after?.click_quota === expectedClickQuota;
+    const llOk = after?.link_limit === expectedLinkLimit;
     const pass = planOk && cqOk && llOk;
 
     push(planOk ? `✅ plan_slug matches` : `❌ plan_slug mismatch (got ${after?.plan_slug}, expected ${pkg.slug})`);
-    push(cqOk ? `✅ click_quota matches (${pkg.click_quota})` : `❌ click_quota mismatch (got ${after?.click_quota}, expected ${pkg.click_quota})`);
-    push(llOk ? `✅ link_limit matches (${pkg.link_limit})` : `❌ link_limit mismatch (got ${after?.link_limit}, expected ${pkg.link_limit})`);
+    push(cqOk ? `✅ click_quota matches (${expectedClickQuota})` : `❌ click_quota mismatch (got ${after?.click_quota}, expected ${expectedClickQuota})`);
+    push(llOk ? `✅ link_limit matches (${expectedLinkLimit})` : `❌ link_limit mismatch (got ${after?.link_limit}, expected ${expectedLinkLimit})`);
     push(pass ? `🎉 PASS — Quota sync is working correctly.` : `🚨 FAIL — Quota sync did NOT produce expected values.`);
 
     return {
@@ -976,7 +1016,7 @@ export const adminTestQuotaSync = createServerFn({ method: "POST" })
       pass,
       startedAt,
       before,
-      expected: { plan_slug: pkg.slug, click_quota: pkg.click_quota, link_limit: pkg.link_limit },
+      expected: { plan_slug: pkg.slug, click_quota: expectedClickQuota, link_limit: expectedLinkLimit },
       after: {
         plan_slug: after?.plan_slug ?? null,
         click_quota: after?.click_quota ?? null,
@@ -1002,17 +1042,39 @@ export const adminQuotaSyncStatus = createServerFn({ method: "GET" })
       pkgMap.set((p as any).slug, { click_quota: (p as any).click_quota, link_limit: (p as any).link_limit });
     }
 
-    const { data: profiles, error: prErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email, plan_slug, click_quota, link_limit, clicks_used, plan_expires_at")
-      .neq("plan_slug", "free")
-      .order("plan_slug", { ascending: true });
+    const [{ data: profiles, error: prErr }, { data: paidOrders, error: orderErr }] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, email, plan_slug, plan_started_at, click_quota, link_limit, clicks_used, plan_expires_at")
+        .neq("plan_slug", "free")
+        .order("plan_slug", { ascending: true }),
+      supabaseAdmin
+        .from("upgrade_requests")
+        .select("user_id, package_slug, status, created_at")
+        .in("status", ["paid", "completed", "success", "finished"]),
+    ]);
     if (prErr) throw new Error(prErr.message);
+    if (orderErr) throw new Error(orderErr.message);
+
+    const ordersByUser = new Map<string, any[]>();
+    for (const order of paidOrders ?? []) {
+      const list = ordersByUser.get((order as any).user_id) ?? [];
+      list.push(order);
+      ordersByUser.set((order as any).user_id, list);
+    }
 
     const rows = (profiles ?? []).map((p: any) => {
       const unlimitedPlan = p.plan_slug === "unlimited" || p.plan_slug === "lifetime";
       const exp = pkgMap.get(p.plan_slug);
-      const expectedQuota = unlimitedPlan ? null : (exp?.click_quota ?? null);
+      const startedMs = p.plan_started_at ? Date.parse(p.plan_started_at) : Number.NaN;
+      const cycleCutoff = Number.isNaN(startedMs) ? Number.NEGATIVE_INFINITY : startedMs - 86_400_000;
+      const successfulPayments = (ordersByUser.get(p.id) ?? []).filter((order: any) =>
+        order.package_slug === p.plan_slug && Date.parse(order.created_at) >= cycleCutoff,
+      ).length;
+      const entitledPeriods = Math.max(1, successfulPayments);
+      const expectedQuota = unlimitedPlan || exp?.click_quota == null
+        ? null
+        : Number(exp.click_quota) * entitledPeriods;
       const expectedLinks = unlimitedPlan ? null : (exp?.link_limit ?? null);
       const cqOk = p.click_quota === expectedQuota;
       const llOk = p.link_limit === expectedLinks;
@@ -1026,6 +1088,8 @@ export const adminQuotaSyncStatus = createServerFn({ method: "GET" })
         plan_expires_at: p.plan_expires_at,
         expected_click_quota: expectedQuota,
         expected_link_limit: expectedLinks,
+        paid_orders: successfulPayments,
+        entitled_periods: entitledPeriods,
         ok: cqOk && llOk,
         issue: !cqOk && !llOk ? "click_quota + link_limit mismatch"
           : !cqOk ? "click_quota mismatch"
