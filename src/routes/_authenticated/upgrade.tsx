@@ -217,6 +217,9 @@ function UpgradePage() {
           </div>
         </header>
 
+        {/* 1M users celebration — limited time */}
+        <CampaignBanner onClaim={scrollToPromoPlan} />
+
         {/* Pricing cards */}
         <section className="grid gap-6 lg:grid-cols-3">
           {packages?.map((p, idx) => {
