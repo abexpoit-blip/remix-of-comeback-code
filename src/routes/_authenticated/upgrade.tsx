@@ -326,14 +326,14 @@ function UpgradePage() {
 
                 {/* CTA */}
                 {(() => {
-                  const isRenewable = isCurrent && canRenewCurrent;
-                  const disabled = isFree || (isCurrent && !isRenewable) || buyMut.isPending;
+                  const locked = isCurrent && !isFree && planStillActive;
+                  const disabled = isFree || (isCurrent && !locked) || buyMut.isPending;
                   return (
                     <button
                       disabled={disabled}
-                      onClick={() => buyMut.mutate(p.slug)}
+                      onClick={() => (locked ? setLockedOpen(true) : buyMut.mutate(p.slug))}
                       className={`mt-7 w-full rounded-2xl py-3.5 text-sm font-bold transition-all ${
-                        isRenewable
+                        locked
                           ? "bg-[#2D1B0D] text-white hover:bg-[#4A3728] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)]"
                           : isCurrent
                             ? "bg-[#22C55E] text-white cursor-not-allowed"
@@ -346,14 +346,15 @@ function UpgradePage() {
                     >
                       {buyMut.isPending && buyMut.variables === p.slug
                         ? "Creating invoice…"
-                        : isRenewable
-                          ? `↻ Renew · +30 days${daysLeft != null ? ` (stacks on ${daysLeft}d left)` : ""}`
+                        : locked
+                          ? `🔒 Active${daysLeft != null ? ` · ${daysLeft}d left` : ""}`
                           : isCurrent
                             ? "✓ Your current plan"
                             : meta.ctaLabel}
                     </button>
                   );
                 })()}
+
 
               </div>
             );
