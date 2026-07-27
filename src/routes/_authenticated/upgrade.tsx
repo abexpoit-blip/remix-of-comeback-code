@@ -1,17 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { useServerFn } from "@tanstack/react-start";
 import {
   ShieldCheck, Zap, Globe2, BarChart3, Bot, Cpu, Infinity as InfinityIcon,
   Sparkles, Crown, Rocket, Lock, Layers, Gauge, Headphones, Star, Check,
-  TrendingUp, MousePointerClick, Link2, Wallet, Bitcoin,
+  TrendingUp, MousePointerClick, Link2, Wallet, Bitcoin, PartyPopper,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { createInvoice, getMyOrders } from "@/lib/billing.functions";
 import { adminListUpgradeRequests } from "@/lib/admin.functions";
 import { toast } from "sonner";
+import { CampaignBanner } from "@/components/campaign-banner";
+import {
+  CAMPAIGN, campaignDiscountPct, campaignEndsAtMs, campaignPriceFor, isCampaignActive,
+} from "@/lib/campaign";
 
 export const Route = createFileRoute("/_authenticated/upgrade")({
   head: () => ({ meta: [{ title: "Upgrade — Sleepox" }] }),
@@ -146,6 +150,24 @@ function UpgradePage() {
   const planStillActive = !!planExpiresAt && planExpiresAt.getTime() > Date.now();
   const [lockedOpen, setLockedOpen] = useState(false);
 
+  // ── 1M users celebration campaign (auto-expires) ─────────────────────────
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const promoActive = isCampaignActive(nowTick);
+  const promoMsLeft = Math.max(0, campaignEndsAtMs() - nowTick);
+  const promoLeftLabel = (() => {
+    const s = Math.floor(promoMsLeft / 1000);
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s % 60}s`;
+  })();
+  const scrollToPromoPlan = () => {
+    document.getElementById("plan-card-lifetime")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+
 
 
   const { data: ordersList } = useQuery({
@@ -195,6 +217,9 @@ function UpgradePage() {
           </div>
         </header>
 
+        {/* 1M users celebration — limited time */}
+        <CampaignBanner onClaim={scrollToPromoPlan} />
+
         {/* Pricing cards */}
         <section className="grid gap-6 lg:grid-cols-3">
           {packages?.map((p, idx) => {
@@ -214,6 +239,8 @@ function UpgradePage() {
             const isFree = price === 0;
             const cardSlug =
               slugKey || (nameKey.includes("life") ? "lifetime" : nameKey.includes("month") || nameKey.includes("pro") ? "monthly" : "free");
+            const shownPrice = campaignPriceFor(cardSlug, price, nowTick);
+            const promoOn = promoActive && shownPrice < price;
             const isCurrent = cardSlug === currentPlan;
             const highlight = meta.highlight;
             const clickQuota = p.click_quota == null ? null : Number(p.click_quota);
@@ -226,6 +253,7 @@ function UpgradePage() {
             return (
               <div
                 key={p.id}
+                id={`plan-card-${cardSlug}`}
                 className={`relative rounded-3xl p-7 sm:p-8 backdrop-blur-xl transition-all hover:-translate-y-1 ${
                   highlight
                     ? "bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] text-white border border-white/30 shadow-[0_30px_80px_-20px_rgba(255,126,95,0.55)] lg:scale-[1.04] lg:my-[-8px]"
@@ -265,9 +293,14 @@ function UpgradePage() {
                 <p className={`mt-3 text-sm ${highlight ? "text-white/85" : "text-[#7A5C45]"}`}>{meta.blurb}</p>
 
                 {/* Price */}
-                <div className="mt-6 flex items-baseline gap-2">
+                <div className="mt-6 flex items-baseline gap-2 flex-wrap">
+                  {promoOn && (
+                    <span className={`text-3xl font-extrabold line-through ${highlight ? "text-white/50" : "text-[#C7B2A0]"}`}>
+                      ${price.toFixed(0)}
+                    </span>
+                  )}
                   <span className={`text-6xl font-extrabold tracking-tight ${highlight ? "text-white" : "bg-clip-text text-transparent bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B]"}`}>
-                    ${price.toFixed(price % 1 === 0 ? 0 : 2)}
+                    ${shownPrice.toFixed(shownPrice % 1 === 0 ? 0 : 2)}
                   </span>
                   <span className={`text-sm font-medium ${highlight ? "text-white/80" : "text-[#7A5C45]"}`}>
                     {slugKey === "lifetime" || nameKey.includes("life")
@@ -276,10 +309,20 @@ function UpgradePage() {
                         ? "/ month"
                         : isFree ? "/ forever" : ""}
                   </span>
+                  {promoOn && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#22C55E] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-sm">
+                      <PartyPopper className="w-3 h-3" /> -{campaignDiscountPct()}% · 1M users
+                    </span>
+                  )}
                 </div>
-                {!isFree && price > 0 && (
+                {promoOn && (
+                  <p className={`mt-1 text-[11px] font-bold ${highlight ? "text-white/85" : "text-[#FF7E5F]"}`}>
+                    Celebration price ends in {promoLeftLabel} — then back to ${price.toFixed(0)}
+                  </p>
+                )}
+                {!isFree && shownPrice > 0 && (
                   <p className={`mt-1 text-[11px] font-medium ${highlight ? "text-white/70" : "text-[#A8907A]"}`}>
-                    + 2% network fee → pay <strong>${(price * 1.02).toFixed(2)}</strong> in crypto · invoice expires in 30 min
+                    + 2% network fee → pay <strong>${(shownPrice * 1.02).toFixed(2)}</strong> in crypto · invoice expires in 30 min
                   </p>
                 )}
 
