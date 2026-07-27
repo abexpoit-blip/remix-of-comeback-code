@@ -236,6 +236,8 @@ function UpgradePage() {
             const isFree = price === 0;
             const cardSlug =
               slugKey || (nameKey.includes("life") ? "lifetime" : nameKey.includes("month") || nameKey.includes("pro") ? "monthly" : "free");
+            const shownPrice = campaignPriceFor(cardSlug, price, nowTick);
+            const promoOn = promoActive && shownPrice < price;
             const isCurrent = cardSlug === currentPlan;
             const highlight = meta.highlight;
             const clickQuota = p.click_quota == null ? null : Number(p.click_quota);
