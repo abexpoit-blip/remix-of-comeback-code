@@ -137,11 +137,13 @@ function UpgradePage() {
     rawPlan === "unlimited" ? "lifetime" : rawPlan;
   const planExpiresAt = myProfile?.plan_expires_at ? new Date(myProfile.plan_expires_at) : null;
   const isLifetimePlan = currentPlan === "lifetime";
-  // Renewable = paid recurring plan that has an expiry (not lifetime, not free)
-  const canRenewCurrent = !isLifetimePlan && currentPlan !== "free" && !!planExpiresAt;
   const daysLeft = planExpiresAt
     ? Math.max(0, Math.ceil((planExpiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null;
+  // NEW RULE: same package cannot be re-purchased while the plan is still active.
+  const planStillActive = !!planExpiresAt && planExpiresAt.getTime() > Date.now();
+  const [lockedOpen, setLockedOpen] = useState(false);
+
 
 
   const { data: ordersList } = useQuery({
