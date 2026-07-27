@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
+import { campaignPriceFor } from "@/lib/campaign";
 
 /**
  * Create a Plisio invoice for the selected package and return the checkout URL.
