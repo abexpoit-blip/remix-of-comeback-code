@@ -51,8 +51,10 @@ export const createInvoice = createServerFn({ method: "POST" })
     }
 
 
-    // Add 2% network/processing fee so customer pays it ($5 -> $5.10, $50 -> $51.00)
-    const chargeAmount = (Number(pkg.price_usd) * 1.02).toFixed(2);
+    // Limited-time campaign price (auto-reverts after the campaign window)
+    const effectivePrice = campaignPriceFor(pkg.slug, Number(pkg.price_usd));
+    // Add 2% network/processing fee so customer pays it ($5 -> $5.10, $35 -> $35.70)
+    const chargeAmount = (effectivePrice * 1.02).toFixed(2);
 
     // M4 fix: prevent unbounded pending-invoice spam (Plisio API cost + DB bloat)
     const { count: pendingCount } = await supabaseAdmin
