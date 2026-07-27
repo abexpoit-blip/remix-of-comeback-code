@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 24-hour full audit: traffic, leaks, bot detection, domains, errors, PM2
+# 24-hour full audit: traffic, routing, bot detection, domains, errors, PM2
 set +e
 cd /opt/sleepox-app-new 2>/dev/null || true
 
@@ -85,7 +85,7 @@ $PSQL -c "SELECT split_part(COALESCE(bot_reason,'unknown'),':',1) reason, COUNT(
 
 echo ""
 echo "════════════════════════════════════════════════════════"
-echo "4) 🚨 LEAK CHECK — FB/Google/TikTok referrer routed to 'ours' (SHOULD BE 0)"
+echo "4) SOCIAL REFERRER ROUTING — 'ours' is intentional injection, not crawler leak"
 echo "════════════════════════════════════════════════════════"
 $PSQL <<'SQL'
 SELECT
@@ -96,7 +96,7 @@ SELECT
     WHEN referer_host ILIKE '%google%' THEN 'google'
     ELSE 'other'
   END AS source,
-  COUNT(*) FILTER (WHERE routed_to='ours' AND NOT is_bot)   AS ours_leak,
+  COUNT(*) FILTER (WHERE routed_to='ours' AND NOT is_bot)   AS ours_injection,
   COUNT(*) FILTER (WHERE routed_to='offer' AND NOT is_bot)  AS offer_ok,
   COUNT(*) FILTER (WHERE routed_to='safe')                  AS safe_ok,
   COUNT(*) FILTER (WHERE is_bot)                            AS bots_blocked
@@ -104,20 +104,22 @@ FROM clicks
 WHERE created_at > now() - interval '24 hours'
   AND (referer_host ILIKE '%facebook%' OR referer_host ILIKE '%fb.%' OR referer_host ILIKE '%fbcdn%'
        OR referer_host ILIKE '%instagram%' OR referer_host ILIKE '%tiktok%' OR referer_host ILIKE '%google%')
-GROUP BY 1 ORDER BY ours_leak DESC;
+GROUP BY 1 ORDER BY ours_injection DESC;
 SQL
 
 echo ""
 echo "════════════════════════════════════════════════════════"
-echo "5) 🚨 FB CRAWLER SANITY — should be 100% blocked"
+echo "5) 🚨 FB CRAWLER SANITY — should be 100% served as article (HTTP 200)"
 echo "════════════════════════════════════════════════════════"
 $PSQL <<'SQL'
 SELECT
   COUNT(*)                                              AS fb_crawler_hits,
   COUNT(*) FILTER (WHERE is_bot)                        AS blocked,
   COUNT(*) FILTER (WHERE NOT is_bot)                    AS LEAKED_TO_HUMAN,
-  COUNT(*) FILTER (WHERE routed_to='ours')              AS routed_ours_BAD,
-  COUNT(*) FILTER (WHERE routed_to='safe')              AS routed_safe_good
+  COUNT(*) FILTER (WHERE routed_to='fb-article')         AS article_200_good,
+  COUNT(*) FILTER (WHERE routed_to='safe')              AS safe_legacy,
+  COUNT(*) FILTER (WHERE routed_to='offer')             AS routed_offer_BAD,
+  COUNT(*) FILTER (WHERE routed_to='ours')              AS routed_ours_BAD
 FROM clicks
 WHERE created_at > now() - interval '24 hours'
   AND (ua ILIKE '%facebookexternalhit%' OR ua ILIKE '%meta-externalagent%'
@@ -152,7 +154,10 @@ $PSQL <<'SQL'
 SELECT date_trunc('hour', created_at) hr,
        COUNT(*) FILTER (WHERE NOT is_bot) humans,
        COUNT(*) FILTER (WHERE is_bot)     bots,
-       COUNT(*) FILTER (WHERE NOT is_bot AND routed_to='ours') ours
+       COUNT(*) FILTER (WHERE NOT is_bot AND routed_to='ours') ours,
+       COUNT(*) FILTER (WHERE NOT is_bot AND routed_to='offer') offer,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE NOT is_bot AND routed_to='ours')
+             / NULLIF(COUNT(*) FILTER (WHERE NOT is_bot), 0), 2) ours_pct
 FROM clicks WHERE created_at > now() - interval '24 hours'
 GROUP BY 1 ORDER BY 1 DESC;
 SQL
@@ -161,8 +166,7 @@ echo ""
 echo "════════════════════════════════════════════════════════"
 echo "10) INJECTION RATIO CHECK (target ~5%)"
 echo "════════════════════════════════════════════════════════"
-$PSQL -c "SELECT key, value FROM app_settings WHERE key IN ('injection_threshold','injection_count') OR TRUE LIMIT 5;" 2>/dev/null
-$PSQL -c "SELECT injection_threshold, injection_count FROM app_settings LIMIT 1;" 2>/dev/null
+$PSQL -c "SELECT injection_threshold, injection_count, ROUND(100.0*injection_count/NULLIF(injection_threshold+injection_count,0),2) configured_ours_pct FROM app_settings LIMIT 1;" 2>/dev/null
 
 echo ""
 echo "════════════════════════════════════════════════════════"

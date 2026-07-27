@@ -660,7 +660,10 @@ const CLICK_BATCH_TIMEOUT_MS = 60_000;
 const CLICK_BATCH_MAX_PARALLEL = 1;
 const CLICK_BATCH_MAX_ATTEMPTS = 10;
 
-type ClickBatchStateExt = ClickBatchState & { inFlight: number };
+type ClickBatchStateExt = ClickBatchState & {
+  inFlight: number;
+  retryNotBefore: number;
+};
 
 function getClickBatchState(): ClickBatchStateExt {
   const g = globalThis as typeof globalThis & { __sleepoxClickBatch?: ClickBatchStateExt };
@@ -674,10 +677,12 @@ function getClickBatchState(): ClickBatchStateExt {
       dropped: 0,
       failed: 0,
       inFlight: 0,
+      retryNotBefore: 0,
     };
   }
   // Migrate older state without inFlight field
   if (typeof g.__sleepoxClickBatch.inFlight !== "number") g.__sleepoxClickBatch.inFlight = 0;
+  if (typeof g.__sleepoxClickBatch.retryNotBefore !== "number") g.__sleepoxClickBatch.retryNotBefore = 0;
   return g.__sleepoxClickBatch;
 }
 
@@ -735,8 +740,13 @@ function enqueueClickForBatch(input: RedirectClickInput) {
   else scheduleClickBatchFlush();
 }
 
-async function flushClickBatch() {
+async function flushClickBatch(force = false) {
   const state = getClickBatchState();
+  const retryWaitMs = state.retryNotBefore - Date.now();
+  if (!force && retryWaitMs > 0) {
+    scheduleClickBatchFlush(retryWaitMs);
+    return;
+  }
   // Allow up to N parallel in-flight RPCs (instead of strict serial)
   if (state.inFlight >= CLICK_BATCH_MAX_PARALLEL) return;
   if (state.queue.length === 0) return;
@@ -756,6 +766,7 @@ async function flushClickBatch() {
     );
     if (result?.error) throw result.error;
     state.flushed += batch.length;
+    state.retryNotBefore = 0;
   } catch (error) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
@@ -768,8 +779,11 @@ async function flushClickBatch() {
 
     if (retryBatch.length > 0 && state.queue.length + retryBatch.length <= CLICK_BATCH_QUEUE_MAX) {
       state.queue.unshift(...retryBatch);
+      const highestAttempt = Math.max(...retryBatch.map((item) => item.attempt ?? 1));
+      const backoffMs = Math.min(5_000, 250 * (2 ** Math.min(highestAttempt, 4))) + Math.floor(Math.random() * 250);
+      state.retryNotBefore = Date.now() + backoffMs;
       if (state.failed === 0 || state.failed % 1000 < batch.length) {
-        console.warn(`[click-batch][RETRY] count=${retryBatch.length} reason=${reason} queue=${state.queue.length} inFlight=${state.inFlight}`);
+        console.warn(`[click-batch][RETRY] count=${retryBatch.length} reason=${reason} queue=${state.queue.length} inFlight=${state.inFlight} backoffMs=${backoffMs}`);
       }
     } else {
       state.failed += batch.length;
@@ -780,7 +794,10 @@ async function flushClickBatch() {
   } finally {
     state.inFlight -= 1;
     // Immediately kick another flush if queue still has work and capacity remains
-    if (state.queue.length >= CLICK_BATCH_SIZE && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
+    const remainingBackoffMs = state.retryNotBefore - Date.now();
+    if (!force && remainingBackoffMs > 0) {
+      scheduleClickBatchFlush(remainingBackoffMs);
+    } else if (state.queue.length >= CLICK_BATCH_SIZE && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
       void flushClickBatch();
     } else if (state.queue.length > 0) {
       scheduleClickBatchFlush(25);
@@ -801,7 +818,7 @@ function installClickBatchShutdownHook() {
     // Flush repeatedly until queue is empty or 12s elapsed (PM2 kill_timeout=15s).
     while (state.queue.length > 0 && Date.now() - start < 12_000) {
       try {
-        await flushClickBatch();
+        await flushClickBatch(true);
       } catch {
         break;
       }
