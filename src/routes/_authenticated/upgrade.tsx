@@ -1,17 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { useServerFn } from "@tanstack/react-start";
 import {
   ShieldCheck, Zap, Globe2, BarChart3, Bot, Cpu, Infinity as InfinityIcon,
   Sparkles, Crown, Rocket, Lock, Layers, Gauge, Headphones, Star, Check,
-  TrendingUp, MousePointerClick, Link2, Wallet, Bitcoin,
+  TrendingUp, MousePointerClick, Link2, Wallet, Bitcoin, PartyPopper,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { createInvoice, getMyOrders } from "@/lib/billing.functions";
 import { adminListUpgradeRequests } from "@/lib/admin.functions";
 import { toast } from "sonner";
+import { CampaignBanner } from "@/components/campaign-banner";
+import {
+  CAMPAIGN, campaignDiscountPct, campaignEndsAtMs, campaignPriceFor, isCampaignActive,
+} from "@/lib/campaign";
 
 export const Route = createFileRoute("/_authenticated/upgrade")({
   head: () => ({ meta: [{ title: "Upgrade — Sleepox" }] }),
