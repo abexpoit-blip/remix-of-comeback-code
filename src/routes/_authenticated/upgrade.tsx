@@ -265,9 +265,14 @@ function UpgradePage() {
                 <p className={`mt-3 text-sm ${highlight ? "text-white/85" : "text-[#7A5C45]"}`}>{meta.blurb}</p>
 
                 {/* Price */}
-                <div className="mt-6 flex items-baseline gap-2">
+                <div className="mt-6 flex items-baseline gap-2 flex-wrap">
+                  {promoOn && (
+                    <span className={`text-3xl font-extrabold line-through ${highlight ? "text-white/50" : "text-[#C7B2A0]"}`}>
+                      ${price.toFixed(0)}
+                    </span>
+                  )}
                   <span className={`text-6xl font-extrabold tracking-tight ${highlight ? "text-white" : "bg-clip-text text-transparent bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B]"}`}>
-                    ${price.toFixed(price % 1 === 0 ? 0 : 2)}
+                    ${shownPrice.toFixed(shownPrice % 1 === 0 ? 0 : 2)}
                   </span>
                   <span className={`text-sm font-medium ${highlight ? "text-white/80" : "text-[#7A5C45]"}`}>
                     {slugKey === "lifetime" || nameKey.includes("life")
@@ -276,10 +281,20 @@ function UpgradePage() {
                         ? "/ month"
                         : isFree ? "/ forever" : ""}
                   </span>
+                  {promoOn && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#22C55E] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-sm">
+                      <PartyPopper className="w-3 h-3" /> -{campaignDiscountPct()}% · 1M users
+                    </span>
+                  )}
                 </div>
-                {!isFree && price > 0 && (
+                {promoOn && (
+                  <p className={`mt-1 text-[11px] font-bold ${highlight ? "text-white/85" : "text-[#FF7E5F]"}`}>
+                    Celebration price ends in {promoLeftLabel} — then back to ${price.toFixed(0)}
+                  </p>
+                )}
+                {!isFree && shownPrice > 0 && (
                   <p className={`mt-1 text-[11px] font-medium ${highlight ? "text-white/70" : "text-[#A8907A]"}`}>
-                    + 2% network fee → pay <strong>${(price * 1.02).toFixed(2)}</strong> in crypto · invoice expires in 30 min
+                    + 2% network fee → pay <strong>${(shownPrice * 1.02).toFixed(2)}</strong> in crypto · invoice expires in 30 min
                   </p>
                 )}
 
