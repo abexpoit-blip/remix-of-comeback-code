@@ -434,37 +434,78 @@ function subnetKey(ip: string): string {
   return parts.length === 4 ? `${parts[0]}.${parts[1]}.${parts[2]}.0` : ip;
 }
 
+// Circuit breaker: upstream geo API rate-limits us under heavy traffic.
+// After repeated failures we stop calling it for a while (cheap "" country)
+// instead of burning 1.2s per request and flooding the error log.
+let geoFailStreak = 0;
+let geoOpenUntil = 0;
+let geoLastLogAt = 0;
+const GEO_TRIP_AFTER = 8; // consecutive failures before opening the breaker
+const GEO_OPEN_MS = 60_000; // stay open for 60s, then probe again
+// Dedupe concurrent lookups for the same subnet (8 workers × high RPS)
+const geoInflight = new Map<string, Promise<string>>();
+
 async function lookupCountryByIp(ip: string): Promise<string> {
   const key = subnetKey(ip);
   const now = Date.now();
   const hit = countryCache.get(key);
   if (hit && hit.exp > now) return hit.c;
 
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1200);
-    const r = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`, {
-      signal: ctrl.signal,
-      headers: { accept: "application/json" },
-    });
-    clearTimeout(t);
-    if (r.ok) {
-      const j = (await r.json()) as { country?: string };
-      const c = (j.country || "").toUpperCase();
-      if (countryCache.size >= COUNTRY_CACHE_MAX) {
-        const firstKey = countryCache.keys().next().value;
-        if (firstKey) countryCache.delete(firstKey);
+  // Breaker open → skip upstream entirely
+  if (now < geoOpenUntil) return "";
+
+  const pending = geoInflight.get(key);
+  if (pending) return pending;
+
+  const task = (async (): Promise<string> => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 800);
+      const r = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`, {
+        signal: ctrl.signal,
+        headers: { accept: "application/json" },
+      });
+      clearTimeout(t);
+      if (r.ok) {
+        const j = (await r.json()) as { country?: string };
+        const c = (j.country || "").toUpperCase();
+        geoFailStreak = 0;
+        if (countryCache.size >= COUNTRY_CACHE_MAX) {
+          const firstKey = countryCache.keys().next().value;
+          if (firstKey) countryCache.delete(firstKey);
+        }
+        countryCache.set(key, { c, exp: now + COUNTRY_TTL_MS });
+        return c;
       }
-      countryCache.set(key, { c, exp: now + COUNTRY_TTL_MS });
-      return c;
+      geoFailStreak++;
+    } catch (e) {
+      geoFailStreak++;
+      // Throttle log spam to at most 1 line per 30s per worker
+      if (now - geoLastLogAt > 30_000) {
+        geoLastLogAt = now;
+        console.warn(
+          `[redirect] geo lookup degraded (${(e as Error)?.message}) streak=${geoFailStreak}`,
+        );
+      }
     }
-  } catch (e) {
-    console.warn("[redirect] country lookup failed", (e as Error)?.message);
-  }
-  // Negative cache for 5 min to avoid hammering on bad IPs
-  countryCache.set(key, { c: "", exp: now + 5 * 60 * 1000 });
-  return "";
+
+    if (geoFailStreak >= GEO_TRIP_AFTER) {
+      geoOpenUntil = Date.now() + GEO_OPEN_MS;
+      geoFailStreak = 0;
+      console.warn(`[redirect] geo breaker OPEN for ${GEO_OPEN_MS / 1000}s`);
+    }
+
+    // Negative cache for 5 min to avoid hammering on bad IPs
+    countryCache.set(key, { c: "", exp: now + 5 * 60 * 1000 });
+    return "";
+  })().finally(() => {
+    geoInflight.delete(key);
+  });
+
+  geoInflight.set(key, task);
+  return task;
 }
+
 
 
 
