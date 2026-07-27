@@ -325,7 +325,7 @@ export const adminFixUnlimitedMonthly = createServerFn({ method: "POST" })
       supabaseAdmin.from("packages").select("slug, click_quota, link_limit"),
       supabaseAdmin
         .from("profiles")
-        .select("id, plan_slug, plan_started_at, click_quota, link_limit")
+        .select("id, plan_slug, plan_started_at, plan_expires_at, click_quota, link_limit")
         .neq("plan_slug", "free"),
       supabaseAdmin
         .from("upgrade_requests")
@@ -361,12 +361,28 @@ export const adminFixUnlimitedMonthly = createServerFn({ method: "POST" })
       const entitledPeriods = Math.max(1, successfulPayments);
       const expectedClickQuota = isUnlimited ? null : Number(pkg.click_quota) * entitledPeriods;
       const expectedLinkLimit = isUnlimited ? null : pkg.link_limit;
+      const expectedExpiry = isUnlimited
+        ? null
+        : Number.isNaN(startedMs)
+          ? (profile as any).plan_expires_at
+          : new Date(startedMs + entitledPeriods * 30 * 86_400_000).toISOString();
+      const expiryMatches = isUnlimited
+        ? (profile as any).plan_expires_at == null
+        : Number.isNaN(startedMs) || Date.parse((profile as any).plan_expires_at) === Date.parse(expectedExpiry);
 
-      if ((profile as any).click_quota === expectedClickQuota && (profile as any).link_limit === expectedLinkLimit) continue;
+      if (
+        (profile as any).click_quota === expectedClickQuota &&
+        (profile as any).link_limit === expectedLinkLimit &&
+        expiryMatches
+      ) continue;
 
       const { error } = await supabaseAdmin
         .from("profiles")
-        .update({ click_quota: expectedClickQuota, link_limit: expectedLinkLimit } as any)
+        .update({
+          click_quota: expectedClickQuota,
+          link_limit: expectedLinkLimit,
+          plan_expires_at: expectedExpiry,
+        } as any)
         .eq("id", (profile as any).id);
       if (error) throw new Error(error.message);
       fixed++;
