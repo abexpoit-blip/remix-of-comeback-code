@@ -150,6 +150,24 @@ function UpgradePage() {
   const planStillActive = !!planExpiresAt && planExpiresAt.getTime() > Date.now();
   const [lockedOpen, setLockedOpen] = useState(false);
 
+  // ── 1M users celebration campaign (auto-expires) ─────────────────────────
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const promoActive = isCampaignActive(nowTick);
+  const promoMsLeft = Math.max(0, campaignEndsAtMs() - nowTick);
+  const promoLeftLabel = (() => {
+    const s = Math.floor(promoMsLeft / 1000);
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s % 60}s`;
+  })();
+  const scrollToPromoPlan = () => {
+    document.getElementById("plan-card-lifetime")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+
 
 
   const { data: ordersList } = useQuery({
