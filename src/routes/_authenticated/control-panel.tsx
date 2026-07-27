@@ -352,7 +352,7 @@ function UsersTab() {
           variant="outline"
           className="border-[#FFD4BB] ml-auto"
           onClick={async () => {
-            if (!confirm("Fix all Monthly users with unlimited / wrong quota? This re-applies the Monthly package limits.")) return;
+            if (!confirm("Repair paid-plan quota mismatches from payment history? This will not renew plans or add days.")) return;
             try {
               const r = await adminFixUnlimitedMonthly();
               toast.success(`Fixed ${r.fixed} of ${r.scanned} monthly users`);
@@ -362,7 +362,7 @@ function UsersTab() {
             }
           }}
         >
-          <RotateCcw className="w-3 h-3 mr-1" />Bulk Fix Monthly Quota
+          <RotateCcw className="w-3 h-3 mr-1" />Repair Quota Drift
         </Button>
       </div>
 
@@ -2106,7 +2106,7 @@ function QuotaSyncTestPanel() {
   };
 
   return (
-    <Panel icon={ShieldCheck} title="Quota Sync Test" subtitle="Apply a package to a test user and verify click_quota + link_limit get set correctly">
+    <Panel icon={ShieldCheck} title="Quota Sync Test" subtitle="Read-only verification — this never changes quota, usage, or expiry">
       <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="md:col-span-2">
@@ -2134,7 +2134,7 @@ function QuotaSyncTestPanel() {
           </div>
         </div>
         <Button onClick={run} disabled={running} className="bg-sky-600 hover:bg-sky-700 text-white">
-          {running ? "Running test…" : "Run Quota Sync Test"}
+          {running ? "Checking…" : "Check Quota Sync"}
         </Button>
 
         {result && (
@@ -2212,7 +2212,7 @@ function QuotaSyncStatusPanel() {
   const mismatches = rows.filter((r: any) => !r.ok);
 
   return (
-    <Panel icon={ShieldCheck} title="Quota Sync Status" subtitle="Live verification — every paid user's quota vs. package definition">
+    <Panel icon={ShieldCheck} title="Quota Sync Status" subtitle="Live verification from package allowance + successful renewals; repair never adds quota or days">
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Button size="sm" variant="outline" onClick={() => q.refetch()}>
           <RefreshCw className={`w-3 h-3 mr-2 ${q.isFetching ? "animate-spin" : ""}`} />
@@ -2220,7 +2220,7 @@ function QuotaSyncStatusPanel() {
         </Button>
         {mismatches.length > 0 && (
           <Button size="sm" onClick={() => fix.mutate()} disabled={fix.isPending} className="bg-amber-600 hover:bg-amber-700 text-white">
-            {fix.isPending ? "Fixing…" : `Fix ${mismatches.length} mismatched`}
+            {fix.isPending ? "Repairing…" : `Repair ${mismatches.length} mismatched`}
           </Button>
         )}
         {summary && (
