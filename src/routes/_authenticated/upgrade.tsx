@@ -531,6 +531,55 @@ function UpgradePage() {
           </section>
         )}
       </div>
+
+      {/* Same-plan lock popup */}
+      {lockedOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2D1B0D]/60 backdrop-blur-sm"
+          onClick={() => setLockedOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg rounded-3xl bg-[#FFF9F5] border border-white/80 shadow-[0_40px_100px_-30px_rgba(45,27,13,0.6)] p-8 text-center"
+          >
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] flex items-center justify-center shadow-[0_10px_30px_-10px_rgba(255,126,95,0.6)]">
+              <Lock className="w-6 h-6 text-white" />
+            </div>
+            <h3 className="mt-5 text-2xl font-extrabold text-[#2D1B0D]">Plan already active</h3>
+            <p className="mt-3 text-[#7A5C45] leading-relaxed">
+              Your current plan is still running
+              {daysLeft != null ? <> — <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"} left</strong></> : null}.
+              The same package can be purchased again only after it expires.
+            </p>
+            <div className="mt-6 grid gap-3 text-left">
+              <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+                <div className="flex items-center gap-2 text-[#2D1B0D] font-bold"><Crown className="w-4 h-4 text-[#FF7E5F]" /> Recommended · Upgrade to Lifetime</div>
+                <p className="mt-1 text-sm text-[#7A5C45]">Unlimited links & clicks, one flat payment, no expiry — works instantly on this account.</p>
+              </div>
+              <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+                <div className="flex items-center gap-2 text-[#2D1B0D] font-bold"><Layers className="w-4 h-4 text-[#FF7E5F]" /> Need more capacity now?</div>
+                <p className="mt-1 text-sm text-[#7A5C45]">Create a new account and buy the monthly package there, or wait until this plan expires.</p>
+              </div>
+            </div>
+            <div className="mt-7 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => { setLockedOpen(false); buyMut.mutate("lifetime"); }}
+                disabled={isLifetimePlan || buyMut.isPending}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white py-3.5 font-bold shadow-[0_15px_40px_-10px_rgba(255,126,95,0.6)] hover:opacity-95 disabled:opacity-60"
+              >
+                <Crown className="w-4 h-4" /> Upgrade to Lifetime
+              </button>
+              <button
+                onClick={() => setLockedOpen(false)}
+                className="flex-1 rounded-2xl border border-[#E8D5C4] bg-white/70 py-3.5 font-bold text-[#4A3728] hover:bg-white"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
