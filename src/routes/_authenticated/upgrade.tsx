@@ -250,6 +250,7 @@ function UpgradePage() {
             return (
               <div
                 key={p.id}
+                id={`plan-card-${cardSlug}`}
                 className={`relative rounded-3xl p-7 sm:p-8 backdrop-blur-xl transition-all hover:-translate-y-1 ${
                   highlight
                     ? "bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] text-white border border-white/30 shadow-[0_30px_80px_-20px_rgba(255,126,95,0.55)] lg:scale-[1.04] lg:my-[-8px]"
