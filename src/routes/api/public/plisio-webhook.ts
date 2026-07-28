@@ -185,6 +185,8 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         // sometimes returns it as null/missing — that was the source of the
         // false "mismatch" rejections that lost real payments).
         let verificationTemporarilyUnavailable = false;
+        let opInfo: Record<string, unknown> | null = null;
+
         if (!verified && txnId && orderNumber) {
           try {
             const { data: linkedReq } = await supabaseAdmin
