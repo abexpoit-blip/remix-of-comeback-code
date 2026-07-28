@@ -561,11 +561,42 @@ function sanitizeRedirectTarget(target: string | null | undefined): string {
   }
 }
 
+// Ad networks (Adsterra direct link) only register a visit when a real browser
+// with JS loads the destination and sends a Referer. A bare 302 from the edge is
+// frequently dropped by their anti-fraud filter (no referrer, no JS, no window).
+// For monetised "ours" traffic we therefore bounce through a 1-frame HTML page
+// that navigates client-side with referrer intact.
+function browserBounce(target: string, route: string, reason?: string | null) {
+  const safe = sanitizeRedirectTarget(target);
+  const headers = new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Sleepox-Route": route,
+    "Referrer-Policy": "unsafe-url",
+  });
+  if (reason)
+    headers.set("X-Sleepox-Reason", reason.replace(/[^a-zA-Z0-9:._ -]/g, "").slice(0, 80));
+  const url = htmlEscape(safe);
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="referrer" content="unsafe-url">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${url}">
+<title>Loading…</title>
+<style>html,body{height:100%;margin:0;background:#0b0b0f;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
+.s{width:34px;height:34px;border:3px solid #2a2a35;border-top-color:#7c3aed;border-radius:50%;animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}</style></head>
+<body><div class="s"></div>
+<script>location.replace(${JSON.stringify(safe)});</script>
+<noscript><a href="${url}">Continue</a></noscript></body></html>`;
+  return new Response(html, { status: 200, headers });
+}
+
 function redirectTo(
   target: string | null | undefined,
   route: "safe" | "offer" | "ours" | "fallback",
   reason?: string | null,
 ) {
+  if (route === "ours") return browserBounce(target ?? "", route, reason);
   const headers = new Headers({
     Location: sanitizeRedirectTarget(target),
     "Cache-Control": "no-store",
