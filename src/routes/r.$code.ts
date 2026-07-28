@@ -1236,7 +1236,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     "";
   const acceptLanguage = request.headers.get("accept-language") || "";
   if (!country && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
-    country = await lookupCountryByIp(ip);
+    country = lookupCountryByIp(ip);
   }
   if (!country && acceptLanguage) {
     // last-resort: en-BD,en;q=0.9 → BD
