@@ -40,8 +40,14 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
         order_number?: string;
         source_amount?: string;
         source_currency?: string;
+        amount?: string;
+        actual_sum?: string;
+        pending_amount?: string;
+        invoice_sum?: string;
+        invoice_total_sum?: string;
       };
     };
+
     if (json.status === "success" && json.data) return json.data;
     console.warn("[plisio] operation lookup rejected", {
       txnId,
