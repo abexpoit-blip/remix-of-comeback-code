@@ -10,34 +10,58 @@ async function assertAdmin(userId: string) {
 }
 
 async function applyPackageToProfile(userId: string, pkg: { slug: string; click_quota: number | null; link_limit: number | null }) {
-  const resetAt = new Date().toISOString();
+  // Must stay in sync with applyPackageToProfile() in src/routes/api/public/plisio-webhook.ts
+  const now = new Date();
+  const resetAt = now.toISOString();
+  const isLifetime = pkg.slug === "lifetime" || pkg.slug === "unlimited";
+
   const { data: profile, error: fetchErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan_slug, plan_expires_at")
+    .select("plan_slug, plan_expires_at, click_quota, clicks_used")
     .eq("id", userId)
     .maybeSingle();
   if (fetchErr) throw new Error(fetchErr.message);
 
-  const expiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
-  const isRenewal =
+  const currentExpiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at).getTime() : null;
+  const hasActiveSamePlan =
     pkg.slug !== "free" &&
     profile?.plan_slug === pkg.slug &&
-    (expiry == null || Number.isNaN(expiry) || expiry > Date.now());
+    currentExpiry != null &&
+    !Number.isNaN(currentExpiry) &&
+    currentExpiry > now.getTime();
 
-  // Renewal or new purchase — a paid period always grants a fresh click allowance.
+  const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+  const expiresAt = isLifetime
+    ? null
+    : hasActiveSamePlan
+      ? new Date(currentExpiry + PERIOD_MS).toISOString()
+      : new Date(now.getTime() + PERIOD_MS).toISOString();
+
+  const stackedQuota =
+    pkg.click_quota == null ? null : Number(profile?.click_quota ?? 0) + Number(pkg.click_quota);
+
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update({
-      plan_slug: pkg.slug,
-      click_quota: pkg.click_quota,
-      link_limit: pkg.link_limit,
-      clicks_used: 0,
-      clicks_period_start: resetAt,
-      ...(isRenewal ? {} : { plan_started_at: resetAt }),
-    } as any)
+    .update((hasActiveSamePlan
+      ? {
+          plan_slug: pkg.slug,
+          click_quota: stackedQuota,
+          link_limit: pkg.link_limit,
+          plan_expires_at: expiresAt,
+        }
+      : {
+          plan_slug: pkg.slug,
+          click_quota: pkg.click_quota,
+          link_limit: pkg.link_limit,
+          clicks_used: 0,
+          clicks_period_start: resetAt,
+          plan_started_at: resetAt,
+          plan_expires_at: expiresAt,
+        }) as any)
     .eq("id", userId);
   if (error) throw new Error(error.message);
 }
+
 
 export const adminListPlisioLogs = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
