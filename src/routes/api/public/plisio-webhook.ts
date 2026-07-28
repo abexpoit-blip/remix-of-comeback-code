@@ -411,8 +411,33 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
           packageSlug = req.package_slug;
         }
 
+        // FIAT SAFETY NET: crypto amounts were unusable, but Plisio reports the
+        // fiat value actually received. If that covers the package price (2%
+        // tolerance for FX drift), the user paid in full — activate.
+        if (internalStatus === "underpaid" && req?.package_slug) {
+          const paidUsd = Number(
+            String((opInfo as any)?.source_amount ?? body.source_amount ?? "").trim(),
+          );
+          const currency = String((opInfo as any)?.source_currency ?? body.source_currency ?? "USD").toUpperCase();
+          if (Number.isFinite(paidUsd) && paidUsd > 0 && currency === "USD") {
+            const { data: pk } = await supabaseAdmin
+              .from("packages")
+              .select("price_usd")
+              .eq("slug", req.package_slug)
+              .maybeSingle();
+            const price = Number((pk as any)?.price_usd ?? 0);
+            if (price > 0 && paidUsd >= price * 0.98) {
+              internalStatus = "paid";
+              console.log("[plisio] underpaid overridden to paid by fiat check", {
+                orderNumber, paidUsd, price,
+              });
+            }
+          }
+        }
+
         // UPDATE ORDER AND APPLY PACKAGE
         if (req) {
+
           const currentStatus = String(req.status || "").toLowerCase();
           const shouldUpdateOrderStatus =
             !(currentStatus === "paid" && internalStatus !== "paid") &&
