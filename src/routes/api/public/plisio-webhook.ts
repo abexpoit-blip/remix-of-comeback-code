@@ -194,7 +194,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               .maybeSingle();
 
             if (linkedReq && (linkedReq as any).plisio_invoice_id === txnId) {
-              const op = await fetchPlisioOperation(txnId, apiKey);
+              const op = await fetchPlisioOperation(txnId, apiKey); opInfo = op ?? opInfo;
               const incomingStatus = String(status || "").toLowerCase();
               const isPaidLike = ["completed", "success", "finished", "mismatch"].includes(incomingStatus);
               if (op?.status) {
@@ -234,7 +234,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                 } catch (_e) {}
                 console.log("[plisio] accepted non-paid callback for unsaved txn", { txnId, orderNumber, status });
               } else {
-                const op = await fetchPlisioOperation(txnId, apiKey);
+                const op = await fetchPlisioOperation(txnId, apiKey); opInfo = op ?? opInfo;
                 const orderMatches = !op?.order_number || op.order_number === orderNumber;
                 if (op && orderMatches) {
                   verified = true;
