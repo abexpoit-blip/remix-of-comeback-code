@@ -314,19 +314,54 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         }
 
 
-        // H6 FIX: "mismatch" means user paid less than invoiced amount.
-        // Do NOT auto-grant full package — that's revenue loss. Mark order as
-        // 'underpaid' so admin can manually review and decide.
-        const internalStatus =
+        // "mismatch" = paid amount differs from the invoiced amount. Plisio uses
+        // it for BOTH underpayment and OVERpayment.
+        //   - Overpaid / exact-with-rounding  -> treat as fully PAID (auto-activate)
+        //   - Genuinely underpaid             -> 'underpaid' (admin review)
+        const mismatchOutcome = (): "paid" | "underpaid" => {
+          const src: Record<string, unknown> = { ...body, ...(opInfo ?? {}) };
+          const num = (v: unknown) => {
+            const n = Number(String(v ?? "").trim());
+            return Number.isFinite(n) ? n : null;
+          };
+
+          // 1) Plisio tells us what is still owed. <= 0 means nothing pending.
+          const pending = num(src.pending_amount) ?? num(src.pending_sum);
+          if (pending != null && pending <= 0) return "paid";
+
+          // 2) Compare received crypto vs invoiced total (0.5% rounding tolerance).
+          const received = num(src.actual_sum) ?? num(src.amount);
+          const expected = num(src.invoice_total_sum) ?? num(src.invoice_sum);
+          if (received != null && expected != null && expected > 0) {
+            return received >= expected * 0.995 ? "paid" : "underpaid";
+          }
+
+          // 3) No usable amounts -> stay safe, admin reviews.
+          return "underpaid";
+        };
+
+        let internalStatus =
           status === "completed" || status === "success" || status === "finished"
             ? "paid"
           : status === "mismatch"
-            ? "underpaid"
+            ? mismatchOutcome()
           : status === "new" || status === "pending"
             ? "pending"
           : status === "expired" || status === "cancelled" || status === "error"
             ? "expired"
           : status;
+
+        if (status === "mismatch") {
+          console.log("[plisio] mismatch resolved as", internalStatus, {
+            txnId,
+            orderNumber,
+            pending_amount: body.pending_amount ?? (opInfo as any)?.pending_amount ?? null,
+            amount: body.amount ?? null,
+            invoice_total_sum: body.invoice_total_sum ?? null,
+            source_amount: body.source_amount ?? (opInfo as any)?.source_amount ?? null,
+          });
+        }
+
 
         // FIND ORDER (with recovery from previous logs)
         let userId = "";
