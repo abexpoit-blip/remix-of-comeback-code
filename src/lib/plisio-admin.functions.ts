@@ -203,7 +203,7 @@ export const adminBulkReverify = createServerFn({ method: "POST" })
       .from("upgrade_requests")
       .select("id, user_id, package_slug, status, plisio_invoice_id")
       .gte("created_at", since)
-      .in("status", ["expired", "pending", "new"])
+      .in("status", ["expired", "pending", "new", "underpaid", "mismatch"])
       .not("plisio_invoice_id", "is", null)
       .limit(100);
 
