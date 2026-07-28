@@ -1230,6 +1230,7 @@ export type Database = {
           date: string
         }[]
       }
+      aggregate_daily_stats: { Args: { _days?: number }; Returns: Json }
       delete_inactive_free_users: { Args: never; Returns: Json }
       expire_monthly_plans: { Args: never; Returns: Json }
       expire_old_upgrade_requests: { Args: never; Returns: undefined }
