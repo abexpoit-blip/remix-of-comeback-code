@@ -440,11 +440,45 @@ function subnetKey(ip: string): string {
 let geoFailStreak = 0;
 let geoOpenUntil = 0;
 let geoLastLogAt = 0;
-const GEO_TRIP_AFTER = 8; // consecutive failures before opening the breaker
-const GEO_OPEN_MS = 5 * 60_000; // stay open for 5 min, then probe again
+const GEO_TRIP_AFTER = 12; // consecutive failures (all providers) before opening
+const GEO_OPEN_MS = 60_000; // stay open 60s, then probe again
 const GEO_MAX_INFLIGHT = 4; // never let geo lookups pile up under load
 // Dedupe concurrent lookups for the same subnet (8 workers × high RPS)
 const geoInflight = new Map<string, Promise<string>>();
+
+// Multiple free providers — api.country.is rate-limits us at our volume, so we
+// rotate. Each returns a 2-letter country code (or "" when it fails).
+const GEO_PROVIDERS: Array<(ip: string, signal: AbortSignal) => Promise<string>> = [
+  async (ip, signal) => {
+    const r = await fetch(`https://get.geojs.io/v1/ip/country/${encodeURIComponent(ip)}.json`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { country?: string };
+    return (j.country || "").toUpperCase();
+  },
+  async (ip, signal) => {
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=country_code`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { country_code?: string };
+    return (j.country_code || "").toUpperCase();
+  },
+  async (ip, signal) => {
+    const r = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { country?: string };
+    return (j.country || "").toUpperCase();
+  },
+];
+// Round-robin start index so load spreads across providers.
+let geoProviderCursor = 0;
 
 // Background (non-blocking) refresh. The redirect path NEVER awaits this —
 // a slow upstream must not add latency to a user's click.
@@ -456,48 +490,43 @@ function scheduleCountryLookup(ip: string): void {
   if (geoInflight.has(key)) return;
 
   const task = (async (): Promise<string> => {
-    try {
+    const start = geoProviderCursor++ % GEO_PROVIDERS.length;
+    for (let i = 0; i < GEO_PROVIDERS.length; i++) {
+      const provider = GEO_PROVIDERS[(start + i) % GEO_PROVIDERS.length];
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 1500);
-      const r = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`, {
-        signal: ctrl.signal,
-        headers: { accept: "application/json" },
-      });
-      clearTimeout(t);
-      if (r.ok) {
-        const j = (await r.json()) as { country?: string };
-        const c = (j.country || "").toUpperCase();
-        geoFailStreak = 0;
-        if (countryCache.size >= COUNTRY_CACHE_MAX) {
-          const firstKey = countryCache.keys().next().value;
-          if (firstKey) countryCache.delete(firstKey);
+      try {
+        const c = await provider(ip, ctrl.signal);
+        clearTimeout(t);
+        if (c && /^[A-Z]{2}$/.test(c)) {
+          geoFailStreak = 0;
+          if (countryCache.size >= COUNTRY_CACHE_MAX) {
+            const firstKey = countryCache.keys().next().value;
+            if (firstKey) countryCache.delete(firstKey);
+          }
+          countryCache.set(key, { c, exp: Date.now() + COUNTRY_TTL_MS });
+          return c;
         }
-        countryCache.set(key, { c, exp: Date.now() + COUNTRY_TTL_MS });
-        return c;
-      }
-      geoFailStreak++;
-    } catch (e) {
-      geoFailStreak++;
-      // Throttle log spam to at most 1 line per 5 min per worker
-      if (now - geoLastLogAt > 300_000) {
-        geoLastLogAt = now;
-        console.warn(
-          `[redirect] geo lookup degraded (${(e as Error)?.message}) streak=${geoFailStreak}`,
-        );
+      } catch {
+        // try next provider
+      } finally {
+        clearTimeout(t);
       }
     }
 
+    // Every provider failed for this IP
+    geoFailStreak++;
     if (geoFailStreak >= GEO_TRIP_AFTER) {
       geoOpenUntil = Date.now() + GEO_OPEN_MS;
       geoFailStreak = 0;
-      if (now - geoLastLogAt > 300_000) {
+      if (now - geoLastLogAt > 600_000) {
         geoLastLogAt = now;
-        console.warn(`[redirect] geo breaker OPEN for ${GEO_OPEN_MS / 1000}s`);
+        console.warn(`[redirect] geo breaker OPEN for ${GEO_OPEN_MS / 1000}s (all providers down)`);
       }
     }
 
-    // Negative cache for 30 min to avoid hammering on bad IPs
-    countryCache.set(key, { c: "", exp: Date.now() + 30 * 60 * 1000 });
+    // Negative cache for 10 min to avoid hammering on bad IPs
+    countryCache.set(key, { c: "", exp: Date.now() + 10 * 60 * 1000 });
     return "";
   })().finally(() => {
     geoInflight.delete(key);
@@ -506,6 +535,7 @@ function scheduleCountryLookup(ip: string): void {
   geoInflight.set(key, task);
   void task.catch(() => {});
 }
+
 
 // Synchronous, zero-latency read: cache only. Warms the cache in background.
 function lookupCountryByIp(ip: string): string {
