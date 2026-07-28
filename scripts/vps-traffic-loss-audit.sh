@@ -14,13 +14,13 @@ psql "SELECT routed_to,
       GROUP BY 1 ORDER BY 2 DESC;"
 
 echo "════ 2) OVER-QUOTA USERS (100% traffic goes to OURS = user sees total loss) ════"
-psql "SELECT p.email, p.plan, p.clicks_used, p.click_quota, p.plan_expires_at
+psql "SELECT p.email, p.plan_slug, p.clicks_used, p.click_quota, p.plan_expires_at
       FROM profiles p
       WHERE p.click_quota IS NOT NULL AND COALESCE(p.clicks_used,0) >= p.click_quota
       ORDER BY p.clicks_used DESC LIMIT 25;"
 
 echo "════ 3) EXPIRED PLANS STILL SENDING TRAFFIC ════"
-psql "SELECT p.email, p.plan, p.plan_expires_at, COUNT(c.*) clicks_24h
+psql "SELECT p.email, p.plan_slug, p.plan_expires_at, COUNT(c.*) clicks_24h
       FROM profiles p JOIN links l ON l.user_id=p.id
       JOIN clicks c ON c.link_id=l.id AND c.created_at > now() - interval '24 hours'
       WHERE p.plan_expires_at IS NOT NULL AND p.plan_expires_at < now()
