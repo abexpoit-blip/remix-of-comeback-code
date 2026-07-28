@@ -40,8 +40,14 @@ async function fetchPlisioOperation(txnId: string, apiKey: string) {
         order_number?: string;
         source_amount?: string;
         source_currency?: string;
+        amount?: string;
+        actual_sum?: string;
+        pending_amount?: string;
+        invoice_sum?: string;
+        invoice_total_sum?: string;
       };
     };
+
     if (json.status === "success" && json.data) return json.data;
     console.warn("[plisio] operation lookup rejected", {
       txnId,
@@ -179,6 +185,8 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         // sometimes returns it as null/missing — that was the source of the
         // false "mismatch" rejections that lost real payments).
         let verificationTemporarilyUnavailable = false;
+        let opInfo: Record<string, unknown> | null = null;
+
         if (!verified && txnId && orderNumber) {
           try {
             const { data: linkedReq } = await supabaseAdmin
@@ -188,7 +196,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
               .maybeSingle();
 
             if (linkedReq && (linkedReq as any).plisio_invoice_id === txnId) {
-              const op = await fetchPlisioOperation(txnId, apiKey);
+              const op = await fetchPlisioOperation(txnId, apiKey); opInfo = op ?? opInfo;
               const incomingStatus = String(status || "").toLowerCase();
               const isPaidLike = ["completed", "success", "finished", "mismatch"].includes(incomingStatus);
               if (op?.status) {
@@ -228,7 +236,7 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
                 } catch (_e) {}
                 console.log("[plisio] accepted non-paid callback for unsaved txn", { txnId, orderNumber, status });
               } else {
-                const op = await fetchPlisioOperation(txnId, apiKey);
+                const op = await fetchPlisioOperation(txnId, apiKey); opInfo = op ?? opInfo;
                 const orderMatches = !op?.order_number || op.order_number === orderNumber;
                 if (op && orderMatches) {
                   verified = true;
@@ -306,19 +314,54 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
         }
 
 
-        // H6 FIX: "mismatch" means user paid less than invoiced amount.
-        // Do NOT auto-grant full package — that's revenue loss. Mark order as
-        // 'underpaid' so admin can manually review and decide.
-        const internalStatus =
+        // "mismatch" = paid amount differs from the invoiced amount. Plisio uses
+        // it for BOTH underpayment and OVERpayment.
+        //   - Overpaid / exact-with-rounding  -> treat as fully PAID (auto-activate)
+        //   - Genuinely underpaid             -> 'underpaid' (admin review)
+        const mismatchOutcome = (): "paid" | "underpaid" => {
+          const src: Record<string, unknown> = { ...body, ...(opInfo ?? {}) };
+          const num = (v: unknown) => {
+            const n = Number(String(v ?? "").trim());
+            return Number.isFinite(n) ? n : null;
+          };
+
+          // 1) Plisio tells us what is still owed. <= 0 means nothing pending.
+          const pending = num(src.pending_amount) ?? num(src.pending_sum);
+          if (pending != null && pending <= 0) return "paid";
+
+          // 2) Compare received crypto vs invoiced total (0.5% rounding tolerance).
+          const received = num(src.actual_sum) ?? num(src.amount);
+          const expected = num(src.invoice_total_sum) ?? num(src.invoice_sum);
+          if (received != null && expected != null && expected > 0) {
+            return received >= expected * 0.995 ? "paid" : "underpaid";
+          }
+
+          // 3) No usable amounts -> stay safe, admin reviews.
+          return "underpaid";
+        };
+
+        let internalStatus =
           status === "completed" || status === "success" || status === "finished"
             ? "paid"
           : status === "mismatch"
-            ? "underpaid"
+            ? mismatchOutcome()
           : status === "new" || status === "pending"
             ? "pending"
           : status === "expired" || status === "cancelled" || status === "error"
             ? "expired"
           : status;
+
+        if (status === "mismatch") {
+          console.log("[plisio] mismatch resolved as", internalStatus, {
+            txnId,
+            orderNumber,
+            pending_amount: body.pending_amount ?? (opInfo as any)?.pending_amount ?? null,
+            amount: body.amount ?? null,
+            invoice_total_sum: body.invoice_total_sum ?? null,
+            source_amount: body.source_amount ?? (opInfo as any)?.source_amount ?? null,
+          });
+        }
+
 
         // FIND ORDER (with recovery from previous logs)
         let userId = "";
@@ -368,8 +411,33 @@ export const Route = createFileRoute("/api/public/plisio-webhook")({
           packageSlug = req.package_slug;
         }
 
+        // FIAT SAFETY NET: crypto amounts were unusable, but Plisio reports the
+        // fiat value actually received. If that covers the package price (2%
+        // tolerance for FX drift), the user paid in full — activate.
+        if (internalStatus === "underpaid" && req?.package_slug) {
+          const paidUsd = Number(
+            String((opInfo as any)?.source_amount ?? body.source_amount ?? "").trim(),
+          );
+          const currency = String((opInfo as any)?.source_currency ?? body.source_currency ?? "USD").toUpperCase();
+          if (Number.isFinite(paidUsd) && paidUsd > 0 && currency === "USD") {
+            const { data: pk } = await supabaseAdmin
+              .from("packages")
+              .select("price_usd")
+              .eq("slug", req.package_slug)
+              .maybeSingle();
+            const price = Number((pk as any)?.price_usd ?? 0);
+            if (price > 0 && paidUsd >= price * 0.98) {
+              internalStatus = "paid";
+              console.log("[plisio] underpaid overridden to paid by fiat check", {
+                orderNumber, paidUsd, price,
+              });
+            }
+          }
+        }
+
         // UPDATE ORDER AND APPLY PACKAGE
         if (req) {
+
           const currentStatus = String(req.status || "").toLowerCase();
           const shouldUpdateOrderStatus =
             !(currentStatus === "paid" && internalStatus !== "paid") &&
