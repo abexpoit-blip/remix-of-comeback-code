@@ -1376,17 +1376,14 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     if (isFbHit) {
       const tpl = pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
-      return new Response(html, {
-        status: 200,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "cache-control": "public, max-age=300, s-maxage=600",
-          "x-robots-tag": "noindex, nofollow",
-          "X-Sleepox-Route": "fb-article",
-          "X-Sleepox-Reason": !link ? "link-not-found-fb" : "link-inactive-fb",
-        },
+      const headers = new Headers({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300, s-maxage=600",
       });
+      setDebugHeaders(headers, "fb-article", !link ? "link-not-found-fb" : "link-inactive-fb");
+      return new Response(html, { status: 200, headers });
     }
+
 
     const missTarget =
       globalCache.settings?.our_adsterra_url ||
