@@ -310,17 +310,22 @@ export const toggleLink = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const context = await getRequestAuth();
     await assertNotBanned(context.supabase, context.userId);
-    const { error } = await context.supabase
+    const { data: row, error } = await (context.supabase as any)
       .from("links")
       .update({ 
         is_active: data.is_active,
         status: data.is_active ? "active" : "paused"
       })
       .eq("id", data.id)
-      .eq("user_id", context.userId);
+      .eq("user_id", context.userId)
+      .select("short_code")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache(row?.short_code);
     return { ok: true };
   });
+
 
 // COUNTRY SHIELD — paid-only feature. Users on `monthly` or `lifetime` plans
 // can block specific countries per link. Visitors from those countries are
