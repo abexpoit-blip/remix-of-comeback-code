@@ -54,6 +54,8 @@ import {
   listMonitoredDomains, addMonitoredDomain, toggleMonitoredDomain, deleteMonitoredDomain,
   syncOfferDomainsFromLinks, scanMonitoredDomain, scanAllMonitoredDomains,
 } from "@/lib/domain-monitor.functions";
+import { LeakMonitorTab } from "@/components/leak-monitor-tab";
+
 
 export const Route = createFileRoute("/_authenticated/control-panel")({
   head: () => ({ meta: [{ title: "Control Panel — Sleepox" }] }),
