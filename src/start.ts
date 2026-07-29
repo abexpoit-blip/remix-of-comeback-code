@@ -1,5 +1,9 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { isShortenerHost, isSaasOnlyPath } from "@/lib/site-hosts";
+
+/** Neutral 404 body — no product name, no framework hints. */
+const NOT_FOUND_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Page not found</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#111}main{text-align:center;padding:24px}h1{font-size:56px;margin:0 0 8px;font-weight:600}p{margin:0;color:#666;font-size:15px}</style></head><body><main><h1>404</h1><p>The page you requested could not be found.</p></main></body></html>`;
 
 // Prevent worker crashes from malformed URIs (e.g. bots sending `/r/%E0%A4`)
 // h3's decodePathname throws URIError BEFORE middleware runs, killing the worker.
