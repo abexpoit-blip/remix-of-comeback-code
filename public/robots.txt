@@ -1,15 +1,18 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
-Disallow: /control-panel
 Disallow: /dashboard
-Disallow: /analytics
-Disallow: /funnel
-Disallow: /domains
-Disallow: /links/
-Disallow: /r/
 
-# Sitemap is generated dynamically per host — sleepox.com/sitemap.xml lists
-# sleepox.com URLs, breezysocial.com/sitemap.xml lists breezysocial.com URLs.
-Sitemap: https://sleepox.com/sitemap.xml
-Sitemap: https://breezysocial.com/sitemap.xml
+# Social / link preview crawlers must always be allowed to fetch share URLs,
+# otherwise Meta cannot read the OG tags and the ad gets rejected.
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: facebookcatalog
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
