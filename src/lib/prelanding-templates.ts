@@ -767,6 +767,12 @@ function hashCode(s: string): number {
   return h >>> 0;
 }
 
+// Inline SVG placeholder used when a remote hero/thumbnail image fails to load.
+// Self-contained data URI (no network) so the banner area always renders a
+// neutral editorial photo frame instead of raw alt text.
+const HERO_FALLBACK_SRC =
+  "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e9eaee'/%3E%3Cstop offset='1' stop-color='%23cdd0d8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='630' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23a8adba' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='450' y='215' width='300' height='200' rx='18'/%3E%3Ccircle cx='530' cy='285' r='26'/%3E%3Cpath d='M470 400l90-85 70 65 45-40 55 60'/%3E%3C/g%3E%3C/svg%3E";
+
 // Publisher brand rotation — deterministic per short_code. Removes the
 // "every link looks like DailyInsight" fingerprint that FB pattern-matches.
 type Brand = { name: string; accent: string; tagline: string; email: string };
@@ -874,6 +880,7 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   // For FB bot keep robots-friendly. For (rare) human fallback, no-index.
   const robots = mode === "human" ? `<meta name="robots" content="noindex,nofollow">` : "";
 
+
   // Pre-escape every value used inside meta/og tag attributes so quotes,
   // ampersands, and angle brackets in copy never break the head.
   const titleAttr = attrEscape(content.title);
@@ -951,6 +958,7 @@ ${robots}
   html{scroll-behavior:smooth}
   body{font-family:'Source Sans 3',-apple-system,sans-serif;background:#f7f7f8;color:#1a1a1a;line-height:1.65;font-size:17px}
   .topbar{background:#0a0a0a;color:#fff;font-size:.75rem;padding:6px 0;text-align:center;letter-spacing:.5px}
+  .topbar-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b91c1c;margin-right:8px;vertical-align:middle}
   .nav{background:#fff;border-bottom:1px solid #ececec;padding:18px 24px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 rgba(0,0,0,.02)}
   .nav-inner{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:24px}
   .logo{font-family:'Playfair Display',serif;font-weight:900;font-size:1.6rem;color:#b91c1c;letter-spacing:-1px;line-height:1}
@@ -971,7 +979,7 @@ ${robots}
   .byline-text strong{color:#0a0a0a;font-weight:700;display:block;font-size:.95rem}
   .share-row{margin-left:auto;display:flex;gap:8px}
   .share-btn{width:32px;height:32px;border-radius:50%;background:#f3f3f3;display:inline-flex;align-items:center;justify-content:center;font-size:.8rem;color:#666;text-decoration:none}
-  .hero{width:100%;height:auto;border-radius:4px;margin:0 0 12px;display:block}
+  .hero{width:100%;height:auto;aspect-ratio:1200/630;object-fit:cover;border-radius:4px;margin:0 0 12px;display:block;background:linear-gradient(135deg,#e9eaee 0%,#d6d8de 100%);color:transparent;font-size:0}
   .hero-cap{font-size:.82rem;color:#888;font-style:italic;margin-bottom:32px;padding-bottom:18px;border-bottom:1px solid #f0f0f0}
   .intro{font-size:1.22rem;line-height:1.6;color:#222;margin-bottom:26px;font-weight:400}
   .intro::first-letter{font-family:'Playfair Display',serif;font-size:3.6rem;float:left;line-height:.9;padding:6px 12px 0 0;color:#b91c1c;font-weight:800}
@@ -991,7 +999,7 @@ ${robots}
   .side-card h3{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:800;margin-bottom:16px;color:#0a0a0a;padding-bottom:10px;border-bottom:3px solid #b91c1c}
   .related-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0}
   .related-item:last-child{border-bottom:0}
-  .related-item img{width:72px;height:72px;object-fit:cover;border-radius:3px;flex-shrink:0}
+  .related-item img{width:72px;height:72px;object-fit:cover;border-radius:3px;flex-shrink:0;background:linear-gradient(135deg,#e9eaee 0%,#d6d8de 100%);color:transparent;font-size:0}
   .related-item h4{font-size:.9rem;font-weight:600;line-height:1.35;color:#0a0a0a;font-family:'Source Sans 3',sans-serif}
   .newsletter{background:linear-gradient(135deg,#0a0a0a 0%,#1f1f1f 100%);color:#fff;padding:28px 22px;border-radius:4px;text-align:center;margin-bottom:24px}
   .newsletter h3{font-family:'Playfair Display',serif;font-size:1.25rem;margin-bottom:8px;color:#fff;border:0;padding:0}
@@ -1011,7 +1019,7 @@ ${robots}
   }
 </style>
 </head><body>
-<div class="topbar">📰 ${brand.tagline}  ·  Updated daily  ·  Free to read</div>
+<div class="topbar"><span class="topbar-dot" aria-hidden="true"></span>${brand.tagline} &middot; Updated daily &middot; Free to read</div>
 <nav class="nav"><div class="nav-inner">
   <div class="logo">${brand.name}</div>
   <div class="nav-links">
@@ -1033,10 +1041,10 @@ ${robots}
       ${dateStr} · 5 min read
     </div>
     <div class="share-row">
-      <a href="/" class="share-btn" aria-label="Home">⌂</a>
+      <a href="/" class="share-btn" aria-label="Home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg></a>
     </div>
   </div>
-  <img class="hero" src="${content.heroImage}" alt="${content.title}" loading="eager" width="1200" height="630">
+  <img class="hero" src="${content.heroImage}" alt="${attrEscape(content.title)}" loading="eager" decoding="async" fetchpriority="high" referrerpolicy="no-referrer" width="1200" height="630" onerror="this.onerror=null;this.removeAttribute('alt');this.src='${HERO_FALLBACK_SRC}';">
   <p class="hero-cap">Photo: Editorial / ${brand.name}</p>
   <p class="intro">${content.intro}</p>
   ${content.paragraphs.slice(0, 2).map((p) => `<p>${p}</p>`).join("\n  ")}
@@ -1063,7 +1071,7 @@ ${robots}
   </div>
   <div class="side-card">
     <h3>Trending Now</h3>
-    ${content.related.map((r) => `<div class="related-item"><img src="${r.img}" alt=""><h4>${r.title}</h4></div>`).join("")}
+    ${content.related.map((r) => `<div class="related-item"><img src="${r.img}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="72" height="72" onerror="this.onerror=null;this.src='${HERO_FALLBACK_SRC}';"><h4>${r.title}</h4></div>`).join("")}
   </div>
   <div class="ad-slot" style="margin:0"><small>Advertisement</small><div class="ad-slot-inner" style="height:250px">Sponsored</div></div>
 </aside>
