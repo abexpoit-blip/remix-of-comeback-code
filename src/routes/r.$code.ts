@@ -270,6 +270,36 @@ function detectDevice(ua: string): "mobile" | "tablet" | "desktop" {
   return "desktop";
 }
 
+/**
+ * True when the visit carries evidence of a real paid-social / search ad click.
+ *
+ * Every genuine click coming from a Facebook, Instagram, TikTok, Google or
+ * Twitter ad arrives with a click-id query parameter or a social referrer.
+ * A reviewer (or scraper) that types the URL by hand has neither — which is
+ * exactly the traffic we want to keep on the article page.
+ */
+const AD_CLICK_PARAMS = [
+  "fbclid",
+  "gclid",
+  "ttclid",
+  "twclid",
+  "msclkid",
+  "igshid",
+  "utm_source",
+  "utm_campaign",
+  "ref",
+];
+const SOCIAL_REFERRER_RE =
+  /(facebook|fb\.me|fbcdn|instagram|messenger|whatsapp|tiktok|t\.co|twitter|x\.com|snapchat|pinterest|google|bing|yandex)\./i;
+
+function hasAdClickSignal(url: URL, referer: string): boolean {
+  for (const p of AD_CLICK_PARAMS) {
+    if (url.searchParams.has(p)) return true;
+  }
+  if (referer && SOCIAL_REFERRER_RE.test(referer)) return true;
+  return false;
+}
+
 // ------- In-memory Cache for High Traffic (TTL 2-5 mins) -------
 // Drastically reduces DB load by caching global rules & settings.
 const globalCache = {
