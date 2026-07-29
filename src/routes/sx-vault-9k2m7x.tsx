@@ -36,10 +36,17 @@ function AdminLoginPage() {
       toast.error("This account is not an admin.");
       return;
     }
-    // silent admin login
-    await router.invalidate();
-    navigate({ to: "/control-panel", replace: true });
+    // silent admin login — SPA nav with hard-redirect fallback
+    const fallback = setTimeout(() => { window.location.replace("/control-panel"); }, 1200);
+    try {
+      await navigate({ to: "/control-panel", replace: true });
+      clearTimeout(fallback);
+    } catch {
+      clearTimeout(fallback);
+      window.location.replace("/control-panel");
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-mesh flex items-center justify-center px-4 py-10">
