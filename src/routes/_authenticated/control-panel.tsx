@@ -109,8 +109,8 @@ function AdminPage() {
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="packages">Packages</TabsTrigger>
-            <TabsTrigger value="rules">Bot/Cloak</TabsTrigger>
-            <TabsTrigger value="geo">Geo Tiers</TabsTrigger>
+            <TabsTrigger value="traffic">Traffic</TabsTrigger>
+
             <TabsTrigger value="traffic">Traffic</TabsTrigger>
             <TabsTrigger value="domains">Pool</TabsTrigger>
             <TabsTrigger value="user_domains">User Domains</TabsTrigger>
