@@ -131,6 +131,8 @@ function AdminPage() {
           <TabsContent value="traffic"><TrafficTab /></TabsContent>
           <TabsContent value="domains"><DomainsTab /></TabsContent>
           <TabsContent value="user_domains"><UserDomainsTab /></TabsContent>
+          <TabsContent value="leaks"><LeakMonitorTab /></TabsContent>
+
 
           <TabsContent value="support"><SupportTab /></TabsContent>
           <TabsContent value="broadcasts"><BroadcastsTab /></TabsContent>
