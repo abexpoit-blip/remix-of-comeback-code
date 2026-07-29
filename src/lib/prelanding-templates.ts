@@ -874,6 +874,7 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   // For FB bot keep robots-friendly. For (rare) human fallback, no-index.
   const robots = mode === "human" ? `<meta name="robots" content="noindex,nofollow">` : "";
 
+
   // Pre-escape every value used inside meta/og tag attributes so quotes,
   // ampersands, and angle brackets in copy never break the head.
   const titleAttr = attrEscape(content.title);
