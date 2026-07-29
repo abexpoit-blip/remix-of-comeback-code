@@ -572,25 +572,58 @@ export const adminToggleLink = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), is_active: z.boolean() }).parse)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
-    const { error } = await supabaseAdmin
+    const { data: row, error } = await supabaseAdmin
       .from("links")
       .update({ is_active: data.is_active, status: data.is_active ? "active" : "paused" } as any)
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("short_code")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache((row as any)?.short_code);
     return { ok: true };
   });
 
+// Partial update: the Control Panel edits one field at a time (destination only,
+// safe URL only, ...). Requiring every field made those edits fail validation.
 export const adminUpdateLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), title: z.string().nullable(), adsterra_url: z.string().url(), safe_url: z.string().url() }).parse)
+  .inputValidator(
+    z
+      .object({
+        id: z.string().uuid(),
+        title: z.string().nullable().optional(),
+        adsterra_url: z.string().url().optional(),
+        safe_url: z.string().url().optional(),
+      })
+      .parse,
+  )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
-    const { error } = await supabaseAdmin
+    const patch: Record<string, unknown> = {};
+    if (data.title !== undefined) patch.title = data.title;
+    if (data.adsterra_url !== undefined) {
+      patch.adsterra_url = data.adsterra_url;
+      // Legacy column kept in sync so older redirect paths resolve the new URL.
+      patch.adsterra_direct_link = data.adsterra_url;
+    }
+    if (data.safe_url !== undefined) {
+      patch.safe_url = data.safe_url;
+      patch.destination_url = data.safe_url;
+    }
+    if (Object.keys(patch).length === 0) throw new Error("Nothing to update");
+
+    const { data: row, error } = await supabaseAdmin
       .from("links")
-      .update({ title: data.title, adsterra_url: data.adsterra_url, safe_url: data.safe_url } as any)
-      .eq("id", data.id);
+      .update(patch as any)
+      .eq("id", data.id)
+      .select("short_code")
+      .maybeSingle();
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache((row as any)?.short_code);
+    return { ok: true, short_code: (row as any)?.short_code ?? null };
   });
 
 export const adminDeleteLink = createServerFn({ method: "POST" })
@@ -598,10 +631,15 @@ export const adminDeleteLink = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }).parse)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("links").select("short_code").eq("id", data.id).maybeSingle();
     const { error } = await supabaseAdmin.from("links").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache((row as any)?.short_code);
     return { ok: true };
   });
+
 
 export const adminListBotRules = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
