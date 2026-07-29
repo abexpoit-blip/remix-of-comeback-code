@@ -120,7 +120,28 @@ function hostOf(url: string | null): string | null {
   }
 }
 
+/** Static marketing/storefront slugs that must never be flagged as short codes. */
+const KNOWN_STATIC_SLUGS = new Set([
+  "",
+  "shop",
+  "blog",
+  "about",
+  "contact",
+  "faq",
+  "size-guide",
+  "shipping",
+  "returns",
+  "privacy",
+  "terms",
+  "pricing",
+  "login",
+  "signup",
+  "cart",
+  "checkout",
+]);
+
 /** SaaS paths that must 404 on shortener hosts. */
+
 const SAAS_PROBE_PATHS = [
   "/login",
   "/signup",
