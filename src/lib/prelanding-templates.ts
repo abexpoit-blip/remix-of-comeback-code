@@ -992,7 +992,7 @@ ${robots}
   .side-card h3{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:800;margin-bottom:16px;color:#0a0a0a;padding-bottom:10px;border-bottom:3px solid #b91c1c}
   .related-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0}
   .related-item:last-child{border-bottom:0}
-  .related-item img{width:72px;height:72px;object-fit:cover;border-radius:3px;flex-shrink:0}
+  .related-item img{width:72px;height:72px;object-fit:cover;border-radius:3px;flex-shrink:0;background:linear-gradient(135deg,#e9eaee 0%,#d6d8de 100%);color:transparent;font-size:0}
   .related-item h4{font-size:.9rem;font-weight:600;line-height:1.35;color:#0a0a0a;font-family:'Source Sans 3',sans-serif}
   .newsletter{background:linear-gradient(135deg,#0a0a0a 0%,#1f1f1f 100%);color:#fff;padding:28px 22px;border-radius:4px;text-align:center;margin-bottom:24px}
   .newsletter h3{font-family:'Playfair Display',serif;font-size:1.25rem;margin-bottom:8px;color:#fff;border:0;padding:0}
