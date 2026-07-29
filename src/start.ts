@@ -55,7 +55,41 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
+/**
+ * SHORTENER-HOST SHIELD.
+ *
+ * On any host that is not the Sleepox SaaS domain (tekuc.com,
+ * breezysocial.com, user custom domains) every SaaS surface — sign-in,
+ * pricing, dashboard, control panel — is hidden behind a plain 404.
+ * Without this an ad reviewer can open `https://<ad-domain>/login`,
+ * see "Sign in — Sleepox", and ban the domain for cloaking.
+ *
+ * Deny-list only: any path not listed passes straight through, so redirect
+ * traffic (`/{code}`, `/r/{code}`, `/api/*`, assets) can never be affected.
+ */
+const shortenerShield = createMiddleware().server(async ({ next, request }) => {
+  try {
+    const host =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("host") ||
+      "";
+    const pathname = new URL(request.url).pathname;
+    if (isShortenerHost(host.split(",")[0].trim()) && isSaasOnlyPath(pathname)) {
+      return new Response(NOT_FOUND_HTML, {
+        status: 404,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=300",
+        },
+      });
+    }
+  } catch {
+    // Never let the shield break a request.
+  }
+  return next();
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [errorMiddleware, shortenerShield],
   functionMiddleware: [attachSupabaseAuth],
 }));
