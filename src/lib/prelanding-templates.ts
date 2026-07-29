@@ -1034,7 +1034,7 @@ ${robots}
       ${dateStr} · 5 min read
     </div>
     <div class="share-row">
-      <a href="/" class="share-btn" aria-label="Home">⌂</a>
+      <a href="/" class="share-btn" aria-label="Home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg></a>
     </div>
   </div>
   <img class="hero" src="${content.heroImage}" alt="${content.title}" loading="eager" width="1200" height="630">
