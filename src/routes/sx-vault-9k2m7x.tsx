@@ -14,7 +14,7 @@ export const Route = createFileRoute("/sx-vault-9k2m7x")({
 
 function AdminLoginPage() {
   const navigate = useNavigate();
-  const router = useRouter();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
