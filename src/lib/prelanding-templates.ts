@@ -1012,7 +1012,7 @@ ${robots}
   }
 </style>
 </head><body>
-<div class="topbar">📰 ${brand.tagline}  ·  Updated daily  ·  Free to read</div>
+<div class="topbar"><span class="topbar-dot" aria-hidden="true"></span>${brand.tagline} &middot; Updated daily &middot; Free to read</div>
 <nav class="nav"><div class="nav-inner">
   <div class="logo">${brand.name}</div>
   <div class="nav-links">
