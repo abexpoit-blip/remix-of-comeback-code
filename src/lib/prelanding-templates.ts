@@ -858,7 +858,15 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
     category: nonEmpty(merged.category, OG_FALLBACK.category),
   };
 
-  const today = new Date();
+  // STABLE PUBLISH DATE. Previously this was `new Date()` on every request,
+  // so each re-scrape returned a different datePublished/dateModified for the
+  // same URL — an obvious "generated on the fly" signal. Now it is derived
+  // from the short code: same code → same date forever, and it always sits
+  // 3–45 days in the past so the article reads as genuinely published.
+  const ageDays = 3 + (hashCode(`pubdate:${code}`) % 43);
+  const published = new Date(Date.now() - ageDays * 86_400_000);
+  published.setUTCHours(9, 12, 0, 0);
+  const today = published;
   const dateStr = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const initials = (content.author.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase()) || "DI";
   // For FB bot keep robots-friendly. For (rare) human fallback, no-index.
