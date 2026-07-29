@@ -124,12 +124,10 @@ function AdminPage() {
           <TabsContent value="links"><LinksTab /></TabsContent>
           <TabsContent value="revenue"><RevenueTab /></TabsContent>
           <TabsContent value="packages"><PackagesTab /></TabsContent>
-          <TabsContent value="rules"><RulesTab /></TabsContent>
-          <TabsContent value="geo"><GeoTab /></TabsContent>
           <TabsContent value="traffic"><TrafficTab /></TabsContent>
           <TabsContent value="domains"><DomainsTab /></TabsContent>
           <TabsContent value="user_domains"><UserDomainsTab /></TabsContent>
-          <TabsContent value="domain_health"><DomainHealthTab /></TabsContent>
+
           <TabsContent value="support"><SupportTab /></TabsContent>
           <TabsContent value="broadcasts"><BroadcastsTab /></TabsContent>
           <TabsContent value="errors"><ErrorsTab /></TabsContent>
