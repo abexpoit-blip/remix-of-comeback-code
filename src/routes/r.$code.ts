@@ -1385,12 +1385,30 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
 
 
+    // (3) Unknown code WITHOUT any ad-click signal → article page, never the
+    //     offer. Anyone can type https://<ad-domain>/anything; before this
+    //     guard every such probe (e.g. /control, /admin1234) 302'd straight to
+    //     the Adsterra offer, which is a one-request proof of cloaking for a
+    //     reviewer. Real mistyped/expired ad clicks still carry fbclid or a
+    //     social referrer, so monetised traffic is unaffected.
+    if (!hasAdClickSignal(url, referer)) {
+      const tpl = pickArticleTemplateForCode(code);
+      const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+      const headers = new Headers({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300, s-maxage=600",
+      });
+      setDebugHeaders(headers, "safe-article", "unknown-code-no-adsignal");
+      return new Response(html, { status: 200, headers });
+    }
+
     const missTarget =
       globalCache.settings?.our_adsterra_url ||
       globalCache.settings?.fallback_url ||
       SAFE_FALLBACK;
     return redirectTo(missTarget, "offer", !link ? "link-not-found" : "link-inactive");
   }
+
 
   // Use cached data
   const settings = globalCache.settings;
