@@ -140,7 +140,7 @@ export const Route = createFileRoute("/sitemap.xml")({
             // 15-min edge cache — new codes show up within 15 min,
             // Google re-fetches roughly daily anyway.
             "cache-control": "public, max-age=900, s-maxage=900",
-            "x-sleepox-route": "sitemap",
+
           },
         });
       },

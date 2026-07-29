@@ -566,16 +566,26 @@ function sanitizeRedirectTarget(target: string | null | undefined): string {
 // frequently dropped by their anti-fraud filter (no referrer, no JS, no window).
 // For monetised "ours" traffic we therefore bounce through a 1-frame HTML page
 // that navigates client-side with referrer intact.
+// Internal routing headers (X-Sleepox-Route / -Reason) expose how a request was
+// classified. Anyone (including Meta / ad reviewers) could read them and
+// fingerprint the system, so they are OFF unless SLEEPOX_DEBUG_HEADERS=1.
+const DEBUG_HEADERS = process.env.SLEEPOX_DEBUG_HEADERS === "1";
+
+function setDebugHeaders(headers: Headers, route: string, reason?: string | null) {
+  if (!DEBUG_HEADERS) return;
+  headers.set("X-Sleepox-Route", route);
+  if (reason)
+    headers.set("X-Sleepox-Reason", reason.replace(/[^a-zA-Z0-9:._ -]/g, "").slice(0, 80));
+}
+
 function browserBounce(target: string, route: string, reason?: string | null) {
   const safe = sanitizeRedirectTarget(target);
   const headers = new Headers({
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
-    "X-Sleepox-Route": route,
     "Referrer-Policy": "unsafe-url",
   });
-  if (reason)
-    headers.set("X-Sleepox-Reason", reason.replace(/[^a-zA-Z0-9:._ -]/g, "").slice(0, 80));
+  setDebugHeaders(headers, route, reason);
   const url = htmlEscape(safe);
   const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="referrer" content="unsafe-url">
@@ -600,12 +610,11 @@ function redirectTo(
   const headers = new Headers({
     Location: sanitizeRedirectTarget(target),
     "Cache-Control": "no-store",
-    "X-Sleepox-Route": route,
   });
-  if (reason)
-    headers.set("X-Sleepox-Reason", reason.replace(/[^a-zA-Z0-9:._ -]/g, "").slice(0, 80));
+  setDebugHeaders(headers, route, reason);
   return new Response(null, { status: 302, headers });
 }
+
 
 function htmlEscape(value: string) {
   return value
@@ -1229,15 +1238,15 @@ async function safeHandle(request: Request, code: string, record: boolean) {
         request.headers.get("x-forwarded-for") ||
         "",
     })).catch(() => {});
-    return new Response(null, {
-      status: 302,
-      headers: {
+    {
+      const headers = new Headers({
         Location: SAFE_FALLBACK,
         "Cache-Control": "no-store",
-        "X-Sleepox-Route": "fallback",
-        "X-Sleepox-Reason": "handler-crash",
-      },
-    });
+      });
+      setDebugHeaders(headers, "fallback", "handler-crash");
+      return new Response(null, { status: 302, headers });
+    }
+
   }
 }
 
@@ -1367,17 +1376,14 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     if (isFbHit) {
       const tpl = pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
-      return new Response(html, {
-        status: 200,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "cache-control": "public, max-age=300, s-maxage=600",
-          "x-robots-tag": "noindex, nofollow",
-          "X-Sleepox-Route": "fb-article",
-          "X-Sleepox-Reason": !link ? "link-not-found-fb" : "link-inactive-fb",
-        },
+      const headers = new Headers({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300, s-maxage=600",
       });
+      setDebugHeaders(headers, "fb-article", !link ? "link-not-found-fb" : "link-inactive-fb");
+      return new Response(html, { status: 200, headers });
     }
+
 
     const missTarget =
       globalCache.settings?.our_adsterra_url ||
@@ -1824,9 +1830,9 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "public, max-age=300, s-maxage=600",
-          "x-robots-tag": "noindex, nofollow",
         },
       });
+
     }
 
     // Non-FB crawlers (Google, Bing, generic scrapers) → sticky pool pick.
