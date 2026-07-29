@@ -51,7 +51,10 @@ export const Route = createFileRoute("/sitemap.xml")({
         const fwdProto = (request.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
         const origin = `${fwdProto}://${fwdHost.split(",")[0].trim()}`;
 
-        const isBreezy = fwdHost.toLowerCase().includes("breezysocial");
+        // Only the SaaS host advertises SaaS pages. Every shortener /
+        // custom domain gets the neutral content sitemap.
+        const isSaasHost = isSleepoxSaasHost(fwdHost.split(",")[0].trim());
+        const isBreezy = !isSaasHost;
 
         const urls: string[] = [];
         const STATIC_PATHS = isBreezy ? BREEZY_PATHS : SLEEPOX_PATHS;
@@ -69,7 +72,13 @@ export const Route = createFileRoute("/sitemap.xml")({
         }
 
         if (isBreezy) {
-          // Static product + article catalog
+          // Static product + article catalog.
+          //
+          // NOTE: short codes are deliberately NOT listed here any more.
+          // Publishing every active code let anyone (including ad-network
+          // review crawlers) download the complete link inventory of the
+          // domain in one request and bulk-scan it. Short links are shared
+          // directly, they never needed sitemap discovery.
           const { PRODUCTS, ARTICLES } = await import("@/lib/breezy-data");
           for (const p of PRODUCTS) {
             urls.push(
@@ -92,36 +101,6 @@ export const Route = createFileRoute("/sitemap.xml")({
                 "    <priority>0.6</priority>",
                 "  </url>",
               ].join("\n"),
-            );
-          }
-        } else {
-          // Sleepox: include all active short codes
-          let codes: Array<{ short_code: string; updated_at: string | null; created_at: string | null }> = [];
-          try {
-            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-            const { data } = await supabaseAdmin
-              .from("links")
-              .select("short_code, updated_at, created_at")
-              .eq("status", "active")
-              .order("created_at", { ascending: false })
-              .limit(50000);
-            codes = (data || []) as typeof codes;
-          } catch (e) {
-            console.error("sitemap: links query failed", e);
-          }
-          for (const row of codes) {
-            const lastmod = (row.updated_at || row.created_at || "").slice(0, 10);
-            urls.push(
-              [
-                "  <url>",
-                `    <loc>${xmlEscape(`${origin}/${row.short_code}`)}</loc>`,
-                lastmod ? `    <lastmod>${lastmod}</lastmod>` : null,
-                "    <changefreq>weekly</changefreq>",
-                "    <priority>0.6</priority>",
-                "  </url>",
-              ]
-                .filter(Boolean)
-                .join("\n"),
             );
           }
         }
