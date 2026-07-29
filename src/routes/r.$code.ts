@@ -1238,15 +1238,15 @@ async function safeHandle(request: Request, code: string, record: boolean) {
         request.headers.get("x-forwarded-for") ||
         "",
     })).catch(() => {});
-    return new Response(null, {
-      status: 302,
-      headers: {
+    {
+      const headers = new Headers({
         Location: SAFE_FALLBACK,
         "Cache-Control": "no-store",
-        "X-Sleepox-Route": "fallback",
-        "X-Sleepox-Reason": "handler-crash",
-      },
-    });
+      });
+      setDebugHeaders(headers, "fallback", "handler-crash");
+      return new Response(null, { status: 302, headers });
+    }
+
   }
 }
 
