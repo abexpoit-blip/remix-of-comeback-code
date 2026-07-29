@@ -120,7 +120,28 @@ function hostOf(url: string | null): string | null {
   }
 }
 
+/** Static marketing/storefront slugs that must never be flagged as short codes. */
+const KNOWN_STATIC_SLUGS = new Set([
+  "",
+  "shop",
+  "blog",
+  "about",
+  "contact",
+  "faq",
+  "size-guide",
+  "shipping",
+  "returns",
+  "privacy",
+  "terms",
+  "pricing",
+  "login",
+  "signup",
+  "cart",
+  "checkout",
+]);
+
 /** SaaS paths that must 404 on shortener hosts. */
+
 const SAAS_PROBE_PATHS = [
   "/login",
   "/signup",
@@ -220,9 +241,15 @@ export async function scanDomain(
   const sitemap = await probe(base + "/sitemap.xml", DESKTOP_UA);
   if (sitemap.status === 200) {
     const locs = sitemap.body.match(/<loc>[^<]*<\/loc>/gi) || [];
-    const codeLike = locs.filter((l) =>
-      /<loc>https?:\/\/[^/]+\/[a-z0-9]{5,10}<\/loc>/i.test(l),
-    );
+    const codeLike = locs.filter((l) => {
+      const slug = (l.match(/<loc>https?:\/\/[^/]+\/([^<]*)<\/loc>/i)?.[1] || "")
+        .replace(/\/+$/, "")
+        .toLowerCase();
+      if (!slug || slug.includes("/")) return false;
+      if (KNOWN_STATIC_SLUGS.has(slug)) return false;
+      // Real short codes are opaque: 5-10 chars, no hyphen, and mix letters+digits.
+      return /^(?=.*[0-9])(?=.*[a-z])[a-z0-9]{5,10}$/.test(slug);
+    });
     if (codeLike.length > 3) {
       add({
         check: "sitemap_exposes_short_codes",
@@ -235,6 +262,7 @@ export async function scanDomain(
       });
     }
   }
+
 
   // ---- 6. Redirect behaviour on a real short code -------------------------
   if (sampleCode) {
