@@ -767,6 +767,12 @@ function hashCode(s: string): number {
   return h >>> 0;
 }
 
+// Inline SVG placeholder used when a remote hero/thumbnail image fails to load.
+// Self-contained data URI (no network) so the banner area always renders a
+// neutral editorial photo frame instead of raw alt text.
+const HERO_FALLBACK_SRC =
+  "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e9eaee'/%3E%3Cstop offset='1' stop-color='%23cdd0d8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='630' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23a8adba' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='450' y='215' width='300' height='200' rx='18'/%3E%3Ccircle cx='530' cy='285' r='26'/%3E%3Cpath d='M470 400l90-85 70 65 45-40 55 60'/%3E%3C/g%3E%3C/svg%3E";
+
 // Publisher brand rotation — deterministic per short_code. Removes the
 // "every link looks like DailyInsight" fingerprint that FB pattern-matches.
 type Brand = { name: string; accent: string; tagline: string; email: string };
