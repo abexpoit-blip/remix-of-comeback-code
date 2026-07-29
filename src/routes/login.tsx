@@ -1,5 +1,6 @@
-import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
+
 import { toast } from "sonner";
 import { Mail, Lock, ArrowRight, ShieldCheck, Zap, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,25 +15,26 @@ const font = { fontFamily: "'Outfit', system-ui, sans-serif" } as const;
 
 function LoginPage() {
   const navigate = useNavigate();
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Prefetch dashboard chunks so post-login nav is instant
-  useEffect(() => {
-    router.preloadRoute({ to: "/dashboard" }).catch(() => {});
-  }, [router]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (error || !data.session) { setLoading(false); toast.error(error?.message ?? "Login failed"); return; }
-    // Session is already in localStorage; SPA navigate is instant (no full reload)
-    await router.invalidate();
-    navigate({ to: "/dashboard", replace: true });
+    // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
+    const fallback = setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
+    try {
+      await navigate({ to: "/dashboard", replace: true });
+      clearTimeout(fallback);
+    } catch {
+      clearTimeout(fallback);
+      window.location.replace("/dashboard");
+    }
   };
+
 
 
   return (
