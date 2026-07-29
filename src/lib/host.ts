@@ -27,7 +27,12 @@ export const getHost = createIsomorphicFn()
 
 export type SiteVariant = "breezysocial" | "sleepox";
 
+/**
+ * Only the real SaaS hosts render the Sleepox landing page. Every shortener /
+ * custom domain (tekuc.com, breezysocial.com, user domains) renders the
+ * neutral BreezySocial storefront so an ad reviewer opening the bare domain
+ * sees ordinary content, never a link-shortener product page.
+ */
 export function variantFromHost(host: string): SiteVariant {
-  if (host.includes("breezysocial")) return "breezysocial";
-  return "sleepox";
+  return isSleepoxSaasHost(host) ? "sleepox" : "breezysocial";
 }
