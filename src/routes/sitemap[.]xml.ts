@@ -9,6 +9,7 @@
 // Google's "same host" rule (a sitemap can only list URLs on the same
 // host it's served from).
 import { createFileRoute } from "@tanstack/react-router";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 
 // Public marketing routes (indexable). Internal/auth routes stay
 // excluded via robots.txt.
