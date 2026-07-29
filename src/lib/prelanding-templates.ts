@@ -303,7 +303,7 @@ const ARTICLES: Record<string, ArticleContent> = {
     description: "Low-key indoor and backyard ideas many families turn to for a relaxed weekend without any planning.",
     category: "Family",
     author: "Megan Howard",
-    heroImage: "https://images.unsplash.com/photo-1484820301400-9d6c5dc6df58?auto=format&fit=crop&w=1200&q=75",
+    heroImage: "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1200&q=75",
     intro: "Not every weekend needs to be a big outing. Many families enjoy simple, slower-paced days at home that leave everyone feeling rested by Sunday evening.",
     paragraphs: [
       "Board games, jigsaw puzzles, and reading time are quiet classics that work across a wide range of ages. Pulling a few favorites out of the cupboard often turns into hours of relaxed time together.",
@@ -319,7 +319,7 @@ const ARTICLES: Record<string, ArticleContent> = {
     description: "A friendly look at why beginner-friendly turntables and second-hand vinyl have quietly become a popular home hobby again.",
     category: "Music",
     author: "Andre Williams",
-    heroImage: "https://images.unsplash.com/photo-1483821432-7cc0db04ad7c?auto=format&fit=crop&w=1200&q=75",
+    heroImage: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=1200&q=75",
     intro: "Vinyl records have quietly returned to many living rooms over the past few years, helped along by affordable beginner turntables and a steady supply of second-hand records at thrift shops.",
     paragraphs: [
       "Casual listeners often start with a simple all-in-one turntable and a small stack of records — sometimes inherited from a parent, sometimes picked up for a few dollars at a local market.",
@@ -475,7 +475,7 @@ const VARIANTS: Record<string, OgVariant[]> = {
       heroImage: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=75" },
     { title: "Small Bedtime Habits That Make Evenings Feel Peaceful",
       description: "A short collection of low-key habits — tea, a book, dim lights — that many people enjoy at night.",
-      heroImage: "https://images.unsplash.com/photo-1455642305367-68834a9c4cee?auto=format&fit=crop&w=1200&q=75" },
+      heroImage: "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=1200&q=75" },
     { title: "A Gentle End-of-Day Routine You Can Adjust to Your Schedule",
       description: "Mix-and-match ideas for a quiet hour before bed that fits any home and any lifestyle.",
       heroImage: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=1200&q=75" },
@@ -642,13 +642,13 @@ const VARIANTS: Record<string, OgVariant[]> = {
   article_parenting: [
     { title: "Quiet Weekend Activities Families Enjoy at Home Together",
       description: "Low-key indoor and backyard ideas many families turn to for a relaxed weekend.",
-      heroImage: "https://images.unsplash.com/photo-1484820301400-9d6c5dc6df58?auto=format&fit=crop&w=1200&q=75" },
+      heroImage: "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1200&q=75" },
     { title: "Simple At-Home Ideas for a Calm Family Weekend",
       description: "Board games, baking, and small backyard projects that suit a wide range of ages.",
       heroImage: "https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=1200&q=75" },
     { title: "Easy Weekend Plans Families Are Quietly Loving This Year",
       description: "A friendly roundup of low-key home activities that leave everyone feeling rested by Sunday.",
-      heroImage: "https://images.unsplash.com/photo-1490489944526-99f3a9e09e72?auto=format&fit=crop&w=1200&q=75" },
+      heroImage: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=75" },
     { title: "How Families Are Building Slower, Cozier Weekends at Home",
       description: "Friendly indoor and backyard ideas that suit kids of different ages and need almost no planning.",
       heroImage: "https://images.unsplash.com/photo-1471286174890-9c112ffca5b4?auto=format&fit=crop&w=1200&q=75" },
@@ -659,7 +659,7 @@ const VARIANTS: Record<string, OgVariant[]> = {
   article_music: [
     { title: "How Casual Listeners Are Rediscovering Vinyl Records at Home",
       description: "Affordable beginner turntables and second-hand vinyl are quietly turning into a popular home hobby again.",
-      heroImage: "https://images.unsplash.com/photo-1483821432-7cc0db04ad7c?auto=format&fit=crop&w=1200&q=75" },
+      heroImage: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=1200&q=75" },
     { title: "A Friendly Beginner's Guide to Starting a Small Vinyl Collection",
       description: "What you actually need to get going — a basic turntable, a few records, and a quiet evening.",
       heroImage: "https://images.unsplash.com/photo-1471478331149-c72f17e33c73?auto=format&fit=crop&w=1200&q=75" },
@@ -730,7 +730,7 @@ const VARIANTS: Record<string, OgVariant[]> = {
       heroImage: "https://images.unsplash.com/photo-1487700160041-babef9c3cb55?auto=format&fit=crop&w=1200&q=75" },
     { title: "A Gentle Walking Routine That Fits Almost Any Schedule",
       description: "Short loops, a podcast, and a comfortable pair of shoes — that's all most walkers need.",
-      heroImage: "https://images.unsplash.com/photo-1538677053842-79bb433f4cdc?auto=format&fit=crop&w=1200&q=75" },
+      heroImage: "https://images.unsplash.com/photo-1444858291040-58f756a3bdd6?auto=format&fit=crop&w=1200&q=75" },
     { title: "Why Casual Walking Is the Quiet Favorite for Staying Active",
       description: "Friendly, no-gym walking habits that many people stick with for years.",
       heroImage: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1200&q=75" },
@@ -771,7 +771,7 @@ function hashCode(s: string): number {
 // Self-contained data URI (no network) so the banner area always renders a
 // neutral editorial photo frame instead of raw alt text.
 const HERO_FALLBACK_SRC =
-  "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e9eaee'/%3E%3Cstop offset='1' stop-color='%23cdd0d8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='630' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23a8adba' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='450' y='215' width='300' height='200' rx='18'/%3E%3Ccircle cx='530' cy='285' r='26'/%3E%3Cpath d='M470 400l90-85 70 65 45-40 55 60'/%3E%3C/g%3E%3C/svg%3E";
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDYzMCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZTllYWVlIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjY2RkMGQ4Ii8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iNjMwIiBmaWxsPSJ1cmwoI2cpIi8+PGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYThhZGJhIiBzdHJva2Utd2lkdGg9IjE0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjQ1MCIgeT0iMjE1IiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgcng9IjE4Ii8+PGNpcmNsZSBjeD0iNTMwIiBjeT0iMjg1IiByPSIyNiIvPjxwYXRoIGQ9Ik00NzAgNDAwbDkwLTg1IDcwIDY1IDQ1LTQwIDU1IDYwIi8+PC9nPjwvc3ZnPg==";
 
 // Publisher brand rotation — deterministic per short_code. Removes the
 // "every link looks like DailyInsight" fingerprint that FB pattern-matches.
