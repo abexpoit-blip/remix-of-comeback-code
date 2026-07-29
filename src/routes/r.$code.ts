@@ -1830,9 +1830,9 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "public, max-age=300, s-maxage=600",
-          "x-robots-tag": "noindex, nofollow",
         },
       });
+
     }
 
     // Non-FB crawlers (Google, Bing, generic scrapers) → sticky pool pick.
