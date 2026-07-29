@@ -47,6 +47,7 @@ import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/publi
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
 import { Route as ApiPublicPreviewPrelandingCodeRouteImport } from './routes/api/public/preview-prelanding.$code'
 import { Route as ApiPublicHooksMetaCrawlerProbeRouteImport } from './routes/api/public/hooks/meta-crawler-probe'
+import { Route as ApiPublicHooksLeakScanRouteImport } from './routes/api/public/hooks/leak-scan'
 import { Route as ApiPublicHooksDomainHealthScanRouteImport } from './routes/api/public/hooks/domain-health-scan'
 
 const TermsRoute = TermsRouteImport.update({
@@ -244,6 +245,11 @@ const ApiPublicHooksMetaCrawlerProbeRoute =
     path: '/api/public/hooks/meta-crawler-probe',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksLeakScanRoute = ApiPublicHooksLeakScanRouteImport.update({
+  id: '/api/public/hooks/leak-scan',
+  path: '/api/public/hooks/leak-scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksDomainHealthScanRoute =
   ApiPublicHooksDomainHealthScanRouteImport.update({
     id: '/api/public/hooks/domain-health-scan',
@@ -288,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
+  '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
+  '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
+  '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
   '/api/public/preview-prelanding/$code': typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
+    | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
     | '/api/public/preview-prelanding/$code'
   fileRoutesByTo: FileRoutesByTo
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
+    | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
     | '/api/public/preview-prelanding/$code'
   id:
@@ -491,6 +502,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/api/public/hooks/domain-health-scan'
+    | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
     | '/api/public/preview-prelanding/$code'
   fileRoutesById: FileRoutesById
@@ -520,6 +532,7 @@ export interface RootRouteChildren {
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
+  ApiPublicHooksLeakScanRoute: typeof ApiPublicHooksLeakScanRoute
   ApiPublicHooksMetaCrawlerProbeRoute: typeof ApiPublicHooksMetaCrawlerProbeRoute
   ApiPublicPreviewPrelandingCodeRoute: typeof ApiPublicPreviewPrelandingCodeRoute
 }
@@ -792,6 +805,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksMetaCrawlerProbeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/leak-scan': {
+      id: '/api/public/hooks/leak-scan'
+      path: '/api/public/hooks/leak-scan'
+      fullPath: '/api/public/hooks/leak-scan'
+      preLoaderRoute: typeof ApiPublicHooksLeakScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/domain-health-scan': {
       id: '/api/public/hooks/domain-health-scan'
       path: '/api/public/hooks/domain-health-scan'
@@ -879,6 +899,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,
+  ApiPublicHooksLeakScanRoute: ApiPublicHooksLeakScanRoute,
   ApiPublicHooksMetaCrawlerProbeRoute: ApiPublicHooksMetaCrawlerProbeRoute,
   ApiPublicPreviewPrelandingCodeRoute: ApiPublicPreviewPrelandingCodeRoute,
 }

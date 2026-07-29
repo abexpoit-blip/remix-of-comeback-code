@@ -54,6 +54,8 @@ import {
   listMonitoredDomains, addMonitoredDomain, toggleMonitoredDomain, deleteMonitoredDomain,
   syncOfferDomainsFromLinks, scanMonitoredDomain, scanAllMonitoredDomains,
 } from "@/lib/domain-monitor.functions";
+import { LeakMonitorTab } from "@/components/leak-monitor-tab";
+
 
 export const Route = createFileRoute("/_authenticated/control-panel")({
   head: () => ({ meta: [{ title: "Control Panel — Sleepox" }] }),
@@ -109,12 +111,12 @@ function AdminPage() {
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="packages">Packages</TabsTrigger>
-            <TabsTrigger value="rules">Bot/Cloak</TabsTrigger>
-            <TabsTrigger value="geo">Geo Tiers</TabsTrigger>
             <TabsTrigger value="traffic">Traffic</TabsTrigger>
             <TabsTrigger value="domains">Pool</TabsTrigger>
             <TabsTrigger value="user_domains">User Domains</TabsTrigger>
-            <TabsTrigger value="domain_health">Offer Domains</TabsTrigger>
+            <TabsTrigger value="leaks">Leak Monitor</TabsTrigger>
+
+
             <TabsTrigger value="support">Support</TabsTrigger>
             <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>
             <TabsTrigger value="errors">Errors</TabsTrigger>
@@ -126,12 +128,12 @@ function AdminPage() {
           <TabsContent value="links"><LinksTab /></TabsContent>
           <TabsContent value="revenue"><RevenueTab /></TabsContent>
           <TabsContent value="packages"><PackagesTab /></TabsContent>
-          <TabsContent value="rules"><RulesTab /></TabsContent>
-          <TabsContent value="geo"><GeoTab /></TabsContent>
           <TabsContent value="traffic"><TrafficTab /></TabsContent>
           <TabsContent value="domains"><DomainsTab /></TabsContent>
           <TabsContent value="user_domains"><UserDomainsTab /></TabsContent>
-          <TabsContent value="domain_health"><DomainHealthTab /></TabsContent>
+          <TabsContent value="leaks"><LeakMonitorTab /></TabsContent>
+
+
           <TabsContent value="support"><SupportTab /></TabsContent>
           <TabsContent value="broadcasts"><BroadcastsTab /></TabsContent>
           <TabsContent value="errors"><ErrorsTab /></TabsContent>
