@@ -114,6 +114,8 @@ function AdminPage() {
             <TabsTrigger value="traffic">Traffic</TabsTrigger>
             <TabsTrigger value="domains">Pool</TabsTrigger>
             <TabsTrigger value="user_domains">User Domains</TabsTrigger>
+            <TabsTrigger value="leaks">Leak Monitor</TabsTrigger>
+
 
             <TabsTrigger value="support">Support</TabsTrigger>
             <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>
