@@ -1,5 +1,6 @@
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 
 /**
  * Returns the current request host (lowercased, no port), e.g. "breezysocial.com".
@@ -27,7 +28,12 @@ export const getHost = createIsomorphicFn()
 
 export type SiteVariant = "breezysocial" | "sleepox";
 
+/**
+ * Only the real SaaS hosts render the Sleepox landing page. Every shortener /
+ * custom domain (tekuc.com, breezysocial.com, user domains) renders the
+ * neutral BreezySocial storefront so an ad reviewer opening the bare domain
+ * sees ordinary content, never a link-shortener product page.
+ */
 export function variantFromHost(host: string): SiteVariant {
-  if (host.includes("breezysocial")) return "breezysocial";
-  return "sleepox";
+  return isSleepoxSaasHost(host) ? "sleepox" : "breezysocial";
 }

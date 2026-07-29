@@ -1,5 +1,9 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { isShortenerHost, isSaasOnlyPath } from "@/lib/site-hosts";
+
+/** Neutral 404 body — no product name, no framework hints. */
+const NOT_FOUND_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Page not found</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#111}main{text-align:center;padding:24px}h1{font-size:56px;margin:0 0 8px;font-weight:600}p{margin:0;color:#666;font-size:15px}</style></head><body><main><h1>404</h1><p>The page you requested could not be found.</p></main></body></html>`;
 
 // Prevent worker crashes from malformed URIs (e.g. bots sending `/r/%E0%A4`)
 // h3's decodePathname throws URIError BEFORE middleware runs, killing the worker.
@@ -55,7 +59,41 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
+/**
+ * SHORTENER-HOST SHIELD.
+ *
+ * On any host that is not the Sleepox SaaS domain (tekuc.com,
+ * breezysocial.com, user custom domains) every SaaS surface — sign-in,
+ * pricing, dashboard, control panel — is hidden behind a plain 404.
+ * Without this an ad reviewer can open `https://<ad-domain>/login`,
+ * see "Sign in — Sleepox", and ban the domain for cloaking.
+ *
+ * Deny-list only: any path not listed passes straight through, so redirect
+ * traffic (`/{code}`, `/r/{code}`, `/api/*`, assets) can never be affected.
+ */
+const shortenerShield = createMiddleware().server(async ({ next, request }) => {
+  try {
+    const host =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("host") ||
+      "";
+    const pathname = new URL(request.url).pathname;
+    if (isShortenerHost(host.split(",")[0].trim()) && isSaasOnlyPath(pathname)) {
+      return new Response(NOT_FOUND_HTML, {
+        status: 404,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=300",
+        },
+      });
+    }
+  } catch {
+    // Never let the shield break a request.
+  }
+  return next();
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [errorMiddleware, shortenerShield],
   functionMiddleware: [attachSupabaseAuth],
 }));

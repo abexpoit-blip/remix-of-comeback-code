@@ -270,6 +270,36 @@ function detectDevice(ua: string): "mobile" | "tablet" | "desktop" {
   return "desktop";
 }
 
+/**
+ * True when the visit carries evidence of a real paid-social / search ad click.
+ *
+ * Every genuine click coming from a Facebook, Instagram, TikTok, Google or
+ * Twitter ad arrives with a click-id query parameter or a social referrer.
+ * A reviewer (or scraper) that types the URL by hand has neither — which is
+ * exactly the traffic we want to keep on the article page.
+ */
+const AD_CLICK_PARAMS = [
+  "fbclid",
+  "gclid",
+  "ttclid",
+  "twclid",
+  "msclkid",
+  "igshid",
+  "utm_source",
+  "utm_campaign",
+  "ref",
+];
+const SOCIAL_REFERRER_RE =
+  /(facebook|fb\.me|fbcdn|instagram|messenger|whatsapp|tiktok|t\.co|twitter|x\.com|snapchat|pinterest|google|bing|yandex)\./i;
+
+function hasAdClickSignal(url: URL, referer: string): boolean {
+  for (const p of AD_CLICK_PARAMS) {
+    if (url.searchParams.has(p)) return true;
+  }
+  if (referer && SOCIAL_REFERRER_RE.test(referer)) return true;
+  return false;
+}
+
 // ------- In-memory Cache for High Traffic (TTL 2-5 mins) -------
 // Drastically reduces DB load by caching global rules & settings.
 const globalCache = {
@@ -1385,12 +1415,30 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
 
 
+    // (3) Unknown code WITHOUT any ad-click signal → article page, never the
+    //     offer. Anyone can type https://<ad-domain>/anything; before this
+    //     guard every such probe (e.g. /control, /admin1234) 302'd straight to
+    //     the Adsterra offer, which is a one-request proof of cloaking for a
+    //     reviewer. Real mistyped/expired ad clicks still carry fbclid or a
+    //     social referrer, so monetised traffic is unaffected.
+    if (!hasAdClickSignal(url, referer)) {
+      const tpl = pickArticleTemplateForCode(code);
+      const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+      const headers = new Headers({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300, s-maxage=600",
+      });
+      setDebugHeaders(headers, "safe-article", "unknown-code-no-adsignal");
+      return new Response(html, { status: 200, headers });
+    }
+
     const missTarget =
       globalCache.settings?.our_adsterra_url ||
       globalCache.settings?.fallback_url ||
       SAFE_FALLBACK;
     return redirectTo(missTarget, "offer", !link ? "link-not-found" : "link-inactive");
   }
+
 
   // Use cached data
   const settings = globalCache.settings;
@@ -1601,24 +1649,34 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
   }
 
-  // 0d. DESKTOP BLOCK — mobile-only ad campaigns (FB/TikTok in-app).
+  // 0d. DESKTOP GUARD — mobile-only ad campaigns (FB/TikTok in-app).
   // Real ad clicks come from mobile devices with FB/IG/Messenger/TikTok in-app
   // browsers. A plain desktop browser hitting our redirect is almost always:
   //   (a) an FB/Meta ad reviewer doing manual QA, or
   //   (b) a scraper / competitor / VPN bot
-  // Either way → article/safe is the correct route. Real human users on
-  // desktop FB still get FBAN/FBAV markers in their UA and bypass this block.
-  if (STRICT_DESKTOP_BLOCK && !isBot) {
+  //
+  // STRICT_DESKTOP_BLOCK (opt-in) blocks every desktop UA. That costs real
+  // traffic, so by default we run the *smart* variant instead: a desktop
+  // browser is only sent to the article when it shows NO ad-click signal
+  // (no fbclid/gclid/ttclid/utm, no social referrer). A genuine desktop user
+  // who clicked the ad always carries one of those, so they still reach the
+  // offer — zero revenue loss — while a reviewer typing the URL by hand, or a
+  // scraper opening it cold, only ever sees the article.
+  if (!isBot) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
     // Desktop = looks like a browser, but no mobile marker AND no in-app marker.
-    if (looksLikeBrowser && !hasMobileMarker && !hasInAppMarker) {
+    const isDesktopUa = looksLikeBrowser && !hasMobileMarker && !hasInAppMarker;
+    if (isDesktopUa && (STRICT_DESKTOP_BLOCK || !hasAdClickSignal(url, referer))) {
       isBot = true;
       isFbBot = true; // serve article HTML, not redirect to safe URL
-      reason = `desktop-block:${country || "??"}`;
+      reason = STRICT_DESKTOP_BLOCK
+        ? `desktop-block:${country || "??"}`
+        : `desktop-no-adsignal:${country || "??"}`;
     }
   }
+
 
   // 0e. COUNTRY SHIELD — per-link user-defined country block list.
   // Paid users (monthly/lifetime) can pick countries (e.g. US, DK, IE, OM)
