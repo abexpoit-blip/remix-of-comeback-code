@@ -11,10 +11,24 @@
  * So on shortener hosts we serve only neutral content and 404 every SaaS path.
  */
 
-/** Hosts that are allowed to serve the Sleepox SaaS surface. */
+/** Hosts that are allowed to serve the Sleepox SaaS surface.
+ *
+ * FAIL-OPEN: an empty / internal host (missing Host header, proxy passing
+ * `127.0.0.1:400x`, health checks) must NOT be treated as a shortener host —
+ * otherwise real users randomly get a 404 on /login when one upstream worker
+ * receives a request without a proper forwarded host.
+ */
 export function isSleepoxSaasHost(host: string): boolean {
-  const h = (host || "").toLowerCase().split(":")[0];
-  return h === "sleepox.com" || h === "www.sleepox.com" || h === "localhost" || h.endsWith(".lovable.app") || h.endsWith(".lovableproject.com");
+  const h = (host || "").toLowerCase().split(":")[0].trim();
+  if (!h) return true; // no host info → never shield
+  if (h === "localhost" || h === "127.0.0.1" || h === "0.0.0.0" || h === "::1") return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true; // raw IP = internal/proxy hit
+  return (
+    h === "sleepox.com" ||
+    h === "www.sleepox.com" ||
+    h.endsWith(".lovable.app") ||
+    h.endsWith(".lovableproject.com")
+  );
 }
 
 /** True for tekuc.com, breezysocial.com, user custom domains, … */
