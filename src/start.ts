@@ -83,7 +83,10 @@ const shortenerShield = createMiddleware().server(async ({ next, request }) => {
         status: 404,
         headers: {
           "content-type": "text/html; charset=utf-8",
-          "cache-control": "public, max-age=300",
+          // Never cache: a shared cache could otherwise serve this 404 for
+          // sleepox.com/login too. Vary on host for good measure.
+          "cache-control": "no-store",
+          vary: "Host, X-Forwarded-Host",
         },
       });
     }
