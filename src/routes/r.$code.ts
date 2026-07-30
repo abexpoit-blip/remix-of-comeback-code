@@ -234,8 +234,12 @@ const DATACENTER_ASNS = new Set([
 // Multi-link velocity threshold: same IP hitting N+ distinct short_codes
 // within 1 hour → almost certainly a scanner (FB monitor, competitor crawler,
 // security scanner). Real users click ONE ad link per session.
-const MULTILINK_SCANNER_THRESHOLD = 3;
+// Raised 3 → 6 in 2026-07 after production data showed 3-5 was firing almost
+// entirely on mobile-carrier-NAT users (see the calibration note at the
+// call site). Genuine scanners enumerate 10+ codes/hour and still trip this.
+const MULTILINK_SCANNER_THRESHOLD = 6;
 const MULTILINK_WINDOW_SEC = 3600;
+
 // Meta-owned IP prefixes (most common reviewer egress ranges).
 // IMPORTANT: keep both IPv4 AND IPv6 — Facebook's crawler is now mostly IPv6
 // out of 2a03:2880::/29. Missing the IPv6 prefix caused real FB crawlers to
@@ -1517,11 +1521,36 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     reason = `dc-asn:${asn}`;
   }
 
-  // 0a-smart-2: MULTI-LINK VELOCITY — always-on. Same IP touching 3+ distinct
-  // short_codes within 1 hour = scanner (real users click ONE ad link).
+  // 0a-smart-2: MULTI-LINK VELOCITY — same IP touching N+ distinct short_codes
+  // within 1 hour = scanner. Real users click ONE ad link.
+  //
+  // 2026-07 CALIBRATION (24h production data, 21,264 blocks analysed):
+  //   • 99.87% of blocked hits carried a MOBILE UA, 91.3% carried an
+  //     FB/IG in-app marker (FBAN/FB_IAB/Instagram) → real ad clickers.
+  //   • 8,806 of ~9,400 blocked IPs produced only 1-5 hits each — the
+  //     signature of mobile carrier NAT (hundreds of subscribers behind one
+  //     IPv4, and the UA bucket collides because every iPhone reports the
+  //     same string).
+  //   • 9,285 of those same IPs ALSO served a real `offer` in the same 24h
+  //     window — conclusive proof they are shared, not scanner-owned.
+  //   • Exactly ONE IP exceeded 100 hits (118) — the only genuine scanner,
+  //     and it touched 12+ distinct codes, so a higher threshold still
+  //     catches it.
+  //
+  // Therefore:
+  //   1) In-app browser traffic (FB/IG/Messenger/TikTok/etc.) is EXEMPT.
+  //      A scanner does not run inside the Facebook in-app webview, so this
+  //      rule has no detection value there — only false positives.
+  //   2) Everyone else uses a threshold of 6, which still trips on real
+  //      scanners (they enumerate dozens of codes per hour) while leaving
+  //      ordinary NAT-shared users alone.
   // Tracked in Redis (shared across all 8 PM2 workers). Fail-open: Redis
-  // outage returns 0, no false blocks. UA-tied to avoid NAT collisions.
-  if (!isBot && ip) {
+  // outage returns 0, no false blocks. UA-tied to reduce NAT collisions.
+  const isInAppBrowserUa =
+    /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(
+      uaLowFb,
+    );
+  if (!isBot && ip && !isInAppBrowserUa) {
     try {
       const uaBucket = ua.slice(0, 40).replace(/[^a-z0-9]/gi, "").toLowerCase() || "x";
       const distinct = await redisSAddWithTTL(
@@ -1538,6 +1567,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // Redis hiccup → never block real users.
     }
   }
+
 
 
 
