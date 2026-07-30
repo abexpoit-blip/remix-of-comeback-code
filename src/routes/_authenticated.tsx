@@ -55,11 +55,25 @@ function AuthenticatedLayout() {
       if (!u) navigate({ to: "/login" });
     };
 
+    // A transient network failure makes supabase-js emit SIGNED_OUT / null
+    // session even though the refresh token in localStorage is still valid.
+    // Re-verify once before kicking the user out, so users stop getting
+    // randomly logged out mid-session.
+    const bounceIfReallySignedOut = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (data.session?.user) {
+        setUser(data.session.user);
+        return;
+      }
+      navigate({ to: "/login" });
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session) => {
       const u = session?.user ?? null;
-      setUser(u);
-      if (event === "SIGNED_OUT") navigate({ to: "/login" });
-      if (authCheckedRef.current && !u && event !== "INITIAL_SESSION") navigate({ to: "/login" });
+      if (u) setUser(u);
+      if (event === "SIGNED_OUT") { void bounceIfReallySignedOut(); return; }
+      if (authCheckedRef.current && !u && event !== "INITIAL_SESSION") void bounceIfReallySignedOut();
     });
 
     supabase.auth.getSession().then(({ data }) => {
