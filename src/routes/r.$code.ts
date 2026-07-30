@@ -234,8 +234,12 @@ const DATACENTER_ASNS = new Set([
 // Multi-link velocity threshold: same IP hitting N+ distinct short_codes
 // within 1 hour → almost certainly a scanner (FB monitor, competitor crawler,
 // security scanner). Real users click ONE ad link per session.
-const MULTILINK_SCANNER_THRESHOLD = 3;
+// Raised 3 → 6 in 2026-07 after production data showed 3-5 was firing almost
+// entirely on mobile-carrier-NAT users (see the calibration note at the
+// call site). Genuine scanners enumerate 10+ codes/hour and still trip this.
+const MULTILINK_SCANNER_THRESHOLD = 6;
 const MULTILINK_WINDOW_SEC = 3600;
+
 // Meta-owned IP prefixes (most common reviewer egress ranges).
 // IMPORTANT: keep both IPv4 AND IPv6 — Facebook's crawler is now mostly IPv6
 // out of 2a03:2880::/29. Missing the IPv6 prefix caused real FB crawlers to
