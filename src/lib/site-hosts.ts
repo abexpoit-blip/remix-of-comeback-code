@@ -23,6 +23,8 @@ export function isSleepoxSaasHost(host: string): boolean {
   if (!h) return true; // no host info → never shield
   if (h === "localhost" || h === "127.0.0.1" || h === "0.0.0.0" || h === "::1") return true;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true; // raw IP = internal/proxy hit
+  if (!h.includes(".")) return true; // upstream/service name (e.g. "sleepox_backend") = internal hit
+
   return (
     h === "sleepox.com" ||
     h === "www.sleepox.com" ||
