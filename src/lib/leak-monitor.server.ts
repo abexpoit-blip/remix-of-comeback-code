@@ -199,18 +199,24 @@ export async function scanDomain(
   for (const p of SAAS_PROBE_PATHS) {
     if (!isSaasOnlyPath(p)) continue;
     const r = await probe(base + p, DESKTOP_UA);
-    if (r.status === 200) {
-      add({
-        check: "saas_path_reachable",
-        severity: "error",
-        domain,
-        url: base + p,
-        message: `SaaS page ${p} is reachable on the ad domain (HTTP 200)`,
-        evidence: `status=200 title=${(r.body.match(/<title[^>]*>([^<]*)/i)?.[1] || "").slice(0, 80)}`,
-        fix: `Add "${p}" to SAAS_PATH_PREFIXES in src/lib/site-hosts.ts so the shortenerShield middleware 404s it.`,
-      });
-    }
+    if (r.status !== 200) continue;
+    // A 200 alone is NOT a leak: the shortener host legitimately serves a
+    // neutral safe-pool article for unknown paths. Only flag it when the body
+    // actually exposes the SaaS product.
+    const body = r.body.toLowerCase();
+    const hits = SAAS_FINGERPRINTS.filter((w) => body.includes(w));
+    if (hits.length === 0) continue;
+    add({
+      check: "saas_path_reachable",
+      severity: "error",
+      domain,
+      url: base + p,
+      message: `SaaS page ${p} is reachable on the ad domain (HTTP 200, leaks: ${hits.join(", ")})`,
+      evidence: `status=200 hits=${hits.join(", ")} title=${(r.body.match(/<title[^>]*>([^<]*)/i)?.[1] || "").slice(0, 80)}`,
+      fix: `Add "${p}" to SAAS_PATH_PREFIXES in src/lib/site-hosts.ts so the shortenerShield middleware 404s it.`,
+    });
   }
+
 
   // ---- 4. robots.txt must let Meta in -------------------------------------
   const robots = await probe(base + "/robots.txt", DESKTOP_UA);
