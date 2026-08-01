@@ -227,5 +227,16 @@ for i in 0 1 2 3 4 5 6 7; do
   p="${PORTS[$i]}"
   printf "  sleepox-%s (%s): %s\n" "$i" "$p" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$p/" || echo DOWN)"
 done
+
+# Regression guard: the proxy may rewrite /dashboard to /r/dashboard. Every
+# worker must still return the app shell on the SaaS host, never a safe article.
+for p in "${PORTS[@]}"; do
+  dashboard_body=$(curl -s --max-time 5 -H 'Host: sleepox.com' -H 'X-Forwarded-Host: sleepox.com' "http://127.0.0.1:$p/r/dashboard")
+  if grep -q 'The Weekly Note\|Short Weekend Getaways' <<<"$dashboard_body"; then
+    echo "  ❌ port $p still serves a safe article for the dashboard rewrite"
+    rollback
+  fi
+done
+echo "  ✅ dashboard rewrite verified on all workers"
 pm2 list | grep sleepox || true
 echo -e "\n✅ zero-downtime deploy complete. Rollback anytime: bash scripts/deploy-zero-downtime.sh --rollback"
