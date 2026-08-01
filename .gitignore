@@ -30,3 +30,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local/production env (never commit — VPS keeps its own)
+.env
+.env.*
+!.env.example
