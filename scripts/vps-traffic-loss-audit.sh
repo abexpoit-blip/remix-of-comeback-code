@@ -88,5 +88,20 @@ awk '{print $9}' /var/log/nginx/access.log 2>/dev/null | sort | uniq -c | sort -
 echo "-- upstream errors --"
 grep -Ec 'upstream|timed out|no live upstreams' /var/log/nginx/error.log 2>/dev/null || echo 0
 
+echo "════ 11b) 502 FORENSICS (is it deploy windows or live failures?) ════"
+echo "-- 502s per hour (last 24 buckets) --"
+awk '$9==502 {split($4,a,":"); print a[1]":"a[2]"h"}' /var/log/nginx/access.log 2>/dev/null \
+  | uniq -c | tail -24
+echo "-- top URIs returning 502 --"
+awk '$9==502 {print $7}' /var/log/nginx/access.log 2>/dev/null \
+  | sed 's/?.*//' | sort | uniq -c | sort -rn | head -10
+echo "-- upstream error REASONS (grouped) --"
+grep -Eo '(connect\(\) failed|upstream timed out|no live upstreams|reset by peer|prematurely closed|Connection refused)' \
+  /var/log/nginx/error.log 2>/dev/null | sort | uniq -c | sort -rn | head -10
+echo "-- 502s in the LAST HOUR --"
+LH=$(date -u -d '1 hour ago' '+%d/%b/%Y:%H')
+awk -v lh="$LH" '$9==502 && index($4, lh)' /var/log/nginx/access.log 2>/dev/null | wc -l
+
 echo "════ 12) PM2 STATUS ════"
 pm2 list
+
