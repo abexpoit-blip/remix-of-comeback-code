@@ -39,6 +39,25 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
+// Paths whose HTML is user/host specific and must never be cached or shared.
+const SAAS_HTML_PREFIXES = [
+  "/login",
+  "/signup",
+  "/dashboard",
+  "/analytics",
+  "/control-panel",
+  "/domains",
+  "/link-debugger",
+  "/live",
+  "/notices",
+  "/smart-filter",
+  "/support",
+  "/upgrade",
+  "/admin",
+  "/sx-vault",
+  "/pricing",
+];
+
 // Security headers applied to every response (improves domain trust score).
 // Note: do NOT set X-Frame-Options on /r/* article responses for FB crawler — FB embeds in iframe.
 function applySecurityHeaders(request: Request, response: Response): Response {
