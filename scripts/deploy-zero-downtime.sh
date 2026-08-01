@@ -31,6 +31,12 @@ ENV_BACKUP="/root/sleepox-production.env"
 DO_PULL=1
 DIVERGE_MODE="ask"   # ask | reset | merge
 DO_ROLLBACK=0
+DEPLOY_STARTED_AT="$(date -u +%FT%TZ)"
+
+nginx_status_count() {
+  local status="$1"
+  awk -v s="$status" '$9 == s { n++ } END { print n+0 }' /var/log/nginx/access.log 2>/dev/null
+}
 
 for arg in "$@"; do
   case "$arg" in
@@ -216,6 +222,10 @@ echo "  live build: $(du -sh "$LIVE" | cut -f1)"
 
 # --- 7. rolling restart ------------------------------------------------------
 log "[7/8] rolling restart (1 worker at a time, 7 stay online)"
+before_499=$(nginx_status_count 499)
+before_502=$(nginx_status_count 502)
+before_503=$(nginx_status_count 503)
+before_504=$(nginx_status_count 504)
 rolling_restart || rollback
 pm2 save >/dev/null 2>&1 || true
 
@@ -231,12 +241,24 @@ done
 # Regression guard: the proxy may rewrite /dashboard to /r/dashboard. Every
 # worker must still return the app shell on the SaaS host, never a safe article.
 for p in "${PORTS[@]}"; do
-  dashboard_body=$(curl -s --max-time 5 -H 'Host: sleepox.com' -H 'X-Forwarded-Host: sleepox.com' "http://127.0.0.1:$p/r/dashboard")
-  if grep -q 'The Weekly Note\|Short Weekend Getaways' <<<"$dashboard_body"; then
+  if curl -s --max-time 5 -H 'Accept-Encoding: identity' -H 'Host: sleepox.com' -H 'X-Forwarded-Host: sleepox.com' "http://127.0.0.1:$p/r/dashboard" | grep -aEq 'The Weekly Note|Short Weekend Getaways'; then
     echo "  ❌ port $p still serves a safe article for the dashboard rewrite"
     rollback
   fi
 done
 echo "  ✅ dashboard rewrite verified on all workers"
+after_499=$(nginx_status_count 499)
+after_502=$(nginx_status_count 502)
+after_503=$(nginx_status_count 503)
+after_504=$(nginx_status_count 504)
+deploy_ended_at="$(date -u +%FT%TZ)"
+deploy_499=$((after_499 - before_499))
+deploy_502=$((after_502 - before_502))
+deploy_503=$((after_503 - before_503))
+deploy_504=$((after_504 - before_504))
+printf '%s\t%s\t499=%s\t502=%s\t503=%s\t504=%s\n' \
+  "$DEPLOY_STARTED_AT" "$deploy_ended_at" "$deploy_499" "$deploy_502" "$deploy_503" "$deploy_504" \
+  > "$APP_DIR/.last-deploy-traffic-loss"
+echo "  deploy-window loss: 499=$deploy_499 502=$deploy_502 503=$deploy_503 504=$deploy_504"
 pm2 list | grep sleepox || true
 echo -e "\n✅ zero-downtime deploy complete. Rollback anytime: bash scripts/deploy-zero-downtime.sh --rollback"
