@@ -1802,7 +1802,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   //   • an unknown/blank UA.
   // Everything else (a normal Chrome/Firefox/Safari desktop) reaches the
   // offer. STRICT_DESKTOP_BLOCK=true restores the old block-everything mode.
-  if (!isBot) {
+  // 2026-08 (second-tab fix): a visitor already served the offer for this link
+  // keeps passing. Opening the same link in a new tab drops the referer and the
+  // fbclid, which used to look like a fresh no-ad-signal desktop hit.
+  if (!isBot && !knownHuman) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
