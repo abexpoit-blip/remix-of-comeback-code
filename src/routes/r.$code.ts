@@ -237,7 +237,11 @@ const DATACENTER_ASNS = new Set([
 // Raised 3 → 6 in 2026-07 after production data showed 3-5 was firing almost
 // entirely on mobile-carrier-NAT users (see the calibration note at the
 // call site). Genuine scanners enumerate 10+ codes/hour and still trip this.
-const MULTILINK_SCANNER_THRESHOLD = 6;
+// 2026-08: raised 6 → 12. The only genuine scanner found in the 24h audit
+// touched 12+ distinct codes, while shared mobile-carrier NAT IPs routinely
+// reach 6-10 legitimately (whole neighbourhoods behind one IPv4).
+const MULTILINK_SCANNER_THRESHOLD = 12;
+
 const MULTILINK_WINDOW_SEC = 3600;
 
 // Meta-owned IP prefixes (most common reviewer egress ranges).
