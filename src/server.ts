@@ -23,6 +23,8 @@ if (typeof process !== "undefined" && typeof process.on === "function") {
   }
 }
 
+import { isSaasOnlyPath, isSleepoxSaasHost } from "./lib/site-hosts";
+
 type ServerEntry = {
 
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -37,6 +39,29 @@ async function getServerEntry(): Promise<ServerEntry> {
     );
   }
   return serverEntryPromise;
+}
+
+/**
+ * The production proxy's bare short-link rewrite can turn `/dashboard` into
+ * `/r/dashboard` before TanStack sees the request. On the SaaS host that must
+ * resolve back to the real app route, never the unknown-code safe article.
+ * Shortener hosts deliberately keep `/r/<code>` unchanged.
+ */
+function restoreSaasRoute(request: Request): Request {
+  const url = new URL(request.url);
+  if (!url.pathname.toLowerCase().startsWith("/r/")) return request;
+
+  const host = (
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    ""
+  ).split(",")[0].trim();
+  const restoredPath = url.pathname.slice(2) || "/";
+
+  if (!isSleepoxSaasHost(host) || !isSaasOnlyPath(restoredPath)) return request;
+
+  url.pathname = restoredPath;
+  return new Request(url, request);
 }
 
 // Paths whose HTML is user/host specific and must never be cached or shared.
@@ -132,9 +157,10 @@ function applySecurityHeaders(request: Request, response: Response): Response {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const routedRequest = restoreSaasRoute(request);
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return applySecurityHeaders(request, response);
+      const response = await handler.fetch(routedRequest, env, ctx);
+      return applySecurityHeaders(routedRequest, response);
     } catch (error) {
       console.error(error);
       return applySecurityHeaders(
