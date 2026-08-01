@@ -1651,7 +1651,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(
       uaLowFb,
     );
-  if (!isBot && ip && !isInAppBrowserUa) {
+  if (!isBot && !knownHuman && ip && !isInAppBrowserUa) {
     try {
       const uaBucket = ua.slice(0, 40).replace(/[^a-z0-9]/gi, "").toLowerCase() || "x";
       const distinct = await redisSAddWithTTL(
