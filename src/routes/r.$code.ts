@@ -1506,14 +1506,17 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const [
     { link, error: linkError },
     fpAutoBlocked,
-    knownHuman,
+    redisKnownHuman,
   ] = await Promise.all([
     lookupRedirectLink(code),
     getFingerprintAutoBlocked(fpHash),
-    // Same visitor already served a real offer for this link recently?
+    // Same visitor already served a real offer recently?
     // Runs in parallel — adds no latency to the redirect.
     isKnownHuman(code, fpHash),
   ]);
+  // Cookie beats fingerprint: it survives a new tab, a duplicated tab, a
+  // back/forward hit and a Redis outage, all of which drop referer + fbclid.
+  const knownHuman = redisKnownHuman || hasHumanCookie(request);
 
   if (linkError) console.error("redirect link lookup failed", { code, message: linkError.message });
 
