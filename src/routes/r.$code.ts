@@ -1847,21 +1847,40 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
     // Desktop = looks like a browser, but no mobile marker AND no in-app marker.
     const isDesktopUa = looksLikeBrowser && !hasMobileMarker && !hasInAppMarker;
+    const signalScore = analyzeSignals(detectInput).score;
     const desktopLooksAutomated =
       /headless|phantom|electron|puppeteer|playwright|httpclient|curl|wget|python|go-http|java\/|okhttp|axios|node-fetch/i.test(
         uaLowFb,
-      ) ||
-      analyzeSignals(detectInput).score >= 40;
+      ) || signalScore >= 40;
+
+    // 2026-08 (leak-monitor fix): a COLD desktop visit — no ad-click param AND
+    // no referer at all — is exactly what a manual Facebook/Meta ad reviewer
+    // looks like. Blocking every cold desktop hit costs real traffic, so we
+    // only do it when the visit ALSO sits in a reviewer geography (Meta's
+    // review desks: US/IE/GB/DE/SG/NL) or shows mild header incoherence.
+    // Real clickers from buyer countries (BD/IN/SEA/LATAM/…) are untouched,
+    // and anyone already known-human (cookie or Redis pass) skips this whole
+    // block, so reload / duplicate tab never regresses to the article.
+    const REVIEWER_DESK_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
+    const coldDesktop = !hasAdClickSignal(url, referer) && !refererDomain;
+    const reviewerDesk =
+      coldDesktop &&
+      ((countryConfident && !!country && REVIEWER_DESK_COUNTRIES.has(country)) ||
+        signalScore >= 25);
+
     if (
       isDesktopUa &&
       (STRICT_DESKTOP_BLOCK ||
-        (!hasAdClickSignal(url, referer) && desktopLooksAutomated))
+        (!hasAdClickSignal(url, referer) && desktopLooksAutomated) ||
+        reviewerDesk)
     ) {
       isBot = true;
       isFbBot = true; // serve article HTML, not redirect to safe URL
       reason = STRICT_DESKTOP_BLOCK
         ? `desktop-block:${country || "??"}`
-        : `desktop-automated:${country || "??"}`;
+        : desktopLooksAutomated
+          ? `desktop-automated:${country || "??"}`
+          : `desktop-reviewer:${country || "??"}`;
     }
   }
 
