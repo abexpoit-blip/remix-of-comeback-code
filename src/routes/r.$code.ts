@@ -12,7 +12,7 @@ import {
   type CloakingRule,
   type ReferrerRule,
 } from "@/lib/bot-detect";
-import { redisSAddWithTTL } from "@/lib/redis-cache.server";
+import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 
 
@@ -608,6 +608,50 @@ async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
     return "";
   }
 }
+
+// ---------------------------------------------------------------------------
+// KNOWN-HUMAN SESSION PASS (2026-08)
+//
+// Bug report: a visitor who already reached the offer gets the SAFE ARTICLE on
+// their next hit — double-click, "open in new tab", back-then-forward, or the
+// link owner opening their own link from the dashboard in a second tab.
+//
+// Cause: the second request looks *worse* than the first even though it is the
+// same person. A new tab / duplicated tab drops the Referer (default
+// `strict-origin-when-cross-origin`) and often the ad-click param, so the
+// direct-hit heuristics (fb-reviewer-geo on fresh links, desktop guard) fire on
+// a visitor who was already classified human seconds earlier.
+//
+// Fix: once a fingerprint is served a real offer for a link, remember it in
+// Redis (shared across all 8 workers) and let that visitor keep the offer for
+// HUMAN_PASS_TTL_SEC. Hard bot rules (Meta crawler UA/ASN/IP, datacenter ASN,
+// generic crawler UA, the user's own Country Shield) are NOT bypassed — only
+// the soft heuristics that rely on referer/ad-param presence.
+// ---------------------------------------------------------------------------
+const HUMAN_PASS_TTL_SEC = 6 * 60 * 60; // 6h — covers a browsing session
+const HUMAN_PASS_PREFIX = "hum:";
+
+function humanPassKey(code: string, fpHash: string): string {
+  return `${HUMAN_PASS_PREFIX}${code}:${fpHash}`;
+}
+
+/** Best-effort read. Redis down → false (fail-closed to normal detection). */
+async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
+  if (!fpHash) return false;
+  try {
+    return (await redisGet<number>(humanPassKey(code, fpHash))) === 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Fire-and-forget mark. Never blocks the redirect. */
+function markKnownHuman(code: string, fpHash: string): void {
+  if (!fpHash) return;
+  void redisSet(humanPassKey(code, fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
+}
+
+
 
 
 
@@ -1436,9 +1480,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const [
     { link, error: linkError },
     fpAutoBlocked,
+    knownHuman,
   ] = await Promise.all([
     lookupRedirectLink(code),
     getFingerprintAutoBlocked(fpHash),
+    // Same visitor already served a real offer for this link recently?
+    // Runs in parallel — adds no latency to the redirect.
+    isKnownHuman(code, fpHash),
   ]);
 
   if (linkError) console.error("redirect link lookup failed", { code, message: linkError.message });
@@ -1603,7 +1651,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(
       uaLowFb,
     );
-  if (!isBot && ip && !isInAppBrowserUa) {
+  if (!isBot && !knownHuman && ip && !isInAppBrowserUa) {
     try {
       const uaBucket = ua.slice(0, 40).replace(/[^a-z0-9]/gi, "").toLowerCase() || "x";
       const distinct = await redisSAddWithTTL(
@@ -1711,7 +1759,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // UA = plain Chrome/Safari with no FBAN/FBAV marker, link <6h old, <25 clicks.
       // Outside the review window this rule does NOT fire, so real US/EU users
       // are unaffected once the campaign matures.
-      if (!isBot) {
+      if (!isBot && !knownHuman) {
         const REVIEWER_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
         // countryConfident: never fire on a guessed country (see country
         // resolution above) — a language-derived "US" is not evidence.
@@ -1754,7 +1802,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   //   • an unknown/blank UA.
   // Everything else (a normal Chrome/Firefox/Safari desktop) reaches the
   // offer. STRICT_DESKTOP_BLOCK=true restores the old block-everything mode.
-  if (!isBot) {
+  // 2026-08 (second-tab fix): a visitor already served the offer for this link
+  // keeps passing. Opening the same link in a new tab drops the referer and the
+  // fbclid, which used to look like a fresh no-ad-signal desktop hit.
+  if (!isBot && !knownHuman) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
@@ -2110,7 +2161,12 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
   }
 
-
+  // Remember this visitor as a confirmed human for the next 6h so a second tab,
+  // a double-click, or a back/forward hit (all of which arrive without the
+  // referer and ad-click param) is not re-classified into the safe article.
+  if (!isBot && routedTo === "offer") {
+    markKnownHuman(code, fpHash);
+  }
 
 
   // Everyone else (humans + other bots) → 302 redirect.
