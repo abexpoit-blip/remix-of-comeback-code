@@ -580,6 +580,32 @@ function lookupCountryByIp(ip: string): string {
   return "";
 }
 
+/**
+ * Bounded, awaitable geo lookup. Only used on the narrow path where a wrong
+ * answer is expensive AND a guess is unacceptable: a link that has an explicit
+ * Country Shield list. Everywhere else we stay on the zero-latency cache read.
+ * Returns "" if the lookup can't answer within `budgetMs` — callers must treat
+ * "" as "unknown", never as a block.
+ */
+async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
+  const key = subnetKey(ip);
+  const hit = countryCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.c;
+  scheduleCountryLookup(ip);
+  const inflight = geoInflight.get(key);
+  if (!inflight) return "";
+  try {
+    const c = await Promise.race([
+      inflight,
+      new Promise<string>((resolve) => setTimeout(() => resolve(""), budgetMs)),
+    ]);
+    return /^[A-Z]{2}$/.test(c) ? c : "";
+  } catch {
+    return "";
+  }
+}
+
+
 
 
 
