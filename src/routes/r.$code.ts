@@ -1786,13 +1786,25 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // top false positive in the 24h audit (~32% of all blocks were
   // `country-shield:US`, most of them mobile in-app clickers from BD/SEA whose
   // only "US" evidence was an `en-US` Accept-Language header).
-  if (!isBot && countryConfident && country && link.blocked_countries.length > 0) {
-    if (link.blocked_countries.includes(country)) {
+  if (!isBot && link.blocked_countries.length > 0) {
+    // The shield is a paid feature, so when it IS configured we spend a small
+    // bounded budget to get a REAL geo answer instead of guessing. Unknown
+    // still means "let them through" — fail-open protects revenue.
+    let shieldCountry = countryConfident ? country : "";
+    if (!shieldCountry && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
+      shieldCountry = await resolveCountryByIp(ip, 400);
+      if (shieldCountry) {
+        country = shieldCountry;
+        countryConfident = true;
+      }
+    }
+    if (shieldCountry && link.blocked_countries.includes(shieldCountry)) {
       isBot = true;
       isFbBot = true; // serve article HTML, matches FB-safe routing
-      reason = `country-shield:${country}`;
+      reason = `country-shield:${shieldCountry}`;
     }
   }
+
 
 
 
