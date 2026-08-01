@@ -1705,33 +1705,49 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
   }
 
-  // 0d. DESKTOP GUARD — mobile-only ad campaigns (FB/TikTok in-app).
-  // Real ad clicks come from mobile devices with FB/IG/Messenger/TikTok in-app
-  // browsers. A plain desktop browser hitting our redirect is almost always:
-  //   (a) an FB/Meta ad reviewer doing manual QA, or
-  //   (b) a scraper / competitor / VPN bot
+  // 0d. DESKTOP GUARD — mobile-first ad campaigns (FB/TikTok in-app).
   //
-  // STRICT_DESKTOP_BLOCK (opt-in) blocks every desktop UA. That costs real
-  // traffic, so by default we run the *smart* variant instead: a desktop
-  // browser is only sent to the article when it shows NO ad-click signal
-  // (no fbclid/gclid/ttclid/utm, no social referrer). A genuine desktop user
-  // who clicked the ad always carries one of those, so they still reach the
-  // offer — zero revenue loss — while a reviewer typing the URL by hand, or a
-  // scraper opening it cold, only ever sees the article.
+  // 2026-08 RECALIBRATION: the old rule sent EVERY desktop browser without an
+  // ad-click param or social referrer to the article. In practice that is a
+  // large slice of real laptop/desktop clickers:
+  //   • Facebook's link shim strips fbclid on some placements,
+  //   • `Referrer-Policy: strict-origin-when-cross-origin` (now the browser
+  //     default) drops the referer on http→https and cross-site hops,
+  //   • privacy extensions / iOS-style tracking protection strip both.
+  // A visitor with no ad param AND no referrer is indistinguishable from a
+  // real user by that test alone, so it was blocking humans, not reviewers.
+  //
+  // New rule: a desktop browser is only sent to the article when it has no
+  // ad-click signal AND shows at least one INDEPENDENT bot indicator:
+  //   • headless/automation UA marker, or
+  //   • datacenter-grade header incoherence (signals.score >= 40), or
+  //   • an unknown/blank UA.
+  // Everything else (a normal Chrome/Firefox/Safari desktop) reaches the
+  // offer. STRICT_DESKTOP_BLOCK=true restores the old block-everything mode.
   if (!isBot) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
     // Desktop = looks like a browser, but no mobile marker AND no in-app marker.
     const isDesktopUa = looksLikeBrowser && !hasMobileMarker && !hasInAppMarker;
-    if (isDesktopUa && (STRICT_DESKTOP_BLOCK || !hasAdClickSignal(url, referer))) {
+    const desktopLooksAutomated =
+      /headless|phantom|electron|puppeteer|playwright|httpclient|curl|wget|python|go-http|java\/|okhttp|axios|node-fetch/i.test(
+        uaLowFb,
+      ) ||
+      analyzeSignals(detectInput).score >= 40;
+    if (
+      isDesktopUa &&
+      (STRICT_DESKTOP_BLOCK ||
+        (!hasAdClickSignal(url, referer) && desktopLooksAutomated))
+    ) {
       isBot = true;
       isFbBot = true; // serve article HTML, not redirect to safe URL
       reason = STRICT_DESKTOP_BLOCK
         ? `desktop-block:${country || "??"}`
-        : `desktop-no-adsignal:${country || "??"}`;
+        : `desktop-automated:${country || "??"}`;
     }
   }
+
 
 
   // 0e. COUNTRY SHIELD — per-link user-defined country block list.
