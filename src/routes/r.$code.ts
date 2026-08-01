@@ -1755,13 +1755,19 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // where FB/ad-network reviewers concentrate. Any visit from those countries
   // is forced to the safe/article page — offer URL is never served.
   // This runs BEFORE whitelist so the user's explicit choice always wins.
-  if (!isBot && country && link.blocked_countries.length > 0) {
+  //
+  // 2026-08: requires countryConfident. Blocking on a GUESSED country was the
+  // top false positive in the 24h audit (~32% of all blocks were
+  // `country-shield:US`, most of them mobile in-app clickers from BD/SEA whose
+  // only "US" evidence was an `en-US` Accept-Language header).
+  if (!isBot && countryConfident && country && link.blocked_countries.length > 0) {
     if (link.blocked_countries.includes(country)) {
       isBot = true;
       isFbBot = true; // serve article HTML, matches FB-safe routing
       reason = `country-shield:${country}`;
     }
   }
+
 
 
 
