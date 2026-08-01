@@ -630,16 +630,37 @@ async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
 // ---------------------------------------------------------------------------
 const HUMAN_PASS_TTL_SEC = 6 * 60 * 60; // 6h — covers a browsing session
 const HUMAN_PASS_PREFIX = "hum:";
+// Browser-side pass. A cookie survives everything a fingerprint does not:
+// new tab / duplicated tab / back-forward / a different link code / Redis down.
+const HUMAN_COOKIE = "_sxh";
 
 function humanPassKey(code: string, fpHash: string): string {
   return `${HUMAN_PASS_PREFIX}${code}:${fpHash}`;
 }
 
-/** Best-effort read. Redis down → false (fail-closed to normal detection). */
+/** Fingerprint pass that is NOT scoped to one link code. */
+function humanPassGlobalKey(fpHash: string): string {
+  return `${HUMAN_PASS_PREFIX}g:${fpHash}`;
+}
+
+function hasHumanCookie(request: Request): boolean {
+  const raw = request.headers.get("cookie") || "";
+  return raw.split(";").some((part) => part.trim().startsWith(`${HUMAN_COOKIE}=1`));
+}
+
+function humanCookieHeader(): string {
+  return `${HUMAN_COOKIE}=1; Max-Age=${HUMAN_PASS_TTL_SEC}; Path=/; SameSite=Lax; Secure`;
+}
+
+/** Best-effort read. Redis down → false (cookie check still covers the tab case). */
 async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
   if (!fpHash) return false;
   try {
-    return (await redisGet<number>(humanPassKey(code, fpHash))) === 1;
+    const [perLink, global] = await Promise.all([
+      redisGet<number>(humanPassKey(code, fpHash)),
+      redisGet<number>(humanPassGlobalKey(fpHash)),
+    ]);
+    return perLink === 1 || global === 1;
   } catch {
     return false;
   }
@@ -649,6 +670,7 @@ async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
 function markKnownHuman(code: string, fpHash: string): void {
   if (!fpHash) return;
   void redisSet(humanPassKey(code, fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
+  void redisSet(humanPassGlobalKey(fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
 }
 
 
@@ -713,12 +735,16 @@ function redirectTo(
   target: string | null | undefined,
   route: "safe" | "offer" | "ours" | "fallback",
   reason?: string | null,
+  setHumanCookie = false,
 ) {
   if (route === "ours") return browserBounce(target ?? "", route, reason);
   const headers = new Headers({
     Location: sanitizeRedirectTarget(target),
     "Cache-Control": "no-store",
   });
+  // Second-tab fix: remember this browser as human so a duplicated tab or a
+  // direct hit without referer/fbclid is not re-classified into the article.
+  if (setHumanCookie) headers.append("Set-Cookie", humanCookieHeader());
   setDebugHeaders(headers, route, reason);
   return new Response(null, { status: 302, headers });
 }
@@ -1480,14 +1506,17 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const [
     { link, error: linkError },
     fpAutoBlocked,
-    knownHuman,
+    redisKnownHuman,
   ] = await Promise.all([
     lookupRedirectLink(code),
     getFingerprintAutoBlocked(fpHash),
-    // Same visitor already served a real offer for this link recently?
+    // Same visitor already served a real offer recently?
     // Runs in parallel — adds no latency to the redirect.
     isKnownHuman(code, fpHash),
   ]);
+  // Cookie beats fingerprint: it survives a new tab, a duplicated tab, a
+  // back/forward hit and a Redis outage, all of which drop referer + fbclid.
+  const knownHuman = redisKnownHuman || hasHumanCookie(request);
 
   if (linkError) console.error("redirect link lookup failed", { code, message: linkError.message });
 
@@ -2221,5 +2250,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     : routedTo === "ours"
     ? "quota-or-injection"
     : "ok";
-  return redirectTo(target, routedTo as "safe" | "offer" | "ours", reasonOut);
+  return redirectTo(
+    target,
+    routedTo as "safe" | "offer" | "ours",
+    reasonOut,
+    !isBot && routedTo === "offer",
+  );
 }
