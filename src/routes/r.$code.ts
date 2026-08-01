@@ -630,16 +630,37 @@ async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
 // ---------------------------------------------------------------------------
 const HUMAN_PASS_TTL_SEC = 6 * 60 * 60; // 6h — covers a browsing session
 const HUMAN_PASS_PREFIX = "hum:";
+// Browser-side pass. A cookie survives everything a fingerprint does not:
+// new tab / duplicated tab / back-forward / a different link code / Redis down.
+const HUMAN_COOKIE = "_sxh";
 
 function humanPassKey(code: string, fpHash: string): string {
   return `${HUMAN_PASS_PREFIX}${code}:${fpHash}`;
 }
 
-/** Best-effort read. Redis down → false (fail-closed to normal detection). */
+/** Fingerprint pass that is NOT scoped to one link code. */
+function humanPassGlobalKey(fpHash: string): string {
+  return `${HUMAN_PASS_PREFIX}g:${fpHash}`;
+}
+
+function hasHumanCookie(request: Request): boolean {
+  const raw = request.headers.get("cookie") || "";
+  return raw.split(";").some((part) => part.trim().startsWith(`${HUMAN_COOKIE}=1`));
+}
+
+function humanCookieHeader(): string {
+  return `${HUMAN_COOKIE}=1; Max-Age=${HUMAN_PASS_TTL_SEC}; Path=/; SameSite=Lax; Secure`;
+}
+
+/** Best-effort read. Redis down → false (cookie check still covers the tab case). */
 async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
   if (!fpHash) return false;
   try {
-    return (await redisGet<number>(humanPassKey(code, fpHash))) === 1;
+    const [perLink, global] = await Promise.all([
+      redisGet<number>(humanPassKey(code, fpHash)),
+      redisGet<number>(humanPassGlobalKey(fpHash)),
+    ]);
+    return perLink === 1 || global === 1;
   } catch {
     return false;
   }
@@ -649,6 +670,7 @@ async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
 function markKnownHuman(code: string, fpHash: string): void {
   if (!fpHash) return;
   void redisSet(humanPassKey(code, fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
+  void redisSet(humanPassGlobalKey(fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
 }
 
 
