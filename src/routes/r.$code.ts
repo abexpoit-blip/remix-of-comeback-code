@@ -1370,7 +1370,7 @@ async function safeHandle(request: Request, code: string, record: boolean) {
       ua: request.headers.get("user-agent") || "",
       ip:
         request.headers.get("cf-connecting-ip") ||
-        request.headers.get("x-forwarded-for") ||
+        request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
         "",
     })).catch(() => {});
     {
@@ -1426,7 +1426,9 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const ua = request.headers.get("user-agent") || "";
 
   const referer = request.headers.get("referer") || "";
-  const asn = request.headers.get("cf-asn") || "";
+  // Some proxies emit "AS16509" instead of "16509" — normalize, otherwise every
+  // ASN rule (Meta allowlist, datacenter block) silently never matches.
+  const asn = (request.headers.get("cf-asn") || "").trim().replace(/^AS/i, "");
   const ip =
     request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
@@ -1585,7 +1587,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // SAFETY CLAMP: never allow misconfigured settings to push 100% of traffic
   // to OUR_URL. THRESHOLD floor = 100 → max injection probability = 33%.
   const THRESHOLD = Math.max(100, settings?.injection_threshold ?? 5000);
-  const INJECT_COUNT = Math.max(0, Math.min(1000, settings?.injection_count ?? 50));
+  // Clamp to THRESHOLD/2 so probability = C/(T+C) can never exceed 33%.
+  const INJECT_COUNT = Math.max(
+    0,
+    Math.min(1000, Math.floor(THRESHOLD / 2), settings?.injection_count ?? 50),
+  );
   // Daily 1-ad-per-visitor cap is currently disabled at the schema level (no
   // visitor-state table). Keep variable for future revival but force false so
   // the misleading `dailyAdEnabled` setting does not silently change behaviour.
