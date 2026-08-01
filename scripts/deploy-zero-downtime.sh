@@ -105,19 +105,31 @@ rollback() {
 
 # --- 1. preflight ------------------------------------------------------------
 log "[1/8] preflight"
-[ -f .env ] || {
-  if [ -f "$ENV_BACKUP" ]; then cp "$ENV_BACKUP" .env; echo "  restored .env from $ENV_BACKUP";
-  else fail ".env missing and no backup at $ENV_BACKUP"; fi
-}
-env_vars=$(grep -c '=' .env)
+env_count() { [ -f "$1" ] && grep -c '=' "$1" || echo 0; }
+backup_count=$(env_count "$ENV_BACKUP")
+env_vars=$(env_count .env)
+
+# a git reset can replace prod .env with the repo placeholder — self-heal from backup
+if [ "$env_vars" -lt 10 ] && [ "$backup_count" -ge 10 ]; then
+  cp "$ENV_BACKUP" .env
+  env_vars=$(env_count .env)
+  echo "  ♻️  .env looked like the repo placeholder — restored from $ENV_BACKUP"
+fi
 echo "  .env vars: $env_vars"
-[ "$env_vars" -ge 10 ] || fail ".env only has $env_vars vars — looks like the repo placeholder. Restore $ENV_BACKUP"
+[ "$env_vars" -ge 10 ] || fail ".env only has $env_vars vars and backup $ENV_BACKUP has $backup_count — restore production .env manually before deploying"
 grep -q 'supabase\.co' .env && fail ".env points at a *.supabase.co URL. Production must use https://supabase.sleepox.com"
 [ -f ecosystem.config.cjs ] || fail "ecosystem.config.cjs missing"
 avail_mb=$(free -m | awk '/^Mem:/{print $7}')
 echo "  available RAM: ${avail_mb}MB"
 [ "${avail_mb:-0}" -ge 700 ] || echo "  ⚠️  low RAM — build may be slow or OOM"
-# keep a fresh env backup so a bad pull can never lose prod values
+
+# .env must never be tracked by git, otherwise every reset wipes prod values
+if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+  echo "  🔒 .env is tracked by git — untracking it so resets can't wipe it"
+  git rm --cached .env >/dev/null 2>&1 || true
+  grep -qx '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+fi
+# keep a fresh backup of the known-good env
 cp .env "$ENV_BACKUP" 2>/dev/null || true
 
 # --- 2. git sync (divergence handling) ---------------------------------------
