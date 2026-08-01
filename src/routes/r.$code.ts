@@ -1105,19 +1105,21 @@ export async function lookupRedirectLink(
   const cached = cacheGet(linkCache, code);
   if (cached) return { link: cached, error: null };
 
-  // In-flight de-dup: collapse N concurrent requests for the same code into 1 DB query.
+  // In-flight de-dup: collapse N concurrent requests for the same code into 1
+  // DB query. The promise MUST be registered before the first await, otherwise
+  // a second request arriving during the Redis round-trip misses the map and
+  // issues its own query (double-click / duplicate-tab burst).
   const existing = linkInflight.get(code);
   if (existing) return existing;
 
-  // L2 (Redis): try shared cache before DB. Populated by any of the 8 workers.
-  const l2 = await redisGet<RedirectLink>(L2_LINK_PREFIX + code);
-  if (l2) {
-    cacheSet(linkCache, code, l2, LINK_L1_TTL_MS);
-    return { link: l2, error: null };
-  }
-
-
   const promise = (async (): Promise<{ link: RedirectLink | null; error: Error | null }> => {
+    // L2 (Redis): try shared cache before DB. Populated by any of the 8 workers.
+    const l2 = await redisGet<RedirectLink>(L2_LINK_PREFIX + code);
+    if (l2) {
+      cacheSet(linkCache, code, l2, LINK_L1_TTL_MS);
+      return { link: l2, error: null };
+    }
+
     let res: any = null;
     let lastErr: any = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -1155,22 +1157,21 @@ export async function lookupRedirectLink(
       const stale = cacheGetStale(linkCache, code);
       return stale ? { link: stale, error: null } : { link: null, error: lastErr as unknown as Error };
     }
-    return { link: null, error: null, _res: res } as any;
+    if (!res || !res.data) return { link: null, error: null };
+    // Build the link inside the shared promise so EVERY concurrent waiter gets
+    // the real link (previously only the first caller did — the others received
+    // link:null and were sent to the safe article).
+    return processLinkRow(code, res.data);
   })();
 
   linkInflight.set(code, promise);
   try {
-    const result: any = await promise;
-    if (result.error || result.link || !result._res) return { link: result.link, error: result.error };
-    // Process the row outside the inflight wrapper (was inlined below before).
-    const res = result._res;
-    if (!res || !res.data) return { link: null, error: null };
-    // fallthrough — actual link construction follows below
-    return processLinkRow(code, res.data);
+    return await promise;
   } finally {
     linkInflight.delete(code);
   }
 }
+
 
 function processLinkRow(code: string, row: Record<string, unknown> | null): { link: RedirectLink | null; error: null } {
   if (!row) return { link: null, error: null };
