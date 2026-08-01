@@ -609,6 +609,50 @@ async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// KNOWN-HUMAN SESSION PASS (2026-08)
+//
+// Bug report: a visitor who already reached the offer gets the SAFE ARTICLE on
+// their next hit — double-click, "open in new tab", back-then-forward, or the
+// link owner opening their own link from the dashboard in a second tab.
+//
+// Cause: the second request looks *worse* than the first even though it is the
+// same person. A new tab / duplicated tab drops the Referer (default
+// `strict-origin-when-cross-origin`) and often the ad-click param, so the
+// direct-hit heuristics (fb-reviewer-geo on fresh links, desktop guard) fire on
+// a visitor who was already classified human seconds earlier.
+//
+// Fix: once a fingerprint is served a real offer for a link, remember it in
+// Redis (shared across all 8 workers) and let that visitor keep the offer for
+// HUMAN_PASS_TTL_SEC. Hard bot rules (Meta crawler UA/ASN/IP, datacenter ASN,
+// generic crawler UA, the user's own Country Shield) are NOT bypassed — only
+// the soft heuristics that rely on referer/ad-param presence.
+// ---------------------------------------------------------------------------
+const HUMAN_PASS_TTL_SEC = 6 * 60 * 60; // 6h — covers a browsing session
+const HUMAN_PASS_PREFIX = "hum:";
+
+function humanPassKey(code: string, fpHash: string): string {
+  return `${HUMAN_PASS_PREFIX}${code}:${fpHash}`;
+}
+
+/** Best-effort read. Redis down → false (fail-closed to normal detection). */
+async function isKnownHuman(code: string, fpHash: string): Promise<boolean> {
+  if (!fpHash) return false;
+  try {
+    return (await redisGet<number>(humanPassKey(code, fpHash))) === 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Fire-and-forget mark. Never blocks the redirect. */
+function markKnownHuman(code: string, fpHash: string): void {
+  if (!fpHash) return;
+  void redisSet(humanPassKey(code, fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
+}
+
+
+
 
 
 
