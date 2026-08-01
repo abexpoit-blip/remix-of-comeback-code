@@ -735,12 +735,16 @@ function redirectTo(
   target: string | null | undefined,
   route: "safe" | "offer" | "ours" | "fallback",
   reason?: string | null,
+  setHumanCookie = false,
 ) {
   if (route === "ours") return browserBounce(target ?? "", route, reason);
   const headers = new Headers({
     Location: sanitizeRedirectTarget(target),
     "Cache-Control": "no-store",
   });
+  // Second-tab fix: remember this browser as human so a duplicated tab or a
+  // direct hit without referer/fbclid is not re-classified into the article.
+  if (setHumanCookie) headers.append("Set-Cookie", humanCookieHeader());
   setDebugHeaders(headers, route, reason);
   return new Response(null, { status: 302, headers });
 }
