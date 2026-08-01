@@ -231,7 +231,7 @@ pm2 save >/dev/null 2>&1 || true
 
 # --- 8. verify ---------------------------------------------------------------
 log "[8/8] verify"
-bad=$(grep -ro 'https://[a-z0-9-]*\.supabase\.co' "$LIVE/public/assets" 2>/dev/null | head -1)
+bad=$(grep -raoh 'https://[a-z0-9-]*\.supabase\.co' "$LIVE/public/assets" 2>/dev/null | tr -d '\0' | head -1)
 [ -z "$bad" ] || echo "  ⚠️  bundle still references $bad — check .env VITE_SUPABASE_URL"
 for i in 0 1 2 3 4 5 6 7; do
   p="${PORTS[$i]}"
