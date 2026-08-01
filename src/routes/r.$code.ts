@@ -1332,22 +1332,45 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     request.headers.get("x-real-ip") ||
     "";
 
-  // Country: prefer CDN headers, then IP geolocation, then Accept-Language hint
+  // Country resolution, with a CONFIDENCE flag.
+  //
+  // 2026-08 FIX (root cause of "live feed shows mostly USA"):
+  // The old last-resort fallback read Accept-Language and turned `en-US`
+  // into country=US. `en-US` is the factory default on Android/iOS/Chrome
+  // literally everywhere on earth, so every visitor whose IP geo lookup
+  // missed (first hit for a /24, geo breaker open, provider rate-limited)
+  // was labelled US. Those fake-US clicks then tripped `country-shield:US`
+  // — the single biggest false-positive source in the 24h audit — and the
+  // real BD/SEA ad clicker was pushed to the safe article. Revenue loss
+  // with no bot on the other end.
+  //
+  // Now: language is NEVER used to decide routing. Only CDN headers and a
+  // real IP→geo answer are "confident". An unknown country routes as
+  // unknown (blocks that require a country simply do not fire).
   let country =
     request.headers.get("cf-ipcountry") ||
     request.headers.get("x-vercel-ip-country") ||
     request.headers.get("x-country-code") ||
     "";
   const acceptLanguage = request.headers.get("accept-language") || "";
+  let countryConfident = !!country;
   if (!country && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
-    country = lookupCountryByIp(ip);
+    country = lookupCountryByIp(ip); // "" on cache-miss; warms in background
+    countryConfident = !!country;
   }
   if (!country && acceptLanguage) {
-    // last-resort: en-BD,en;q=0.9 → BD
-    const m = acceptLanguage.match(/[a-z]{2}-([A-Z]{2})/);
-    if (m) country = m[1];
+    // Analytics-only hint (never used for blocking) and only when the
+    // locale is region-specific and not the global default en-US.
+    const m = acceptLanguage.match(/^\s*[a-z]{2}-([A-Za-z]{2})/);
+    const hint = (m?.[1] || "").toUpperCase();
+    if (hint && hint !== "US") country = hint;
   }
   country = (country || "").toUpperCase();
+  if (country === "XX" || country === "T1") {
+    country = "";
+    countryConfident = false;
+  }
+
 
   const accept = request.headers.get("accept") || "";
   const acceptEncoding = request.headers.get("accept-encoding") || "";
