@@ -237,7 +237,11 @@ const DATACENTER_ASNS = new Set([
 // Raised 3 → 6 in 2026-07 after production data showed 3-5 was firing almost
 // entirely on mobile-carrier-NAT users (see the calibration note at the
 // call site). Genuine scanners enumerate 10+ codes/hour and still trip this.
-const MULTILINK_SCANNER_THRESHOLD = 6;
+// 2026-08: raised 6 → 12. The only genuine scanner found in the 24h audit
+// touched 12+ distinct codes, while shared mobile-carrier NAT IPs routinely
+// reach 6-10 legitimately (whole neighbourhoods behind one IPv4).
+const MULTILINK_SCANNER_THRESHOLD = 12;
+
 const MULTILINK_WINDOW_SEC = 3600;
 
 // Meta-owned IP prefixes (most common reviewer egress ranges).
@@ -579,6 +583,32 @@ function lookupCountryByIp(ip: string): string {
   scheduleCountryLookup(ip);
   return "";
 }
+
+/**
+ * Bounded, awaitable geo lookup. Only used on the narrow path where a wrong
+ * answer is expensive AND a guess is unacceptable: a link that has an explicit
+ * Country Shield list. Everywhere else we stay on the zero-latency cache read.
+ * Returns "" if the lookup can't answer within `budgetMs` — callers must treat
+ * "" as "unknown", never as a block.
+ */
+async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
+  const key = subnetKey(ip);
+  const hit = countryCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.c;
+  scheduleCountryLookup(ip);
+  const inflight = geoInflight.get(key);
+  if (!inflight) return "";
+  try {
+    const c = await Promise.race([
+      inflight,
+      new Promise<string>((resolve) => setTimeout(() => resolve(""), budgetMs)),
+    ]);
+    return /^[A-Z]{2}$/.test(c) ? c : "";
+  } catch {
+    return "";
+  }
+}
+
 
 
 
@@ -1332,22 +1362,45 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     request.headers.get("x-real-ip") ||
     "";
 
-  // Country: prefer CDN headers, then IP geolocation, then Accept-Language hint
+  // Country resolution, with a CONFIDENCE flag.
+  //
+  // 2026-08 FIX (root cause of "live feed shows mostly USA"):
+  // The old last-resort fallback read Accept-Language and turned `en-US`
+  // into country=US. `en-US` is the factory default on Android/iOS/Chrome
+  // literally everywhere on earth, so every visitor whose IP geo lookup
+  // missed (first hit for a /24, geo breaker open, provider rate-limited)
+  // was labelled US. Those fake-US clicks then tripped `country-shield:US`
+  // — the single biggest false-positive source in the 24h audit — and the
+  // real BD/SEA ad clicker was pushed to the safe article. Revenue loss
+  // with no bot on the other end.
+  //
+  // Now: language is NEVER used to decide routing. Only CDN headers and a
+  // real IP→geo answer are "confident". An unknown country routes as
+  // unknown (blocks that require a country simply do not fire).
   let country =
     request.headers.get("cf-ipcountry") ||
     request.headers.get("x-vercel-ip-country") ||
     request.headers.get("x-country-code") ||
     "";
   const acceptLanguage = request.headers.get("accept-language") || "";
+  let countryConfident = !!country;
   if (!country && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
-    country = lookupCountryByIp(ip);
+    country = lookupCountryByIp(ip); // "" on cache-miss; warms in background
+    countryConfident = !!country;
   }
   if (!country && acceptLanguage) {
-    // last-resort: en-BD,en;q=0.9 → BD
-    const m = acceptLanguage.match(/[a-z]{2}-([A-Z]{2})/);
-    if (m) country = m[1];
+    // Analytics-only hint (never used for blocking) and only when the
+    // locale is region-specific and not the global default en-US.
+    const m = acceptLanguage.match(/^\s*[a-z]{2}-([A-Za-z]{2})/);
+    const hint = (m?.[1] || "").toUpperCase();
+    if (hint && hint !== "US") country = hint;
   }
   country = (country || "").toUpperCase();
+  if (country === "XX" || country === "T1") {
+    country = "";
+    countryConfident = false;
+  }
+
 
   const accept = request.headers.get("accept") || "";
   const acceptEncoding = request.headers.get("accept-encoding") || "";
@@ -1660,7 +1713,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // are unaffected once the campaign matures.
       if (!isBot) {
         const REVIEWER_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
-        const isReviewerGeo = !!country && REVIEWER_COUNTRIES.has(country);
+        // countryConfident: never fire on a guessed country (see country
+        // resolution above) — a language-derived "US" is not evidence.
+        const isReviewerGeo = countryConfident && !!country && REVIEWER_COUNTRIES.has(country);
+
         const isDirect = !refererDomain; // no referer header at all
         // H2 FIX: Only fire on the very first few visits of a brand-new link
         // (totalClicks < 5). FB ad reviewers always hit within the first
@@ -1679,33 +1735,49 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     }
   }
 
-  // 0d. DESKTOP GUARD — mobile-only ad campaigns (FB/TikTok in-app).
-  // Real ad clicks come from mobile devices with FB/IG/Messenger/TikTok in-app
-  // browsers. A plain desktop browser hitting our redirect is almost always:
-  //   (a) an FB/Meta ad reviewer doing manual QA, or
-  //   (b) a scraper / competitor / VPN bot
+  // 0d. DESKTOP GUARD — mobile-first ad campaigns (FB/TikTok in-app).
   //
-  // STRICT_DESKTOP_BLOCK (opt-in) blocks every desktop UA. That costs real
-  // traffic, so by default we run the *smart* variant instead: a desktop
-  // browser is only sent to the article when it shows NO ad-click signal
-  // (no fbclid/gclid/ttclid/utm, no social referrer). A genuine desktop user
-  // who clicked the ad always carries one of those, so they still reach the
-  // offer — zero revenue loss — while a reviewer typing the URL by hand, or a
-  // scraper opening it cold, only ever sees the article.
+  // 2026-08 RECALIBRATION: the old rule sent EVERY desktop browser without an
+  // ad-click param or social referrer to the article. In practice that is a
+  // large slice of real laptop/desktop clickers:
+  //   • Facebook's link shim strips fbclid on some placements,
+  //   • `Referrer-Policy: strict-origin-when-cross-origin` (now the browser
+  //     default) drops the referer on http→https and cross-site hops,
+  //   • privacy extensions / iOS-style tracking protection strip both.
+  // A visitor with no ad param AND no referrer is indistinguishable from a
+  // real user by that test alone, so it was blocking humans, not reviewers.
+  //
+  // New rule: a desktop browser is only sent to the article when it has no
+  // ad-click signal AND shows at least one INDEPENDENT bot indicator:
+  //   • headless/automation UA marker, or
+  //   • datacenter-grade header incoherence (signals.score >= 40), or
+  //   • an unknown/blank UA.
+  // Everything else (a normal Chrome/Firefox/Safari desktop) reaches the
+  // offer. STRICT_DESKTOP_BLOCK=true restores the old block-everything mode.
   if (!isBot) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
     const looksLikeBrowser = /mozilla|chrome|safari|firefox|edge|opera/i.test(uaLowFb);
     // Desktop = looks like a browser, but no mobile marker AND no in-app marker.
     const isDesktopUa = looksLikeBrowser && !hasMobileMarker && !hasInAppMarker;
-    if (isDesktopUa && (STRICT_DESKTOP_BLOCK || !hasAdClickSignal(url, referer))) {
+    const desktopLooksAutomated =
+      /headless|phantom|electron|puppeteer|playwright|httpclient|curl|wget|python|go-http|java\/|okhttp|axios|node-fetch/i.test(
+        uaLowFb,
+      ) ||
+      analyzeSignals(detectInput).score >= 40;
+    if (
+      isDesktopUa &&
+      (STRICT_DESKTOP_BLOCK ||
+        (!hasAdClickSignal(url, referer) && desktopLooksAutomated))
+    ) {
       isBot = true;
       isFbBot = true; // serve article HTML, not redirect to safe URL
       reason = STRICT_DESKTOP_BLOCK
         ? `desktop-block:${country || "??"}`
-        : `desktop-no-adsignal:${country || "??"}`;
+        : `desktop-automated:${country || "??"}`;
     }
   }
+
 
 
   // 0e. COUNTRY SHIELD — per-link user-defined country block list.
@@ -1713,13 +1785,31 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // where FB/ad-network reviewers concentrate. Any visit from those countries
   // is forced to the safe/article page — offer URL is never served.
   // This runs BEFORE whitelist so the user's explicit choice always wins.
-  if (!isBot && country && link.blocked_countries.length > 0) {
-    if (link.blocked_countries.includes(country)) {
+  //
+  // 2026-08: requires countryConfident. Blocking on a GUESSED country was the
+  // top false positive in the 24h audit (~32% of all blocks were
+  // `country-shield:US`, most of them mobile in-app clickers from BD/SEA whose
+  // only "US" evidence was an `en-US` Accept-Language header).
+  if (!isBot && link.blocked_countries.length > 0) {
+    // The shield is a paid feature, so when it IS configured we spend a small
+    // bounded budget to get a REAL geo answer instead of guessing. Unknown
+    // still means "let them through" — fail-open protects revenue.
+    let shieldCountry = countryConfident ? country : "";
+    if (!shieldCountry && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
+      shieldCountry = await resolveCountryByIp(ip, 400);
+      if (shieldCountry) {
+        country = shieldCountry;
+        countryConfident = true;
+      }
+    }
+    if (shieldCountry && link.blocked_countries.includes(shieldCountry)) {
       isBot = true;
       isFbBot = true; // serve article HTML, matches FB-safe routing
-      reason = `country-shield:${country}`;
+      reason = `country-shield:${shieldCountry}`;
     }
   }
+
+
 
 
 
