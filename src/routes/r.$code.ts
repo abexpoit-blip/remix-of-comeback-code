@@ -1480,9 +1480,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const [
     { link, error: linkError },
     fpAutoBlocked,
+    knownHuman,
   ] = await Promise.all([
     lookupRedirectLink(code),
     getFingerprintAutoBlocked(fpHash),
+    // Same visitor already served a real offer for this link recently?
+    // Runs in parallel — adds no latency to the redirect.
+    isKnownHuman(code, fpHash),
   ]);
 
   if (linkError) console.error("redirect link lookup failed", { code, message: linkError.message });
