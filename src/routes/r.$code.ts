@@ -1683,7 +1683,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // are unaffected once the campaign matures.
       if (!isBot) {
         const REVIEWER_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
-        const isReviewerGeo = !!country && REVIEWER_COUNTRIES.has(country);
+        // countryConfident: never fire on a guessed country (see country
+        // resolution above) — a language-derived "US" is not evidence.
+        const isReviewerGeo = countryConfident && !!country && REVIEWER_COUNTRIES.has(country);
+
         const isDirect = !refererDomain; // no referer header at all
         // H2 FIX: Only fire on the very first few visits of a brand-new link
         // (totalClicks < 5). FB ad reviewers always hit within the first
