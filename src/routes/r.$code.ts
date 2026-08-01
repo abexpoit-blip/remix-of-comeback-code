@@ -1759,7 +1759,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       // UA = plain Chrome/Safari with no FBAN/FBAV marker, link <6h old, <25 clicks.
       // Outside the review window this rule does NOT fire, so real US/EU users
       // are unaffected once the campaign matures.
-      if (!isBot) {
+      if (!isBot && !knownHuman) {
         const REVIEWER_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
         // countryConfident: never fire on a guessed country (see country
         // resolution above) — a language-derived "US" is not evidence.
