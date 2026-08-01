@@ -12,7 +12,7 @@ import {
   type CloakingRule,
   type ReferrerRule,
 } from "@/lib/bot-detect";
-import { redisGet, redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
+import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 
 
