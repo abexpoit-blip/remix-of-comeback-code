@@ -68,6 +68,39 @@ function applySecurityHeaders(request: Request, response: Response): Response {
     headers.set("x-frame-options", "SAMEORIGIN");
   }
 
+  // ── HOST-DEPENDENT HTML MUST NEVER BE SHARED BETWEEN DOMAINS ──────────────
+  // The same worker renders three different sites off the same paths:
+  //   sleepox.com/…      → the SaaS app
+  //   tekuc.com/…        → neutral storefront / article content
+  // The page body is chosen from the Host header, but the response carried no
+  // `Vary`, so ANY shared cache (nginx proxy_cache, Cloudflare, a corporate
+  // proxy) could hand the storefront/article HTML to someone who asked
+  // sleepox.com/dashboard — which is exactly the "reload or duplicate tab and
+  // I get the blog page" bug — and hand SaaS HTML to an ad domain (the
+  // /dashboard 200 the leak monitor reported on tekuc.com).
+  const contentType = headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    const existingVary = headers.get("vary");
+    const varyParts = new Set(
+      (existingVary ? existingVary.split(",") : []).map((v) => v.trim()).filter(Boolean),
+    );
+    varyParts.add("Host");
+    varyParts.add("X-Forwarded-Host");
+    headers.set("vary", Array.from(varyParts).join(", "));
+
+    // Authenticated / product HTML is per-user: never let it sit in any cache.
+    const p = url.pathname.toLowerCase();
+    const isAppHtml =
+      p === "/" ||
+      SAAS_HTML_PREFIXES.some((prefix) => p === prefix || p.startsWith(prefix + "/"));
+    if (isAppHtml && !isRedirectRoute) {
+      headers.set("cache-control", "private, no-store, must-revalidate");
+    } else if (!headers.has("cache-control")) {
+      headers.set("cache-control", "private, no-cache");
+    }
+  }
+
+
   const nullBodyStatus = response.status === 204 || response.status === 205 || response.status === 304;
 
   return new Response(nullBodyStatus ? null : response.body, {
