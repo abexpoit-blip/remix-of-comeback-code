@@ -105,3 +105,33 @@ awk -v lh="$LH" '$9==502 && index($4, lh)' /var/log/nginx/access.log 2>/dev/null
 echo "════ 12) PM2 STATUS ════"
 pm2 list
 
+echo "════ 13) HUMANS SENT TO SAFE / FB-ARTICLE (this is real traffic loss) ════"
+psql "SELECT COALESCE(bot_reason,'(none)') reason,
+        COALESCE(device,'(unknown)') device,
+        COALESCE(NULLIF(country,''),'(unknown)') country,
+        COUNT(*) lost
+      FROM clicks
+      WHERE created_at > now() - interval '$WINDOW'
+        AND NOT is_bot AND routed_to IN ('safe','fb-article')
+      GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 25;"
+
+echo "════ 13b) DESKTOP GUARD BLOCKS (must stay near 0) ════"
+psql "SELECT COALESCE(bot_reason,'(none)') reason, COUNT(*) hits
+      FROM clicks
+      WHERE created_at > now() - interval '$WINDOW'
+        AND bot_reason IN ('desktop-no-adsignal','desktop-reviewer','multilink-scanner')
+      GROUP BY 1 ORDER BY 2 DESC;"
+
+echo "════ 14) LEAK MONITOR FINDINGS ════"
+psql "SELECT level, message, created_at
+      FROM error_logs
+      WHERE source='leak_monitor' AND created_at > now() - interval '$WINDOW'
+      ORDER BY created_at DESC LIMIT 20;"
+
+echo "════ 15) META CRAWLER BLOCKS (safe page hidden from Facebook = ad risk) ════"
+psql "SELECT level, message, MAX(created_at) last_seen, COUNT(*) n
+      FROM error_logs
+      WHERE source='meta_crawler_block' AND created_at > now() - interval '$WINDOW'
+      GROUP BY 1,2 ORDER BY 4 DESC LIMIT 20;"
+
+
