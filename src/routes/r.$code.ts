@@ -1863,9 +1863,17 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // block, so reload / duplicate tab never regresses to the article.
     const REVIEWER_DESK_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
     const coldDesktop = !hasAdClickSignal(url, referer) && !refererDomain;
+    // 2026-08 (leak-monitor #2): reviewers/probes that reach us from a
+    // datacenter have no confident geo (no CF country header) and often no
+    // ASN at all. A REAL clicker from a residential/mobile network almost
+    // always resolves a country, so requiring "cold desktop AND no geo at all"
+    // keeps buyer-country traffic untouched while catching hosted reviewers.
+    const hostedNoGeoDesktop =
+      coldDesktop && !countryConfident && (!asn || DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
     const reviewerDesk =
       coldDesktop &&
       ((countryConfident && !!country && REVIEWER_DESK_COUNTRIES.has(country)) ||
+        hostedNoGeoDesktop ||
         signalScore >= 25);
 
     if (
@@ -1880,7 +1888,9 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         ? `desktop-block:${country || "??"}`
         : desktopLooksAutomated
           ? `desktop-automated:${country || "??"}`
-          : `desktop-reviewer:${country || "??"}`;
+          : hostedNoGeoDesktop
+            ? `desktop-reviewer-hosted:${asn || "noasn"}`
+            : `desktop-reviewer:${country || "??"}`;
     }
   }
 
