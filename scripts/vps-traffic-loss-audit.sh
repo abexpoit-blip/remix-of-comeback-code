@@ -119,7 +119,7 @@ echo "════ 13b) DESKTOP GUARD BLOCKS (must stay near 0) ════"
 psql "SELECT COALESCE(bot_reason,'(none)') reason, COUNT(*) hits
       FROM clicks
       WHERE created_at > now() - interval '$WINDOW'
-        AND bot_reason IN ('desktop-no-adsignal','desktop-reviewer','multilink-scanner')
+        AND (bot_reason LIKE 'desktop-%' OR bot_reason LIKE 'multilink-scanner%')
       GROUP BY 1 ORDER BY 2 DESC;"
 
 echo "════ 14) LEAK MONITOR FINDINGS ════"
@@ -133,5 +133,32 @@ psql "SELECT level, message, MAX(created_at) last_seen, COUNT(*) n
       FROM error_logs
       WHERE source='meta_crawler_block' AND created_at > now() - interval '$WINDOW'
       GROUP BY 1,2 ORDER BY 4 DESC LIMIT 20;"
+
+echo "════ 16) SYSTEM ERRORS BY SOURCE/LEVEL (${HOURS}h) ════"
+psql "SELECT source, level, COUNT(*) n, MAX(created_at) last_seen, LEFT(MAX(message),90) sample
+      FROM error_logs
+      WHERE created_at > now() - interval '$WINDOW'
+      GROUP BY 1,2 ORDER BY 3 DESC LIMIT 25;"
+
+echo "════ 16b) SAFE / ARTICLE PAGE ERRORS (safe pool, prelanding, redirect) ════"
+psql "SELECT created_at, source, level, LEFT(message,140) message
+      FROM error_logs
+      WHERE created_at > now() - interval '$WINDOW'
+        AND (message ILIKE '%safe%' OR message ILIKE '%article%' OR message ILIKE '%prelanding%'
+             OR message ILIKE '%wikipedia%' OR source IN ('redirect','bot_detect'))
+      ORDER BY created_at DESC LIMIT 25;"
+
+echo "════ 17) SAFE PAGE POOL HEALTH ════"
+psql "SELECT language, COUNT(*) FILTER (WHERE is_active) active, COUNT(*) total
+      FROM wikipedia_safe_urls GROUP BY 1 ORDER BY 2 DESC;"
+echo "-- active links with NO safe_url (would fall back to default article) --"
+psql "SELECT COUNT(*) links_without_safe_url FROM links WHERE is_active AND (safe_url IS NULL OR safe_url='');"
+
+echo "════ 18) SAFE/ARTICLE SERVE VOLUME BY ROUTE ════"
+psql "SELECT routed_to, COUNT(*) hits, COUNT(*) FILTER (WHERE NOT is_bot) humans
+      FROM clicks
+      WHERE created_at > now() - interval '$WINDOW' AND routed_to IN ('safe','fb-article','fb')
+      GROUP BY 1 ORDER BY 2 DESC;"
+
 
 
