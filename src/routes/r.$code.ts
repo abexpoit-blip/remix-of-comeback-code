@@ -1870,11 +1870,19 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // keeps buyer-country traffic untouched while catching hosted reviewers.
     const hostedNoGeoDesktop =
       coldDesktop && !countryConfident && (!asn || DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
+    // 2026-08 (leak-monitor #3): a cold desktop hit whose UA claims Chrome/Edge
+    // but sends NO sec-ch-ua is never a real Chromium browser over HTTPS —
+    // it's a script/probe/reviewer tool (node fetch, curl-with-UA, headless).
+    // Safari/Firefox UAs are excluded, and real Chrome always sends the hint,
+    // so no genuine desktop clicker is affected.
+    const fakeChromeDesktop = coldDesktop && /chrome\/|edg\//i.test(uaLowFb) && !secChUa;
     const reviewerDesk =
       coldDesktop &&
       ((countryConfident && !!country && REVIEWER_DESK_COUNTRIES.has(country)) ||
         hostedNoGeoDesktop ||
+        fakeChromeDesktop ||
         signalScore >= 25);
+
 
     if (
       isDesktopUa &&
@@ -1890,7 +1898,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
           ? `desktop-automated:${country || "??"}`
           : hostedNoGeoDesktop
             ? `desktop-reviewer-hosted:${asn || "noasn"}`
-            : `desktop-reviewer:${country || "??"}`;
+            : fakeChromeDesktop
+              ? `desktop-reviewer-nohints:${country || "??"}`
+              : `desktop-reviewer:${country || "??"}`;
+
     }
   }
 
