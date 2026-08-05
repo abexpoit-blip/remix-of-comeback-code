@@ -1898,7 +1898,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
           ? `desktop-automated:${country || "??"}`
           : hostedNoGeoDesktop
             ? `desktop-reviewer-hosted:${asn || "noasn"}`
-            : `desktop-reviewer:${country || "??"}`;
+            : fakeChromeDesktop
+              ? `desktop-reviewer-nohints:${country || "??"}`
+              : `desktop-reviewer:${country || "??"}`;
+
     }
   }
 
