@@ -11,8 +11,8 @@ const FEATURES = [
 ];
 
 const PLANS = [
-  { name: "Free", price: "$0", period: "forever", features: ["10,000 clicks / month", "1 active link", "Real-time analytics"], cta: "Start free" },
-  { name: "Monthly Pro", price: "$5", period: "per month", features: ["1,000,000 clicks / month", "50 active links", "Geo + device routing", "Link health score"], cta: "Go Pro", highlight: true },
+  { name: "Free", price: "$0", period: "forever", features: ["1,000,000 clicks / month", "1 active link", "Real-time analytics"], cta: "Start free" },
+  { name: "Monthly Pro", price: "$10", period: "per month", features: ["10,000,000 clicks / month", "50 active links", "Geo + device routing", "Link health score"], cta: "Go Pro", highlight: true },
   { name: "Lifetime Unlimited", price: "$50", period: "one-time", features: ["Unlimited clicks", "Unlimited links", "Lifetime access", "Priority support"], cta: "Get lifetime" },
 ];
 

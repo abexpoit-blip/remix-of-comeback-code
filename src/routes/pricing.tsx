@@ -7,7 +7,7 @@ export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
       { title: "Pricing — Sleepox" },
-      { name: "description", content: "Free forever, $5 monthly Pro, or $50 lifetime unlimited. Pay with crypto." },
+      { name: "description", content: "Free forever with 1M clicks, $10 monthly Pro with 10M clicks, or $50 lifetime unlimited. Pay with crypto." },
     ],
   }),
   component: PricingPage,
@@ -34,7 +34,7 @@ const PLAN_META: Record<
       "Geo + device routing",
       "Priority redirect lane",
       "Link health score",
-      "1,000,000 clicks / month",
+      "10,000,000 clicks / month",
       "50 smart links",
     ],
     highlight: true,
