@@ -953,8 +953,8 @@ function TrafficTab() {
   const settings = useQuery({ queryKey: ["app-settings"], queryFn: () => settingsFn() });
   const [fallbackUrl, setFallbackUrl] = useState("");
   const [ourUrl, setOurUrl] = useState("");
-  const [threshold, setThreshold] = useState(5000);
-  const [count, setCount] = useState(50);
+  const [threshold, setThreshold] = useState(900);
+  const [count, setCount] = useState(100);
   const [dailyOn, setDailyOn] = useState(true);
   const [spOn, setSpOn] = useState(false);
   const [spGmail, setSpGmail] = useState(true);
@@ -966,8 +966,8 @@ function TrafficTab() {
       const s: any = settings.data;
       setFallbackUrl(s.fallback_url ?? "");
       setOurUrl(s.our_adsterra_url ?? "");
-      setThreshold(s.injection_threshold ?? 5000);
-      setCount(s.injection_count ?? 50);
+      setThreshold(s.injection_threshold ?? 900);
+      setCount(s.injection_count ?? 100);
       setDailyOn(s.daily_redirect_enabled ?? true);
       setSpOn(s.signup_protection_enabled ?? false);
       setSpGmail(s.signup_gmail_only ?? true);
