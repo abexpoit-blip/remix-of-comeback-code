@@ -2181,8 +2181,8 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     } else {
       // Probabilistic injection: each click has an independent chance
       // of routing to ours based on the configured threshold + inject count.
-      // Example: THRESHOLD=950, INJECT_COUNT=50 → 5% ours, 95% offer.
-      // Most traffic goes to offer (adsterra) — the 5% ours keeps users
+      // Example: THRESHOLD=900, INJECT_COUNT=100 → 10% ours, 90% offer.
+      // Most traffic goes to offer (adsterra) — the 10% ours keeps users
       // engaged with our own service.
       const probability = INJECT_COUNT / (THRESHOLD + INJECT_COUNT);
       if (
