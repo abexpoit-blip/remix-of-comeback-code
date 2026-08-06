@@ -44,13 +44,13 @@ const PLAN_META: Record<string, PlanMeta> = {
     ctaLabel: "Current plan",
     features: [
       { icon: Link2, text: "1 smart link" },
-      { icon: MousePointerClick, text: "10,000 clicks / month" },
+      { icon: MousePointerClick, text: "1,000,000 clicks / month" },
       { icon: Zap, text: "Edge-fast redirects (~30 ms)" },
       { icon: ShieldCheck, text: "Bot Shield ML filter" },
       { icon: BarChart3, text: "Real-time click analytics" },
       { icon: Globe2, text: "Geo + device intel" },
     ],
-    overflowNote: "After 10,000 clicks → traffic auto-routes to our Adsterra Direct link.",
+    overflowNote: "After 1,000,000 clicks → traffic auto-routes to our Adsterra Direct link.",
   },
   monthly: {
     icon: Sparkles,
@@ -62,7 +62,7 @@ const PLAN_META: Record<string, PlanMeta> = {
     ctaLabel: "Pay with crypto",
     features: [
       { icon: Link2, text: "50 smart links" },
-      { icon: MousePointerClick, text: "1,000,000 clicks / month" },
+      { icon: MousePointerClick, text: "10,000,000 clicks / month" },
       { icon: Zap, text: "Edge-fast redirects (~30 ms)" },
       { icon: ShieldCheck, text: "Advanced Bot Shield ML" },
       { icon: Bot, text: "Bot traffic auto-filtering" },
@@ -72,7 +72,7 @@ const PLAN_META: Record<string, PlanMeta> = {
       { icon: Layers, text: "Custom pre-landers" },
       { icon: Cpu, text: "Smart traffic rotation engine" },
     ],
-    overflowNote: "After 1,000,000 clicks → overflow routes to our Adsterra Direct link.",
+    overflowNote: "After 10,000,000 clicks → overflow routes to our Adsterra Direct link.",
   },
   lifetime: {
     icon: Crown,

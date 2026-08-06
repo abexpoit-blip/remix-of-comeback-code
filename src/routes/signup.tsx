@@ -144,7 +144,7 @@ function SignupPage() {
 
           <div className="rounded-2xl bg-white/60 backdrop-blur-xl border border-white/80 shadow-sm p-5 space-y-3">
             {[
-              "Free 10K clicks / month, no credit card",
+              "Free 1M clicks / month, no credit card",
               "Crypto checkout via Plisio · USDT, BTC, LTC",
               "Geo + device routing on every plan",
               "Telegram support — 24h response",
