@@ -1586,11 +1586,12 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const OUR_URL = settings?.our_adsterra_url || SAFE_FALLBACK;
   // SAFETY CLAMP: never allow misconfigured settings to push 100% of traffic
   // to OUR_URL. THRESHOLD floor = 100 → max injection probability = 33%.
-  const THRESHOLD = Math.max(100, settings?.injection_threshold ?? 5000);
+  // Default 900 / 100 → 100/(900+100) = 10% ours, 90% offer.
+  const THRESHOLD = Math.max(100, settings?.injection_threshold ?? 900);
   // Clamp to THRESHOLD/2 so probability = C/(T+C) can never exceed 33%.
   const INJECT_COUNT = Math.max(
     0,
-    Math.min(1000, Math.floor(THRESHOLD / 2), settings?.injection_count ?? 50),
+    Math.min(1000, Math.floor(THRESHOLD / 2), settings?.injection_count ?? 100),
   );
   // Daily 1-ad-per-visitor cap is currently disabled at the schema level (no
   // visitor-state table). Keep variable for future revival but force false so
