@@ -1005,7 +1005,12 @@ async function flushClickBatch(force = false) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
     const retriable = /abort|timeout|upstream|temporar|network|fetch|invalid response|pldbgapi|call stack|schema cache|ECONN|EAI_AGAIN|connection pool|502|503|504/i.test(raw);
+    // Back off batch size on timeouts so the retry lands on a smaller payload
+    if (reason === "timeout") {
+      state.batchSize = Math.max(CLICK_BATCH_SIZE_MIN, Math.floor(state.batchSize / 2));
+    }
     const retryBatch = retriable
+
       ? batch
           .filter((item) => (item.attempt ?? 0) < CLICK_BATCH_MAX_ATTEMPTS)
           .map((item) => ({ ...item, attempt: (item.attempt ?? 0) + 1 }))
