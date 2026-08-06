@@ -238,8 +238,25 @@ pm2 save >/dev/null 2>&1 || true
 
 # --- 8. verify ---------------------------------------------------------------
 log "[8/8] verify"
-bad=$(grep -raoh 'https://[a-z0-9-]*\.supabase\.co' "$LIVE/public/assets" 2>/dev/null | tr -d '\0' | head -1)
-[ -z "$bad" ] || echo "  ⚠️  bundle still references $bad — check .env VITE_SUPABASE_URL"
+# Only inspect chunks referenced by the current app shell. Older chunks are
+# intentionally retained above so already-open tabs keep working; scanning the
+# whole assets directory would report stale backend URLs as false positives.
+current_assets=$(curl -s --max-time 5 \
+  -H 'Accept-Encoding: identity' \
+  -H 'Host: sleepox.com' \
+  -H 'X-Forwarded-Host: sleepox.com' \
+  "http://127.0.0.1:${PORTS[0]}/login" \
+  | grep -aoE '/assets/[^"'"'"' ]+\.js' \
+  | sort -u)
+bad=""
+while IFS= read -r asset; do
+  [ -n "$asset" ] || continue
+  bad=$(curl -s --max-time 5 -H 'Accept-Encoding: identity' "http://127.0.0.1:${PORTS[0]}$asset" \
+    | grep -aoE 'https://[a-z0-9-]*\.supabase\.co' \
+    | head -1)
+  [ -z "$bad" ] || break
+done <<< "$current_assets"
+[ -z "$bad" ] || echo "  ⚠️  current bundle references $bad — check .env VITE_SUPABASE_URL"
 for i in 0 1 2 3 4 5 6 7; do
   p="${PORTS[$i]}"
   printf "  sleepox-%s (%s): %s\n" "$i" "$p" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$p/" || echo DOWN)"
