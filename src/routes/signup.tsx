@@ -84,7 +84,7 @@ function SignupPage() {
                 Create account
               </div>
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#2D1B0D]">Start free in 60s.</h2>
-              <p className="mt-2 text-sm text-[#7D6452]">No credit card. 10,000 free clicks every month.</p>
+              <p className="mt-2 text-sm text-[#7D6452]">No credit card. 1,000,000 free clicks every month.</p>
 
               <form onSubmit={onSubmit} className="mt-8 space-y-4">
                 <FormField label="Full name" icon={<User className="w-4 h-4" />}>
