@@ -899,12 +899,16 @@ function getClickBatchState(): ClickBatchStateExt {
       failed: 0,
       inFlight: 0,
       retryNotBefore: 0,
+      batchSize: CLICK_BATCH_SIZE,
     };
   }
-  // Migrate older state without inFlight field
-  if (typeof g.__sleepoxClickBatch.inFlight !== "number") g.__sleepoxClickBatch.inFlight = 0;
-  if (typeof g.__sleepoxClickBatch.retryNotBefore !== "number") g.__sleepoxClickBatch.retryNotBefore = 0;
-  return g.__sleepoxClickBatch;
+  const state = g.__sleepoxClickBatch;
+  // Migrate older state without newer fields
+  if (typeof state.inFlight !== "number") state.inFlight = 0;
+  if (typeof state.retryNotBefore !== "number") state.retryNotBefore = 0;
+  if (typeof state.batchSize !== "number") state.batchSize = CLICK_BATCH_SIZE;
+  return state;
+
 }
 
 function toClickBatchEvent(input: RedirectClickInput) {
