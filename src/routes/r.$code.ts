@@ -1036,7 +1036,7 @@ async function flushClickBatch(force = false) {
     const remainingBackoffMs = state.retryNotBefore - Date.now();
     if (!force && remainingBackoffMs > 0) {
       scheduleClickBatchFlush(remainingBackoffMs);
-    } else if (state.queue.length >= CLICK_BATCH_SIZE && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
+    } else if (state.queue.length >= state.batchSize && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
       void flushClickBatch();
     } else if (state.queue.length > 0) {
       scheduleClickBatchFlush(25);
