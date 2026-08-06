@@ -72,7 +72,7 @@ export function SleepoxHome() {
         </div>
         <div className="flex justify-center gap-6 text-sm font-medium text-[#A38D7D]">
           <span>✓ No credit card</span>
-          <span>✓ 10K clicks free</span>
+          <span>✓ 1M clicks free</span>
         </div>
       </section>
 
