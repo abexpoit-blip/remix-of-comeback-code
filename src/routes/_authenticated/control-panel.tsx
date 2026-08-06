@@ -190,7 +190,7 @@ function OverviewTab() {
           icon={Calendar} 
           label="Today ours/total" 
           value={`${(s?.today_ours ?? 0).toLocaleString()} / ${(s?.today_total ?? 0).toLocaleString()}`} 
-          sub="Target: 100 per 5k" 
+          sub="Target: 100 per 1k (10%)" 
           accent 
         />
       </div>

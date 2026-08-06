@@ -101,8 +101,8 @@ export const adminStats = createServerFn({ method: "GET" })
       { count: pending },
       { count: bannedUsers },
       { count: activeLinks },
-      { count: todayTotal },
-      { count: todayOurs },
+      { count: todayTotal, error: todayTotalErr },
+      { count: todayOursRaw, error: todayOursErr },
     ] = await Promise.all([
       supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("links").select("*", { count: "exact", head: true }),
@@ -114,7 +114,30 @@ export const adminStats = createServerFn({ method: "GET" })
       supabaseAdmin.from("clicks").select("*", { count: "exact", head: true }).eq("routed_to", "ours").gte("created_at", todayISO),
     ]);
 
+    if (todayTotalErr) console.error("[adminStats] today_total count failed:", todayTotalErr.message);
+    if (todayOursErr) console.error("[adminStats] today_ours count failed:", todayOursErr.message);
+
+    // The routed_to='ours' count is unindexed and can time out on high-traffic
+    // days, which silently rendered "Today ours = 0". Fall back to the
+    // pre-aggregated timeseries RPC so the card stays accurate.
+    let todayOurs = todayOursRaw ?? 0;
+    if (todayOursErr || todayOursRaw === null || (todayOurs === 0 && (todayTotal ?? 0) > 0)) {
+      const { data: series, error: seriesErr } = await supabaseAdmin.rpc(
+        "admin_clicks_timeseries" as never,
+        { _days: 1 } as never,
+      );
+      if (seriesErr) {
+        console.error("[adminStats] today_ours fallback failed:", seriesErr.message);
+      } else {
+        const rows = (series ?? []) as Array<{ date: string; ours: number }>;
+        const todayKey = todayISO.slice(0, 10);
+        const row = rows.find((r) => String(r.date).slice(0, 10) === todayKey) ?? rows[rows.length - 1];
+        if (row && Number(row.ours) > 0) todayOurs = Number(row.ours);
+      }
+    }
+
     const globalClicksData = globalClicks ?? [];
+
     
     // Aggregating human clicks from the links table summary
     const humansTotalFromLinks = globalClicksData.reduce((s, l: any) => s + (Number(l.clicks_count) || 0), 0);
