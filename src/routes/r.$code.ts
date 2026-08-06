@@ -979,10 +979,11 @@ async function flushClickBatch(force = false) {
     clearTimeout(state.timer);
     state.timer = null;
   }
-  const batch = state.queue.splice(0, CLICK_BATCH_SIZE);
+  const batch = state.queue.splice(0, Math.max(CLICK_BATCH_SIZE_MIN, Math.min(state.batchSize, CLICK_BATCH_SIZE_MAX)));
   if (batch.length === 0) return;
 
   state.inFlight += 1;
+  const startedAt = Date.now();
   try {
     const events = batch.map(toClickBatchEvent);
     const result = await timedQuery<{ error?: unknown }>(
@@ -992,6 +993,14 @@ async function flushClickBatch(force = false) {
     if (result?.error) throw result.error;
     state.flushed += batch.length;
     state.retryNotBefore = 0;
+    // Healthy + fast RPC → grow batch back gradually; slow RPC → shrink early
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 10_000) {
+      state.batchSize = Math.max(CLICK_BATCH_SIZE_MIN, Math.floor(state.batchSize / 2));
+    } else if (elapsed < 3_000 && state.batchSize < CLICK_BATCH_SIZE_MAX) {
+      state.batchSize = Math.min(CLICK_BATCH_SIZE_MAX, state.batchSize + 10);
+    }
+
   } catch (error) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
