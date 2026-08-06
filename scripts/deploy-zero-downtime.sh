@@ -141,7 +141,10 @@ cp .env "$ENV_BACKUP" 2>/dev/null || true
 # --- 2. git sync (divergence handling) ---------------------------------------
 if [ "$DO_PULL" = "1" ]; then
   log "[2/8] git sync"
-  git checkout -- src/routeTree.gen.ts 2>/dev/null || true
+  # TanStack regenerates this file during install/build. It may be tracked only
+  # on the incoming revision, so `git checkout --` cannot always clean it and
+  # both fast-forward and reset then fail with "Entry ... not uptodate".
+  rm -f src/routeTree.gen.ts
   git fetch origin "$BRANCH" || fail "git fetch failed"
 
   LOCAL=$(git rev-parse HEAD)
@@ -155,7 +158,11 @@ if [ "$DO_PULL" = "1" ]; then
     echo "  ✅ already up to date with origin/$BRANCH"
   elif [ "$LOCAL" = "$BASE" ]; then
     echo "  ⏩ fast-forward"
-    git merge --ff-only "origin/$BRANCH" || fail "fast-forward failed"
+    if [ "$DIVERGE_MODE" = "reset" ]; then
+      git reset --hard "origin/$BRANCH" || fail "fast-forward reset failed"
+    else
+      git merge --ff-only "origin/$BRANCH" || fail "fast-forward failed"
+    fi
   elif [ "$REMOTE" = "$BASE" ]; then
     echo "  ⚠️  local is $AHEAD commit(s) ahead of origin/$BRANCH (VPS-only commits, nothing to pull)"
   else
