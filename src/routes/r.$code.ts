@@ -961,7 +961,7 @@ function enqueueClickForBatch(input: RedirectClickInput) {
     attempt: input.attempt ?? 0,
   });
   state.enqueued += 1;
-  if (state.queue.length >= CLICK_BATCH_SIZE) void flushClickBatch();
+  if (state.queue.length >= state.batchSize) void flushClickBatch();
   else scheduleClickBatchFlush();
 }
 
