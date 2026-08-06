@@ -868,11 +868,13 @@ type ClickBatchState = {
 // Tuned for sustained throughput without overwhelming PostgREST/DB. In 8 PM2
 // workers, high per-worker parallelism creates 50+ simultaneous RPCs and causes
 // upstream timeouts, so keep per-worker flushing serial and use idempotent retries.
-// Smaller batches finish well inside the RPC timeout window; 200-row batches
-// were occasionally timing out under load and forcing retries.
-const CLICK_BATCH_SIZE = 100;
+// Batch size is ADAPTIVE: it shrinks on timeouts and slowly grows back when the
+// DB is healthy, so slow-RPC windows never turn into retry storms.
+const CLICK_BATCH_SIZE = 50;
+const CLICK_BATCH_SIZE_MIN = 20;
+const CLICK_BATCH_SIZE_MAX = 100;
 const CLICK_BATCH_QUEUE_MAX = 50_000;
-const CLICK_BATCH_FLUSH_MS = 500;
+const CLICK_BATCH_FLUSH_MS = 400;
 const CLICK_BATCH_TIMEOUT_MS = 60_000;
 const CLICK_BATCH_MAX_PARALLEL = 1;
 const CLICK_BATCH_MAX_ATTEMPTS = 10;
@@ -880,7 +882,9 @@ const CLICK_BATCH_MAX_ATTEMPTS = 10;
 type ClickBatchStateExt = ClickBatchState & {
   inFlight: number;
   retryNotBefore: number;
+  batchSize: number;
 };
+
 
 function getClickBatchState(): ClickBatchStateExt {
   const g = globalThis as typeof globalThis & { __sleepoxClickBatch?: ClickBatchStateExt };
@@ -895,12 +899,16 @@ function getClickBatchState(): ClickBatchStateExt {
       failed: 0,
       inFlight: 0,
       retryNotBefore: 0,
+      batchSize: CLICK_BATCH_SIZE,
     };
   }
-  // Migrate older state without inFlight field
-  if (typeof g.__sleepoxClickBatch.inFlight !== "number") g.__sleepoxClickBatch.inFlight = 0;
-  if (typeof g.__sleepoxClickBatch.retryNotBefore !== "number") g.__sleepoxClickBatch.retryNotBefore = 0;
-  return g.__sleepoxClickBatch;
+  const state = g.__sleepoxClickBatch;
+  // Migrate older state without newer fields
+  if (typeof state.inFlight !== "number") state.inFlight = 0;
+  if (typeof state.retryNotBefore !== "number") state.retryNotBefore = 0;
+  if (typeof state.batchSize !== "number") state.batchSize = CLICK_BATCH_SIZE;
+  return state;
+
 }
 
 function toClickBatchEvent(input: RedirectClickInput) {
@@ -953,7 +961,7 @@ function enqueueClickForBatch(input: RedirectClickInput) {
     attempt: input.attempt ?? 0,
   });
   state.enqueued += 1;
-  if (state.queue.length >= CLICK_BATCH_SIZE) void flushClickBatch();
+  if (state.queue.length >= state.batchSize) void flushClickBatch();
   else scheduleClickBatchFlush();
 }
 
@@ -971,10 +979,11 @@ async function flushClickBatch(force = false) {
     clearTimeout(state.timer);
     state.timer = null;
   }
-  const batch = state.queue.splice(0, CLICK_BATCH_SIZE);
+  const batch = state.queue.splice(0, Math.max(CLICK_BATCH_SIZE_MIN, Math.min(state.batchSize, CLICK_BATCH_SIZE_MAX)));
   if (batch.length === 0) return;
 
   state.inFlight += 1;
+  const startedAt = Date.now();
   try {
     const events = batch.map(toClickBatchEvent);
     const result = await timedQuery<{ error?: unknown }>(
@@ -984,11 +993,24 @@ async function flushClickBatch(force = false) {
     if (result?.error) throw result.error;
     state.flushed += batch.length;
     state.retryNotBefore = 0;
+    // Healthy + fast RPC → grow batch back gradually; slow RPC → shrink early
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 10_000) {
+      state.batchSize = Math.max(CLICK_BATCH_SIZE_MIN, Math.floor(state.batchSize / 2));
+    } else if (elapsed < 3_000 && state.batchSize < CLICK_BATCH_SIZE_MAX) {
+      state.batchSize = Math.min(CLICK_BATCH_SIZE_MAX, state.batchSize + 10);
+    }
+
   } catch (error) {
     const raw = (error as Error)?.message || String(error);
     const reason = /abort|timeout/i.test(raw) ? "timeout" : raw.slice(0, 120);
     const retriable = /abort|timeout|upstream|temporar|network|fetch|invalid response|pldbgapi|call stack|schema cache|ECONN|EAI_AGAIN|connection pool|502|503|504/i.test(raw);
+    // Back off batch size on timeouts so the retry lands on a smaller payload
+    if (reason === "timeout") {
+      state.batchSize = Math.max(CLICK_BATCH_SIZE_MIN, Math.floor(state.batchSize / 2));
+    }
     const retryBatch = retriable
+
       ? batch
           .filter((item) => (item.attempt ?? 0) < CLICK_BATCH_MAX_ATTEMPTS)
           .map((item) => ({ ...item, attempt: (item.attempt ?? 0) + 1 }))
@@ -1014,7 +1036,7 @@ async function flushClickBatch(force = false) {
     const remainingBackoffMs = state.retryNotBefore - Date.now();
     if (!force && remainingBackoffMs > 0) {
       scheduleClickBatchFlush(remainingBackoffMs);
-    } else if (state.queue.length >= CLICK_BATCH_SIZE && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
+    } else if (state.queue.length >= state.batchSize && state.inFlight < CLICK_BATCH_MAX_PARALLEL) {
       void flushClickBatch();
     } else if (state.queue.length > 0) {
       scheduleClickBatchFlush(25);
