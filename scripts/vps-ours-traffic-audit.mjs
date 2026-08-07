@@ -16,25 +16,55 @@ import path from "node:path";
 const HOURS = Number(process.env.HOURS || 1);
 const root = process.cwd();
 
+const ENV_FILES = [
+  process.env.ENV_FILE,
+  path.join(root, ".env"),
+  path.join(root, ".env.production"),
+  path.join(root, ".env.local"),
+  "/opt/supabase/docker/.env",
+  "/opt/supabase/.env",
+  "/root/supabase/docker/.env",
+].filter(Boolean);
+
 function loadEnv() {
-  const file = path.join(root, ".env");
-  if (!fs.existsSync(file)) return {};
   const out = {};
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  for (const file of ENV_FILES) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+        const m = line.match(/^\s*(?:export\s+)?([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+        if (m && out[m[1]] === undefined) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
+      }
+    } catch { /* ignore unreadable env file */ }
   }
   return out;
 }
 
 const env = { ...loadEnv(), ...process.env };
-const URL_BASE = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
-const KEY = env.SUPABASE_SERVICE_ROLE_KEY || env.SERVICE_ROLE_KEY;
+const URL_BASE = (
+  env.SUPABASE_URL ||
+  env.VITE_SUPABASE_URL ||
+  env.SUPABASE_PUBLIC_URL ||
+  env.API_EXTERNAL_URL ||
+  ""
+).replace(/\/+$/, "");
+const KEY =
+  env.SUPABASE_SERVICE_ROLE_KEY ||
+  env.SERVICE_ROLE_KEY ||
+  env.SUPABASE_SERVICE_KEY ||
+  env.SERVICE_KEY ||
+  env.SUPABASE_SECRET_KEY ||
+  "";
 
 if (!URL_BASE || !KEY) {
-  console.error("!! missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env");
+  console.error("!! could not resolve Supabase URL / service-role key.");
+  console.error("   looked in:", ENV_FILES.filter((f) => fs.existsSync(f)).join(", ") || "(no env files found)");
+  console.error("   url found:", URL_BASE ? "yes" : "NO");
+  console.error("   key found:", KEY ? "yes" : "NO");
+  console.error("   fix: SUPABASE_URL=http://127.0.0.1:8000 SUPABASE_SERVICE_ROLE_KEY=<key> node scripts/vps-ours-traffic-audit.mjs");
   process.exit(2);
 }
+
 
 async function rest(pathname) {
   const res = await fetch(`${URL_BASE}/rest/v1/${pathname}`, {
