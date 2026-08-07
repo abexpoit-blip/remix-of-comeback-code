@@ -204,6 +204,28 @@ restart_backend_services() {
   done
 }
 
+verify_container_password_sources() {
+  local container env_dump
+  echo "🧪 Verifying running containers no longer use a different DB password..."
+  for container in supabase-auth supabase-rest supabase-storage supabase-pooler supabase-analytics realtime-dev.supabase-realtime; do
+    if ! docker inspect "$container" >/dev/null 2>&1; then
+      continue
+    fi
+    env_dump="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" 2>/dev/null || true)"
+    if printf '%s\n' "$env_dump" | grep -E '(^|_)DB_(DATABASE_)?URL=' | grep -q 'postgres'; then
+      if ! printf '%s\n' "$env_dump" | grep -E '(^|_)DB_(DATABASE_)?URL=' \
+        | python3 -c 'import sys, urllib.parse
+expected=sys.argv[1]
+urls=[line.split("=",1)[1].strip() for line in sys.stdin if "=" in line]
+raise SystemExit(0 if all(urllib.parse.unquote(urllib.parse.urlsplit(url).password or "") == expected for url in urls) else 1)' "$postgres_password"; then
+        echo "❌ $container is running with a DB password different from POSTGRES_PASSWORD." >&2
+        return 1
+      fi
+    fi
+  done
+  echo "✅ Running container DB credentials match without printing secrets."
+}
+
 echo "🔐 Repairing self-hosted backend database role passwords..."
 
 compose_dir="$(find_compose_dir)"
@@ -284,6 +306,7 @@ if [ "$failures" -ne 0 ]; then
 fi
 
 restart_backend_services "$compose_dir"
+verify_container_password_sources
 
 echo "⏳ Waiting for API gateway to settle..."
 for i in $(seq 1 30); do

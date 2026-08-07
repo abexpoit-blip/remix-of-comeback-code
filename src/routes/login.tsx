@@ -22,16 +22,31 @@ function LoginPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error || !data.session) { setLoading(false); toast.error(error?.message ?? "Login failed"); return; }
-    // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
-    const fallback = setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
     try {
-      await navigate({ to: "/dashboard", replace: true });
-      clearTimeout(fallback);
+      const result = await Promise.race([
+        supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error("The login server took too long to respond. Please try again.")), 20_000);
+        }),
+      ]);
+      if (result.error || !result.data.session) {
+        toast.error(result.error?.message ?? "Login failed");
+        return;
+      }
+
+      // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
+      const fallback = window.setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
+      try {
+        await navigate({ to: "/dashboard", replace: true });
+        window.clearTimeout(fallback);
+      } catch {
+        window.clearTimeout(fallback);
+        window.location.replace("/dashboard");
+      }
     } catch {
-      clearTimeout(fallback);
-      window.location.replace("/dashboard");
+      toast.error("Could not reach the login server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -60,6 +60,34 @@ check_auth_health() {
   fi
 }
 
+check_auth_cors() {
+  local headers
+  headers="$(mktemp)"
+  curl -sS -o /dev/null -D "$headers" -X OPTIONS "$BASE_URL/auth/v1/token?grant_type=password" \
+    -H "Origin: https://sleepox.com" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Access-Control-Request-Headers: apikey,authorization,content-type,x-client-info" || true
+  if ! grep -qi '^access-control-allow-origin:' "$headers" \
+    || ! grep -qi '^access-control-allow-methods:.*POST' "$headers"; then
+    echo "❌ Auth CORS preflight failed; logins may fail on other devices."
+    rm -f "$headers"
+    return 1
+  fi
+  rm -f "$headers"
+  echo "✅ Auth CORS preflight is valid for browser login."
+}
+
+check_recent_auth_errors() {
+  local failures
+  failures="$(docker logs --since 15m supabase-auth 2>&1 \
+    | grep -Ec 'password authentication failed|failed to connect to .host=db|\"status\":500' || true)"
+  if [ "$failures" -gt 0 ]; then
+    echo "❌ Auth emitted $failures database/500 errors in the last 15 minutes."
+    return 1
+  fi
+  echo "✅ No auth database/500 errors in the last 15 minutes."
+}
+
 show_backend_diagnostics() {
   echo ""
   echo "🧰 Backend proxy diagnostics"
@@ -102,6 +130,8 @@ echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null
   | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
 
 check_auth_health || FAILURES=1
+check_auth_cors || FAILURES=1
+check_recent_auth_errors || FAILURES=1
 
 if [ -n "$ANON_KEY" ]; then
   check_url "REST API root" "$BASE_URL/rest/v1/" \
