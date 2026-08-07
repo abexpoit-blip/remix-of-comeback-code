@@ -12,6 +12,24 @@ bad() { printf '\033[1;31m  !!\033[0m %s\n' "$*"; FAIL=1; }
 
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 
+# Resolve the anon/publishable key so auth probes are authenticated.
+ANON_KEY="${ANON_KEY:-}"
+if [ -z "$ANON_KEY" ]; then
+  for f in ./.env /opt/sleepox-app-new/.env /opt/supabase/docker/.env; do
+    [ -f "$f" ] || continue
+    ANON_KEY="$(grep -E '^(VITE_SUPABASE_PUBLISHABLE_KEY|VITE_SUPABASE_ANON_KEY|ANON_KEY)=' "$f" | head -1 | cut -d= -f2- | tr -d '"'"'"'')"
+    [ -n "$ANON_KEY" ] && break
+  done
+fi
+if [ -n "$ANON_KEY" ]; then
+  printf '  using anon key from env/.env (length %s)\n' "${#ANON_KEY}"
+  AUTH_ARGS=(-H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY")
+else
+  printf '  \033[1;33m(no anon key found — auth probes may return 401)\033[0m\n'
+  AUTH_ARGS=()
+fi
+
+
 say "App routes"
 for p in / /login /signup /dashboard /pricing /api/public/health; do
   c=$(code "$SITE$p")
@@ -22,8 +40,8 @@ say "Health payload"
 curl -sS --max-time 20 "$SITE/api/public/health"; echo
 
 say "Auth host reachability"
-c=$(code "$AUTH_HOST/auth/v1/health")
-case "$c" in 200|401) ok "auth health -> $c";; *) bad "auth health -> $c";; esac
+c=$(code ${AUTH_ARGS+"${AUTH_ARGS[@]}"} "$AUTH_HOST/auth/v1/health")
+case "$c" in 200) ok "auth health -> 200";; 401) bad "auth health -> 401 (anon key missing/wrong)";; *) bad "auth health -> $c";; esac
 
 say "CORS preflight from site origin"
 hdrs=$(curl -s -i -X OPTIONS --max-time 20 \
@@ -42,26 +60,32 @@ say "Login endpoint responds (bad creds probe)"
 resp=$(curl -s -o /tmp/_sx_probe.json -w '%{http_code}' --max-time 20 -X POST \
   -H 'Content-Type: application/json' \
   -H "Origin: $SITE" \
+  ${AUTH_ARGS+"${AUTH_ARGS[@]}"} \
   --data '{"email":"smoke-probe@sleepox.invalid","password":"wrong-password-probe"}' \
   "$AUTH_HOST/auth/v1/token?grant_type=password")
 case "$resp" in
   400) ok "auth returns 400 invalid_credentials (healthy)";;
+  401) bad "auth 401 — anon key missing/invalid in .env (VITE_SUPABASE_PUBLISHABLE_KEY)"; head -c 300 /tmp/_sx_probe.json; echo;;
   429) bad "auth rate-limited (429) — raise GOTRUE rate limits";;
   5*)  bad "auth 5xx ($resp) — DB/pool problem"; head -c 300 /tmp/_sx_probe.json; echo;;
   *)   bad "unexpected $resp"; head -c 300 /tmp/_sx_probe.json; echo;;
 esac
 
+
 say "Bundle points at production backend"
-asset=$(curl -s --max-time 20 "$SITE/login" | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -3)
+asset=$(curl -s --compressed --max-time 20 "$SITE/login" | grep -aoE '/assets/[A-Za-z0-9._-]+\.js' | sort -u | head -5)
 if [ -z "$asset" ]; then
   echo "  (no asset refs found in HTML — SSR only, skipping)"
 else
   leak=0
   for a in $asset; do
-    if curl -s --max-time 20 "$SITE$a" | grep -q 'supabase\.co'; then leak=1; fi
+    if curl -s --compressed --max-time 20 "$SITE$a" | grep -aq '[a-z0-9]\{16,\}\.supabase\.co'; then
+      bad "leak in $a"; leak=1
+    fi
   done
   [ "$leak" -eq 1 ] && bad "bundle still references *.supabase.co (wrong .env at build time)" || ok "bundle uses self-hosted auth host"
 fi
+
 
 say "Recent auth errors (last 1h)"
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q '^supabase-auth$'; then
