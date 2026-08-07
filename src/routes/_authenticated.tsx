@@ -76,14 +76,21 @@ function AuthenticatedLayout() {
       if (authCheckedRef.current && !u && event !== "INITIAL_SESSION") void bounceIfReallySignedOut();
     });
 
+    // Watchdog: a stalled token refresh can leave getSession() pending
+    // forever, which used to freeze the app on "Loading…".
+    const authWatchdog = setTimeout(() => {
+      if (!authCheckedRef.current) finishInitialAuthCheck(null);
+    }, 8000);
+
     supabase.auth.getSession().then(({ data }) => {
       finishInitialAuthCheck(data.session?.user ?? null);
     }).catch(() => {
       finishInitialAuthCheck(null);
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => { mounted = false; clearTimeout(authWatchdog); subscription.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     if (!user) return;
