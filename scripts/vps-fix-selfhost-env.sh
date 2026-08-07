@@ -92,8 +92,14 @@ PY
 
 echo "🔐 Syncing app environment with self-hosted backend keys..."
 
-compose_dir="$(find_compose_dir)"
+if ! compose_dir="$(find_compose_dir)"; then
+  echo "❌ Could not locate the self-hosted Supabase stack (docker-compose + .env)." >&2
+  echo "   Re-run with the right path, e.g.: SUPABASE_DIR=/opt/supabase/docker bash scripts/vps-fix-selfhost-env.sh" >&2
+  exit 1
+fi
 supabase_env="$compose_dir/.env"
+echo "  stack: $compose_dir"
+
 
 anon_key="$(read_env_value "$supabase_env" "ANON_KEY")"
 service_key="$(read_env_value "$supabase_env" "SERVICE_ROLE_KEY")"
