@@ -131,6 +131,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => installChunkErrorRecovery(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <CartProvider>
@@ -141,6 +142,7 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
 
 function AuthSync() {
   const router = useRouter();
