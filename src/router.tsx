@@ -1,9 +1,28 @@
 import { QueryClient } from "@tanstack/react-query";
 import { Link, createRouter, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { isChunkLoadError, recoverFromChunkError } from "./lib/chunk-recovery";
 import { routeTree } from "./routeTree.gen";
 
 function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const chunkError = isChunkLoadError(error);
+  const [recovering, setRecovering] = useState(chunkError);
+
+  useEffect(() => {
+    if (!chunkError) return;
+    // Stale deploy assets: reload once instead of showing an error page.
+    if (!recoverFromChunkError()) setRecovering(false);
+  }, [chunkError]);
+
+  if (recovering) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+        <p className="text-sm text-muted-foreground">Updating to the latest version…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
       <div className="max-w-md text-center">
@@ -19,6 +38,12 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
           >
             Try again
           </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-md border border-border bg-background px-4 py-2 text-sm hover:bg-accent"
+          >
+            Reload
+          </button>
           <Link to="/" className="rounded-md border border-border bg-background px-4 py-2 text-sm hover:bg-accent">
             Home
           </Link>
@@ -27,6 +52,7 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
     </div>
   );
 }
+
 
 function DefaultNotFoundComponent() {
   return (
