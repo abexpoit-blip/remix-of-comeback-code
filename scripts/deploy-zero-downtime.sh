@@ -124,6 +124,9 @@ fi
 echo "  .env vars: $env_vars"
 [ "$env_vars" -ge 10 ] || fail ".env only has $env_vars vars and backup $ENV_BACKUP has $backup_count — restore production .env manually before deploying"
 grep -q 'supabase\.co' .env && fail ".env points at a *.supabase.co URL. Production must use https://supabase.sleepox.com"
+grep -qE "^VITE_SUPABASE_URL=['\"]?https://supabase\.sleepox\.com/?['\"]?$" .env || fail "VITE_SUPABASE_URL is not the self-hosted production URL — run scripts/vps-fix-selfhost-env.sh"
+grep -qE '^SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEY)=' .env || fail "server database key is missing — run scripts/vps-fix-selfhost-env.sh"
+node scripts/verify-env.mjs || fail "environment verification failed — run scripts/vps-fix-selfhost-env.sh"
 [ -f ecosystem.config.cjs ] || fail "ecosystem.config.cjs missing"
 avail_mb=$(free -m | awk '/^Mem:/{print $7}')
 echo "  available RAM: ${avail_mb}MB"
@@ -211,7 +214,20 @@ snapshot_live
 
 # --- 5. build ----------------------------------------------------------------
 log "[5/8] build"
-if ! bun run build; then
+# Ignore stale Supabase variables exported in the deploy shell. Vite must read
+# the canonical values from the verified production .env above.
+if ! env \
+  -u SUPABASE_URL \
+  -u SUPABASE_PROJECT_ID \
+  -u SUPABASE_PUBLISHABLE_KEY \
+  -u SUPABASE_ANON_KEY \
+  -u SUPABASE_SERVICE_ROLE_KEY \
+  -u SUPABASE_SECRET_KEY \
+  -u VITE_SUPABASE_URL \
+  -u VITE_SUPABASE_PROJECT_ID \
+  -u VITE_SUPABASE_PUBLISHABLE_KEY \
+  -u VITE_SUPABASE_ANON_KEY \
+  bun run build; then
   echo "  build failed — restoring previous build"
   restore_prev && echo "  ✅ previous build restored (workers untouched, site still live)"
   fail "build failed — nothing deployed"
@@ -266,7 +282,10 @@ while IFS= read -r asset; do
     | head -1)
   [ -z "$bad" ] || break
 done <<< "$current_assets"
-[ -z "$bad" ] || echo "  ⚠️  current bundle references $bad — check .env VITE_SUPABASE_URL"
+if [ -n "$bad" ]; then
+  echo "  ❌ current bundle references $bad instead of the self-hosted backend"
+  rollback
+fi
 for i in 0 1 2 3 4 5 6 7; do
   p="${PORTS[$i]}"
   printf "  sleepox-%s (%s): %s\n" "$i" "$p" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$p/" || echo DOWN)"
