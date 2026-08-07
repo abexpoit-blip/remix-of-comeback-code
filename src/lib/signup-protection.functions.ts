@@ -69,24 +69,9 @@ export const preSignupCheck = createServerFn({ method: "POST" })
       }
     }
 
-    // 3. Per-IP daily cap
-    const cap = settings.signup_ip_max_per_day ?? 2;
-    if (ip && cap > 0) {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      // M7 fix: count ALL attempts (not just success) so bots can't bypass cap with failed checks
-      const { count } = await supabaseAdmin
-        .from("signup_attempts")
-        .select("id", { count: "exact", head: true })
-        .eq("ip", ip)
-        .gte("created_at", since);
-      if ((count ?? 0) >= cap) {
-        await log(false, "ip_rate_limit");
-        return {
-          ok: false as const,
-          error: `Too many signups from this network today (limit ${cap}). Please try again tomorrow or use a different connection.`,
-        };
-      }
-    }
+    // 3. Per-IP daily cap — DISABLED (unlimited accounts per IP by request).
+    //    Attempts are still logged for visibility, but never blocked.
+
 
     await log(true, null);
     return { ok: true as const };
