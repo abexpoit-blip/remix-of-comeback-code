@@ -148,25 +148,48 @@ for (const [k, v] of tally(clicks.filter((c) => c.is_bot), (c) => c.bot_reason).
 
 console.log("\n--- [6] country / device split (sanity: is 'all USA' back?) ---");
 for (const [k, v] of tally(clicks, (c) => c.country).slice(0, 12)) console.log(`  ${String(k).padEnd(6)} ${String(v).padStart(6)} ${pct(v, total)}`);
-console.log("  devices:", tally(clicks, (c) => c.device).map(([k, v]) => `${k}=${v}`).join("  "));
 
-const desktop = clicks.filter((c) => c.device === "desktop");
-const desktopSafe = desktop.filter((c) => c.routed_to === "safe").length;
-console.log(`  desktop: ${desktop.length}, of which routed to safe: ${desktopSafe} (${pct(desktopSafe, desktop.length)})`);
+// `device` column is often empty (we log UA instead) → derive from UA when missing.
+const deviceOf = (c) => {
+  if (c.device) return String(c.device).toLowerCase();
+  const ua = String(c.ua || c.signals?.ua || "");
+  if (!ua) return "unknown";
+  if (/iPad|Tablet/i.test(ua)) return "tablet";
+  if (/Mobi|Android|iPhone|iPod/i.test(ua)) return "mobile";
+  return "desktop";
+};
+console.log("  devices:", tally(clicks, deviceOf).map(([k, v]) => `${k}=${v}`).join("  "));
+
+const desktop = clicks.filter((c) => deviceOf(c) === "desktop");
+const desktopSafe = desktop.filter((c) => c.routed_to === "safe" || c.routed_to === "fallback").length;
+const desktopBot = desktop.filter((c) => c.is_bot).length;
+console.log(`  desktop: ${desktop.length}, routed to safe/fallback: ${desktopSafe} (${pct(desktopSafe, desktop.length)}), flagged bot: ${desktopBot} (${pct(desktopBot, desktop.length)})`);
 
 console.log("\n--- [7] fingerprint auto-block state ---");
-const fps = await rest("bot_fingerprints?select=fingerprint_hash,is_bot_count,is_human_count,auto_blocked,last_country,last_ip,updated_at&order=updated_at.desc&limit=500");
-const blocked = fps.filter((f) => f.auto_blocked);
-console.log(`  fingerprints (recent 500): ${fps.length}, auto_blocked: ${blocked.length}`);
-const humanBlocked = blocked.filter((f) => (f.is_human_count || 0) > 0);
-if (humanBlocked.length) {
-  console.log(`  ⚠ ${humanBlocked.length} blocked fingerprints ALSO have human hits (possible false positives):`);
-  humanBlocked.slice(0, 10).forEach((f) =>
-    console.log(`    ${f.fingerprint_hash} bot=${f.is_bot_count} human=${f.is_human_count} ${f.last_country} ${f.last_ip}`),
-  );
-} else {
-  console.log("  ✅ no auto-blocked fingerprint has human hits");
+let fps = [];
+try {
+  fps = await rest("bot_fingerprints?select=*&order=updated_at.desc&limit=500");
+} catch (e) {
+  console.log("  ⚠ could not read bot_fingerprints:", String(e.message || e).slice(0, 160));
 }
+if (fps.length) {
+  const botCount = (f) => f.is_bot_count ?? f.bot_count ?? f.bot_hits ?? 0;
+  const humanCount = (f) => f.is_human_count ?? f.human_count ?? f.human_hits ?? 0;
+  const blocked = fps.filter((f) => f.auto_blocked);
+  console.log(`  fingerprints (recent 500): ${fps.length}, auto_blocked: ${blocked.length}`);
+  const humanBlocked = blocked.filter((f) => humanCount(f) > 0);
+  if (humanBlocked.length) {
+    console.log(`  ⚠ ${humanBlocked.length} blocked fingerprints ALSO have human hits (possible false positives):`);
+    humanBlocked.slice(0, 10).forEach((f) =>
+      console.log(`    ${f.fingerprint_hash} bot=${botCount(f)} human=${humanCount(f)} ${f.last_country ?? ""} ${f.last_ip ?? ""}`),
+    );
+  } else {
+    console.log("  ✅ no auto-blocked fingerprint has human hits");
+  }
+} else {
+  console.log("  (no fingerprint rows available — skipping)");
+}
+
 
 console.log("\n=== VERDICT ===");
 const oursPct = total ? (ours.length / total) * 100 : 0;
