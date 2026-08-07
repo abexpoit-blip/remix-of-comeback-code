@@ -12,6 +12,24 @@ bad() { printf '\033[1;31m  !!\033[0m %s\n' "$*"; FAIL=1; }
 
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 
+# Resolve the anon/publishable key so auth probes are authenticated.
+ANON_KEY="${ANON_KEY:-}"
+if [ -z "$ANON_KEY" ]; then
+  for f in ./.env /opt/sleepox-app-new/.env /opt/supabase/docker/.env; do
+    [ -f "$f" ] || continue
+    ANON_KEY="$(grep -E '^(VITE_SUPABASE_PUBLISHABLE_KEY|VITE_SUPABASE_ANON_KEY|ANON_KEY)=' "$f" | head -1 | cut -d= -f2- | tr -d '"'"'"'')"
+    [ -n "$ANON_KEY" ] && break
+  done
+fi
+if [ -n "$ANON_KEY" ]; then
+  printf '  using anon key from env/.env (length %s)\n' "${#ANON_KEY}"
+  AUTH_ARGS=(-H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY")
+else
+  printf '  \033[1;33m(no anon key found — auth probes may return 401)\033[0m\n'
+  AUTH_ARGS=()
+fi
+
+
 say "App routes"
 for p in / /login /signup /dashboard /pricing /api/public/health; do
   c=$(code "$SITE$p")
