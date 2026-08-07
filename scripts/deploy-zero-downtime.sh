@@ -222,6 +222,16 @@ if [ ! -f "$LIVE/server/index.mjs" ]; then
   fail "incomplete build — nothing deployed"
 fi
 
+# hard guard: a build made with the wrong .env bakes the sandbox backend into the
+# browser bundle -> every user gets "login not working". Never ship that.
+leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE/client/assets" 2>/dev/null | sort -u | head -1 || true)"
+if [ -n "$leaked_host" ]; then
+  echo "  ❌ built bundle points at $leaked_host instead of the self-hosted backend"
+  restore_prev && echo "  ✅ previous build restored (site untouched)"
+  fail "wrong .env at build time — run: bash scripts/vps-fix-selfhost-env.sh && bash scripts/deploy-zero-downtime.sh --auto-reset"
+fi
+
+
 # --- 6. keep old hashed chunks resolvable for draining tabs -------------------
 log "[6/8] merge old asset chunks (no overwrite)"
 [ -d "$PREV" ] && cp -rn "$PREV/." "$LIVE/" 2>/dev/null || true
