@@ -11,14 +11,23 @@ SERVER_API_URL="${SERVER_API_URL:-}"
 PROJECT_ID="${PROJECT_ID:-sleepox}"
 
 find_compose_dir() {
-  for dir in "$SUPABASE_DIR" /opt/supabase-docker /opt/supabase/docker /opt/supabase; do
+  local dir
+  for dir in "$SUPABASE_DIR" /opt/supabase-docker /opt/supabase/docker /opt/supabase /root/supabase/docker /srv/supabase/docker; do
     if [ -f "$dir/.env" ] && { [ -f "$dir/docker-compose.yml" ] || [ -f "$dir/docker-compose.yaml" ] || [ -f "$dir/compose.yml" ] || [ -f "$dir/compose.yaml" ]; }; then
       printf '%s\n' "$dir"
       return 0
     fi
   done
+  # last resort: search common roots for a supabase compose stack
+  while IFS= read -r dir; do
+    if [ -f "$dir/.env" ] && grep -qE '^(ANON_KEY|SERVICE_ROLE_KEY)=' "$dir/.env" 2>/dev/null; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+  done < <(find /opt /root /srv -maxdepth 4 -name 'docker-compose.y*ml' -printf '%h\n' 2>/dev/null | sort -u)
   return 1
 }
+
 
 read_env_value() {
   local file="$1"
@@ -83,8 +92,14 @@ PY
 
 echo "🔐 Syncing app environment with self-hosted backend keys..."
 
-compose_dir="$(find_compose_dir)"
+if ! compose_dir="$(find_compose_dir)"; then
+  echo "❌ Could not locate the self-hosted Supabase stack (docker-compose + .env)." >&2
+  echo "   Re-run with the right path, e.g.: SUPABASE_DIR=/opt/supabase/docker bash scripts/vps-fix-selfhost-env.sh" >&2
+  exit 1
+fi
 supabase_env="$compose_dir/.env"
+echo "  stack: $compose_dir"
+
 
 anon_key="$(read_env_value "$supabase_env" "ANON_KEY")"
 service_key="$(read_env_value "$supabase_env" "SERVICE_ROLE_KEY")"
@@ -131,10 +146,26 @@ upsert_env "$APP_ENV" "SUPABASE_SECRET_KEY" "$service_key"
 
 chmod 600 "$APP_ENV"
 
+# --- hard assertions: no sandbox backend may survive in the app env ----------
+if grep -q 'supabase\.co' "$APP_ENV"; then
+  echo "❌ .env still contains a *.supabase.co URL after sync — refusing to continue." >&2
+  grep -nE '^[A-Z_]+=.*supabase\.co' "$APP_ENV" | sed -E 's/=.*(supabase\.co.*)$/ -> ...\1/' >&2
+  exit 1
+fi
+grep -qE "^VITE_SUPABASE_URL=\"?https://supabase\.sleepox\.com/?\"?$" "$APP_ENV" \
+  || { echo "❌ VITE_SUPABASE_URL is not https://supabase.sleepox.com" >&2; exit 1; }
+grep -qE '^SUPABASE_SERVICE_ROLE_KEY=".+"$' "$APP_ENV" \
+  || { echo "❌ SUPABASE_SERVICE_ROLE_KEY missing in .env" >&2; exit 1; }
+
 cd "$APP_DIR"
 bun run verify-env
 
+# keep a known-good copy so a git reset can never wipe production values
+cp "$APP_ENV" /root/sleepox.env.GOOD 2>/dev/null || true
+chmod 600 /root/sleepox.env.GOOD 2>/dev/null || true
+
 echo "✅ App .env now matches the self-hosted backend keys. No secrets were printed."
+echo "✅ No *.supabase.co reference remains in .env"
 echo "✅ Server API URL: $SERVER_API_URL"
 echo "✅ Browser API URL: $PUBLIC_API_URL"
-echo "Next: run ./deploy.sh restart and then ./deploy.sh logs"
+echo "Next: bash scripts/deploy-zero-downtime.sh --no-pull"
