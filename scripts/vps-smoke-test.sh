@@ -73,16 +73,19 @@ esac
 
 
 say "Bundle points at production backend"
-asset=$(curl -s --max-time 20 "$SITE/login" | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -3)
+asset=$(curl -s --compressed --max-time 20 "$SITE/login" | grep -aoE '/assets/[A-Za-z0-9._-]+\.js' | sort -u | head -5)
 if [ -z "$asset" ]; then
   echo "  (no asset refs found in HTML — SSR only, skipping)"
 else
   leak=0
   for a in $asset; do
-    if curl -s --max-time 20 "$SITE$a" | grep -q 'supabase\.co'; then leak=1; fi
+    if curl -s --compressed --max-time 20 "$SITE$a" | grep -aq '[a-z0-9]\{16,\}\.supabase\.co'; then
+      bad "leak in $a"; leak=1
+    fi
   done
   [ "$leak" -eq 1 ] && bad "bundle still references *.supabase.co (wrong .env at build time)" || ok "bundle uses self-hosted auth host"
 fi
+
 
 say "Recent auth errors (last 1h)"
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q '^supabase-auth$'; then
