@@ -36,8 +36,13 @@ function LoginPage() {
 
       // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
       const fallback = window.setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
-      await navigate({ to: "/dashboard", replace: true });
-      window.clearTimeout(fallback);
+      try {
+        await navigate({ to: "/dashboard", replace: true });
+        window.clearTimeout(fallback);
+      } catch {
+        window.clearTimeout(fallback);
+        window.location.replace("/dashboard");
+      }
     } catch {
       toast.error("Could not reach the login server. Check your connection and try again.");
     } finally {
