@@ -11,14 +11,23 @@ SERVER_API_URL="${SERVER_API_URL:-}"
 PROJECT_ID="${PROJECT_ID:-sleepox}"
 
 find_compose_dir() {
-  for dir in "$SUPABASE_DIR" /opt/supabase-docker /opt/supabase/docker /opt/supabase; do
+  local dir
+  for dir in "$SUPABASE_DIR" /opt/supabase-docker /opt/supabase/docker /opt/supabase /root/supabase/docker /srv/supabase/docker; do
     if [ -f "$dir/.env" ] && { [ -f "$dir/docker-compose.yml" ] || [ -f "$dir/docker-compose.yaml" ] || [ -f "$dir/compose.yml" ] || [ -f "$dir/compose.yaml" ]; }; then
       printf '%s\n' "$dir"
       return 0
     fi
   done
+  # last resort: search common roots for a supabase compose stack
+  while IFS= read -r dir; do
+    if [ -f "$dir/.env" ] && grep -qE '^(ANON_KEY|SERVICE_ROLE_KEY)=' "$dir/.env" 2>/dev/null; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+  done < <(find /opt /root /srv -maxdepth 4 -name 'docker-compose.y*ml' -printf '%h\n' 2>/dev/null | sort -u)
   return 1
 }
+
 
 read_env_value() {
   local file="$1"
