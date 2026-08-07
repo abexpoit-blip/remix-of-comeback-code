@@ -106,7 +106,7 @@ if (!ourUrl) console.log("  ⚠ FIX: Control Panel → set the Adsterra direct l
 
 // 2. clicks
 const clicks = await rest(
-  `clicks?select=created_at,routed_to,is_bot,bot_reason,country,device,signals,link_id&created_at=gte.${since}&order=created_at.desc&limit=20000`,
+  `clicks?select=created_at,routed_to,is_bot,bot_reason,country,device,ua,signals,link_id&created_at=gte.${since}&order=created_at.desc&limit=20000`,
 );
 const total = clicks.length;
 console.log(`\n--- [2] clicks in window: ${total} ---`);
