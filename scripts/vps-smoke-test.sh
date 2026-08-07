@@ -40,8 +40,8 @@ say "Health payload"
 curl -sS --max-time 20 "$SITE/api/public/health"; echo
 
 say "Auth host reachability"
-c=$(code "$AUTH_HOST/auth/v1/health")
-case "$c" in 200|401) ok "auth health -> $c";; *) bad "auth health -> $c";; esac
+c=$(code ${AUTH_ARGS+"${AUTH_ARGS[@]}"} "$AUTH_HOST/auth/v1/health")
+case "$c" in 200) ok "auth health -> 200";; 401) bad "auth health -> 401 (anon key missing/wrong)";; *) bad "auth health -> $c";; esac
 
 say "CORS preflight from site origin"
 hdrs=$(curl -s -i -X OPTIONS --max-time 20 \
@@ -60,14 +60,17 @@ say "Login endpoint responds (bad creds probe)"
 resp=$(curl -s -o /tmp/_sx_probe.json -w '%{http_code}' --max-time 20 -X POST \
   -H 'Content-Type: application/json' \
   -H "Origin: $SITE" \
+  ${AUTH_ARGS+"${AUTH_ARGS[@]}"} \
   --data '{"email":"smoke-probe@sleepox.invalid","password":"wrong-password-probe"}' \
   "$AUTH_HOST/auth/v1/token?grant_type=password")
 case "$resp" in
   400) ok "auth returns 400 invalid_credentials (healthy)";;
+  401) bad "auth 401 — anon key missing/invalid in .env (VITE_SUPABASE_PUBLISHABLE_KEY)"; head -c 300 /tmp/_sx_probe.json; echo;;
   429) bad "auth rate-limited (429) — raise GOTRUE rate limits";;
   5*)  bad "auth 5xx ($resp) — DB/pool problem"; head -c 300 /tmp/_sx_probe.json; echo;;
   *)   bad "unexpected $resp"; head -c 300 /tmp/_sx_probe.json; echo;;
 esac
+
 
 say "Bundle points at production backend"
 asset=$(curl -s --max-time 20 "$SITE/login" | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -3)
