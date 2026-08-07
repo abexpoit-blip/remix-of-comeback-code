@@ -76,33 +76,52 @@ function AuthenticatedLayout() {
       if (authCheckedRef.current && !u && event !== "INITIAL_SESSION") void bounceIfReallySignedOut();
     });
 
+    // Watchdog: a stalled token refresh can leave getSession() pending
+    // forever, which used to freeze the app on "Loading…".
+    const authWatchdog = setTimeout(() => {
+      if (!authCheckedRef.current) finishInitialAuthCheck(null);
+    }, 8000);
+
     supabase.auth.getSession().then(({ data }) => {
       finishInitialAuthCheck(data.session?.user ?? null);
     }).catch(() => {
       finishInitialAuthCheck(null);
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => { mounted = false; clearTimeout(authWatchdog); subscription.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    const uid = user.id;
+
+    // Fail-open: never let a slow/failing profile lookup trap the user on
+    // "Loading…". Worst case we render the dashboard without the ban check.
+    const watchdog = setTimeout(() => { if (!cancelled) setBanChecked(true); }, 5000);
+
     (async () => {
-      const { data } = await supabase
-        .from("user_roles").select("role").eq("user_id", user?.id).eq("role", "admin").maybeSingle();
-      if (cancelled) return;
-      setIsAdmin(!!data);
-      // Check ban status + track last login
-      const { data: prof } = await supabase
-        .from("profiles").select("is_banned").eq("id", user?.id).maybeSingle();
-      if (cancelled) return;
-      setIsBanned(!!prof?.is_banned);
-      setBanChecked(true);
-      await supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", user?.id);
+      try {
+        const [roleRes, profRes] = await Promise.all([
+          supabase.from("user_roles").select("role").eq("user_id", uid).eq("role", "admin").maybeSingle(),
+          supabase.from("profiles").select("is_banned").eq("id", uid).maybeSingle(),
+        ]);
+        if (cancelled) return;
+        setIsAdmin(!!roleRes.data);
+        setIsBanned(!!profRes.data?.is_banned);
+      } catch {
+        /* network hiccup — fail open */
+      } finally {
+        if (!cancelled) setBanChecked(true);
+      }
+      // Non-blocking: last-login tracking must never gate the UI.
+      void supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", uid);
     })();
-    return () => { cancelled = true; };
+
+    return () => { cancelled = true; clearTimeout(watchdog); };
   }, [user]);
+
 
   useEffect(() => {
     const t = setTimeout(async () => {
