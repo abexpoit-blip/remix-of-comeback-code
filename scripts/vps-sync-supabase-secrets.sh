@@ -1,112 +1,98 @@
 #!/usr/bin/env bash
-# Normalize the self-hosted backend compose configuration so every internal
-# database service reads the same POSTGRES_PASSWORD from the compose .env.
-# The secret is never printed.
-
+# Sync Supabase DB secrets across docker-compose + ensure GoTrue pool settings.
+# Safe to re-run. Never prints secret values.
 set -euo pipefail
 
-SUPABASE_DIR="${SUPABASE_DIR:-/opt/supabase/docker}"
-COMPOSE_FILE="${COMPOSE_FILE:-}"
-ENV_FILE="${ENV_FILE:-}"
+COMPOSE_DIR="${COMPOSE_DIR:-/opt/supabase/docker}"
+COMPOSE_FILE="$COMPOSE_DIR/docker-compose.yml"
+ENV_FILE="$COMPOSE_DIR/.env"
 
-find_compose_file() {
-  local candidate
-  for candidate in \
-    "$SUPABASE_DIR/docker-compose.yml" \
-    "$SUPABASE_DIR/docker-compose.yaml" \
-    "$SUPABASE_DIR/compose.yml" \
-    "$SUPABASE_DIR/compose.yaml" \
-    /opt/supabase-docker/docker-compose.yml \
-    /opt/supabase/docker/docker-compose.yml; do
-    if [ -f "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
+say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+ok()  { printf '\033[1;32m  ok\033[0m %s\n' "$*"; }
+err() { printf '\033[1;31m  !!\033[0m %s\n' "$*" >&2; }
 
-if [ -z "$COMPOSE_FILE" ]; then
-  COMPOSE_FILE="$(find_compose_file)"
-fi
-if [ -z "$ENV_FILE" ]; then
-  ENV_FILE="$(dirname "$COMPOSE_FILE")/.env"
-fi
+[ -f "$COMPOSE_FILE" ] || { err "compose file not found: $COMPOSE_FILE (set COMPOSE_DIR=...)"; exit 1; }
+[ -f "$ENV_FILE" ]     || { err ".env not found: $ENV_FILE"; exit 1; }
 
-if [ ! -f "$COMPOSE_FILE" ] || [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Compose file or its .env was not found." >&2
-  exit 1
-fi
+say "Backup"
+cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak.$(date +%s)"
+cp "$ENV_FILE" "$ENV_FILE.bak.$(date +%s)"
+ok "backups written"
 
-if ! grep -qE '^POSTGRES_PASSWORD=.+$' "$ENV_FILE"; then
-  echo "❌ POSTGRES_PASSWORD is missing or empty in the backend .env." >&2
-  exit 1
-fi
+say "Reading canonical POSTGRES_PASSWORD from .env"
+PGPASS="$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'"'')"
+if [ -z "${PGPASS:-}" ]; then err "POSTGRES_PASSWORD missing in $ENV_FILE"; exit 1; fi
+ok "found (length ${#PGPASS})"
 
-chmod 600 "$ENV_FILE"
-backup="$COMPOSE_FILE.bak.$(date +%Y%m%d%H%M%S)"
-cp "$COMPOSE_FILE" "$backup"
+say "Normalising literal passwords -> \${POSTGRES_PASSWORD} and ensuring GoTrue pool"
+COMPOSE_FILE="$COMPOSE_FILE" PGPASS="$PGPASS" python3 - <<'PY'
+import os, re
+p = os.environ['COMPOSE_FILE']
+pw = os.environ['PGPASS']
+s = open(p).read()
+orig = s
 
-python3 - "$COMPOSE_FILE" <<'PY'
-import re
-import sys
+# 1) replace any hardcoded occurrence of the real password with the env var
+if pw and pw in s:
+    s = s.replace(pw, '${POSTGRES_PASSWORD}')
+    print('  replaced literal password occurrences')
 
-path = sys.argv[1]
-text = open(path, encoding="utf-8").read()
+# 2) ensure GoTrue pool settings exist in the auth service env block
+if 'GOTRUE_DB_MAX_POOL_SIZE' not in s:
+    add = ("      GOTRUE_DB_MAX_POOL_SIZE: 50\n"
+           "      GOTRUE_DB_MAX_IDLE_CONNS: 15\n"
+           "      GOTRUE_DB_CONN_MAX_LIFETIME: 30m\n"
+           "      GOTRUE_DB_CONN_MAX_IDLE_TIME: 5m\n"
+           "      GOTRUE_API_MAX_REQUEST_DURATION: 15s\n")
+    m = (re.search(r'^\s*GOTRUE_DB_MIGRATIONS_PATH:.*\n', s, re.M)
+         or re.search(r'^\s*GOTRUE_DB_DRIVER:.*\n', s, re.M))
+    if m:
+        s = s[:m.end()] + add + s[m.end():]
+        print('  added GoTrue pool settings')
+    else:
+        print('  WARN: auth env block not found; pool settings not added')
+else:
+    print('  GoTrue pool settings already present')
 
-# Replace literal passwords only inside postgres connection URLs. This does not
-# touch host names, ports, database names, or unrelated environment values.
-roles = (
-    "postgres",
-    "supabase_admin",
-    "supabase_auth_admin",
-    "supabase_storage_admin",
-    "authenticator",
-    "pgbouncer",
-    "supabase_read_only_user",
-)
-for role in roles:
-    pattern = rf"(postgres(?:ql)?://{re.escape(role)}:)([^@\s]+)(@)"
-    text = re.sub(pattern, rf"\1${{POSTGRES_PASSWORD}}\3", text)
-
-# Keep the auth pool large enough for production login bursts. Add settings to
-# the auth environment immediately after its DB driver when they are absent.
-if "GOTRUE_DB_MAX_POOL_SIZE" not in text:
-    marker = re.compile(r"(?m)^(\s+)(?:-\s*)?GOTRUE_DB_DRIVER:\s*postgres\s*$")
-    match = marker.search(text)
-    if match:
-        indent = match.group(1)
-        addition = (
-            f"\n{indent}GOTRUE_DB_MAX_POOL_SIZE: 50"
-            f"\n{indent}GOTRUE_DB_MAX_IDLE_CONNS: 15"
-            f"\n{indent}GOTRUE_DB_CONN_MAX_LIFETIME: 30m"
-            f"\n{indent}GOTRUE_DB_CONN_MAX_IDLE_TIME: 5m"
-        )
-        text = text[:match.end()] + addition + text[match.end():]
-
-open(path, "w", encoding="utf-8").write(text)
+if s != orig:
+    open(p, 'w').write(s)
+    print('  compose file updated')
+else:
+    print('  no changes needed')
 PY
 
-echo "🧪 Validating rendered compose configuration..."
-compose_dir="$(dirname "$COMPOSE_FILE")"
-compose_name="$(basename "$COMPOSE_FILE")"
-rendered="$(mktemp)"
-trap 'rm -f "$rendered"' EXIT
-(cd "$compose_dir" && docker compose -f "$compose_name" config > "$rendered")
+say "Validating compose config"
+cd "$COMPOSE_DIR"
+if docker compose config >/dev/null 2>&1; then ok "compose config valid"; else err "compose config INVALID — restore from .bak"; exit 1; fi
 
-if grep -Eq 'postgres(ql)?://(postgres|supabase_admin|supabase_auth_admin|supabase_storage_admin|authenticator|pgbouncer|supabase_read_only_user):\$\{POSTGRES_PASSWORD\}@' "$rendered"; then
-  echo "❌ Compose left an unresolved POSTGRES_PASSWORD reference." >&2
-  exit 1
-fi
+say "Recreating auth (and rest) with synced secrets — no full stack downtime"
+docker compose up -d --no-deps auth rest >/dev/null
+sleep 8
 
-echo "🔐 Synchronizing database roles with the canonical backend secret..."
-SUPABASE_DIR="$compose_dir" "$(dirname "$0")/vps-fix-supabase-db-passwords.sh"
+say "Container status"
+for c in supabase-auth supabase-rest supabase-db; do
+  docker inspect -f "  $c status={{.State.Status}} restarts={{.RestartCount}}" "$c" 2>/dev/null || echo "  $c not found"
+done
 
-echo "🧪 Checking auth failures after service restart..."
-if docker logs --since 5m supabase-auth 2>&1 | grep -Eq 'password authentication failed|failed to connect to .host=db'; then
-  echo "❌ Auth still reports a database credential/connection failure." >&2
-  exit 1
-fi
+say "Verify every container's DB password matches .env (no value printed)"
+MISMATCH=0
+for c in $(docker ps --format '{{.Names}}' | grep -E '^supabase-' || true); do
+  envdump="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$c" 2>/dev/null || true)"
+  vals="$(printf '%s' "$envdump" | grep -E '^(POSTGRES_PASSWORD|PGPASSWORD)=' | cut -d= -f2- || true)"
+  [ -z "$vals" ] && continue
+  while IFS= read -r v; do
+    [ -z "$v" ] && continue
+    if [ "$v" != "$PGPASS" ]; then err "$c has a DB password that differs from .env"; MISMATCH=1; fi
+  done <<< "$vals"
+  # gotrue DB url check
+  dburl="$(printf '%s' "$envdump" | grep -E '^GOTRUE_DB_DATABASE_URL=' | cut -d= -f2- || true)"
+  if [ -n "$dburl" ] && ! printf '%s' "$dburl" | grep -q "$PGPASS"; then
+    err "$c GOTRUE_DB_DATABASE_URL password differs from .env"; MISMATCH=1
+  fi
+done
+[ "$MISMATCH" -eq 0 ] && ok "all container secrets match .env"
 
-echo "✅ Compose, database roles, and auth now share one canonical secret."
-echo "✅ Backup saved at: $backup"
+say "Health"
+curl -sS --max-time 15 https://sleepox.com/api/public/health || err "health endpoint unreachable"
+echo
+ok "done"
