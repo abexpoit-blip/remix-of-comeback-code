@@ -162,16 +162,33 @@ console.log("  devices:", tally(clicks, deviceOf).map(([k, v]) => `${k}=${v}`).j
 
 const desktop = clicks.filter((c) => deviceOf(c) === "desktop");
 const desktopSafe = desktop.filter((c) => c.routed_to === "safe" || c.routed_to === "fallback").length;
-const desktopBot = desktop.filter((c) => c.is_bot).length;
-console.log(`  desktop: ${desktop.length}, routed to safe/fallback: ${desktopSafe} (${pct(desktopSafe, desktop.length)}), flagged bot: ${desktopBot} (${pct(desktopBot, desktop.length)})`);
+const desktopBots = desktop.filter((c) => c.is_bot);
+console.log(`  desktop: ${desktop.length}, routed to safe/fallback: ${desktopSafe} (${pct(desktopSafe, desktop.length)}), flagged bot: ${desktopBots.length} (${pct(desktopBots.length, desktop.length)})`);
+if (desktopBots.length) {
+  console.log("  desktop bot reasons:");
+  for (const [k, v] of tally(desktopBots, (c) => c.bot_reason).slice(0, 10)) {
+    console.log(`    ${String(k).padEnd(34)} ${String(v).padStart(6)}  ${pct(v, desktopBots.length)}`);
+  }
+  // real desktop users = desktop hits that are NOT known crawler UAs / FB infra
+  const crawlerish = (r) => /^(fb-|crawler-|bot-|ua-bot|headless)/i.test(String(r || ""));
+  const suspectFalsePositive = desktopBots.filter((c) => !crawlerish(c.bot_reason));
+  console.log(`  ⚠ desktop blocked WITHOUT a crawler signature (possible real users lost): ${suspectFalsePositive.length}`);
+  for (const [k, v] of tally(suspectFalsePositive, (c) => c.bot_reason).slice(0, 8)) {
+    console.log(`    ${String(k).padEnd(34)} ${String(v).padStart(6)}`);
+  }
+}
 
 console.log("\n--- [7] fingerprint auto-block state ---");
 let fps = [];
-try {
-  fps = await rest("bot_fingerprints?select=*&order=updated_at.desc&limit=500");
-} catch (e) {
-  console.log("  ⚠ could not read bot_fingerprints:", String(e.message || e).slice(0, 160));
+for (const q of [
+  "bot_fingerprints?select=*&order=updated_at.desc&limit=500",
+  "bot_fingerprints?select=*&order=last_seen.desc&limit=500",
+  "bot_fingerprints?select=*&limit=500",
+]) {
+  try { fps = await rest(q); break; } catch { /* try next ordering */ }
 }
+if (!fps.length) console.log("  ⚠ bot_fingerprints unreadable or empty on this database");
+
 if (fps.length) {
   const botCount = (f) => f.is_bot_count ?? f.bot_count ?? f.bot_hits ?? 0;
   const humanCount = (f) => f.is_human_count ?? f.human_count ?? f.human_hits ?? 0;
