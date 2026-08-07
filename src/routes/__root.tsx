@@ -7,12 +7,14 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CartProvider } from "@/lib/cart-context";
+import { installChunkErrorRecovery, isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
 import appCss from "../styles.css?url";
+
 
 function NotFoundComponent() {
   return (
