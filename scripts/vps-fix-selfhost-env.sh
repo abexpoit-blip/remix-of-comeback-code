@@ -146,10 +146,26 @@ upsert_env "$APP_ENV" "SUPABASE_SECRET_KEY" "$service_key"
 
 chmod 600 "$APP_ENV"
 
+# --- hard assertions: no sandbox backend may survive in the app env ----------
+if grep -q 'supabase\.co' "$APP_ENV"; then
+  echo "❌ .env still contains a *.supabase.co URL after sync — refusing to continue." >&2
+  grep -nE '^[A-Z_]+=.*supabase\.co' "$APP_ENV" | sed -E 's/=.*(supabase\.co.*)$/ -> ...\1/' >&2
+  exit 1
+fi
+grep -qE "^VITE_SUPABASE_URL=\"?https://supabase\.sleepox\.com/?\"?$" "$APP_ENV" \
+  || { echo "❌ VITE_SUPABASE_URL is not https://supabase.sleepox.com" >&2; exit 1; }
+grep -qE '^SUPABASE_SERVICE_ROLE_KEY=".+"$' "$APP_ENV" \
+  || { echo "❌ SUPABASE_SERVICE_ROLE_KEY missing in .env" >&2; exit 1; }
+
 cd "$APP_DIR"
 bun run verify-env
 
+# keep a known-good copy so a git reset can never wipe production values
+cp "$APP_ENV" /root/sleepox.env.GOOD 2>/dev/null || true
+chmod 600 /root/sleepox.env.GOOD 2>/dev/null || true
+
 echo "✅ App .env now matches the self-hosted backend keys. No secrets were printed."
+echo "✅ No *.supabase.co reference remains in .env"
 echo "✅ Server API URL: $SERVER_API_URL"
 echo "✅ Browser API URL: $PUBLIC_API_URL"
-echo "Next: run ./deploy.sh restart and then ./deploy.sh logs"
+echo "Next: bash scripts/deploy-zero-downtime.sh --no-pull"
