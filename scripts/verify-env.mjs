@@ -45,8 +45,16 @@ for (const name of ["SUPABASE_URL", "VITE_SUPABASE_URL"]) {
   else if (!/^https?:\/\//.test(v)) errors.push(`${name} must be an http(s) URL, got ${v}`);
 }
 
+const isLoopback = (v) => /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test((v || "").replace(/\/+$/, ""));
+
 if (env.SUPABASE_URL && env.VITE_SUPABASE_URL && env.SUPABASE_URL !== env.VITE_SUPABASE_URL) {
-  errors.push("SUPABASE_URL and VITE_SUPABASE_URL must be identical");
+  // Self-hosted setups may talk to the local API gateway server-side while the
+  // browser uses the public hostname. That's valid; anything else is a mismatch.
+  if (isLoopback(env.SUPABASE_URL)) {
+    warnings.push(`SUPABASE_URL is a local gateway (${env.SUPABASE_URL}); browser uses ${env.VITE_SUPABASE_URL}`);
+  } else {
+    errors.push("SUPABASE_URL and VITE_SUPABASE_URL must be identical (or SUPABASE_URL must be a loopback gateway)");
+  }
 }
 
 for (const name of ["VITE_SUPABASE_PUBLISHABLE_KEY"]) {
