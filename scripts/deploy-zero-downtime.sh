@@ -124,7 +124,7 @@ fi
 echo "  .env vars: $env_vars"
 [ "$env_vars" -ge 10 ] || fail ".env only has $env_vars vars and backup $ENV_BACKUP has $backup_count — restore production .env manually before deploying"
 grep -q 'supabase\.co' .env && fail ".env points at a *.supabase.co URL. Production must use https://supabase.sleepox.com"
-grep -qE '^VITE_SUPABASE_URL=["'"']?https://supabase\.sleepox\.com/?["'"']?$' .env || fail "VITE_SUPABASE_URL is not the self-hosted production URL — run scripts/vps-fix-selfhost-env.sh"
+grep -qE "^VITE_SUPABASE_URL=['\"]?https://supabase\.sleepox\.com/?['\"]?$" .env || fail "VITE_SUPABASE_URL is not the self-hosted production URL — run scripts/vps-fix-selfhost-env.sh"
 grep -qE '^SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEY)=' .env || fail "server database key is missing — run scripts/vps-fix-selfhost-env.sh"
 node scripts/verify-env.mjs || fail "environment verification failed — run scripts/vps-fix-selfhost-env.sh"
 [ -f ecosystem.config.cjs ] || fail "ecosystem.config.cjs missing"
