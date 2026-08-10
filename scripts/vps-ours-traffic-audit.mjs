@@ -180,32 +180,109 @@ if (desktopBots.length) {
 
 console.log("\n--- [7] fingerprint auto-block state ---");
 let fps = [];
+let fpErr = null;
 for (const q of [
-  "bot_fingerprints?select=*&order=updated_at.desc&limit=500",
-  "bot_fingerprints?select=*&order=last_seen.desc&limit=500",
+  "bot_fingerprints?select=fingerprint_hash,is_bot_count,is_human_count,auto_blocked,last_ip,last_country,updated_at&order=updated_at.desc&limit=500",
+  "bot_fingerprints?select=fingerprint_hash,is_bot_count,is_human_count,auto_blocked&limit=500",
   "bot_fingerprints?select=*&limit=500",
 ]) {
-  try { fps = await rest(q); break; } catch { /* try next ordering */ }
+  try { fps = await rest(q); fpErr = null; break; } catch (e) { fpErr = e; }
 }
-if (!fps.length) console.log("  ⚠ bot_fingerprints unreadable or empty on this database");
+if (fpErr) console.log("  ⚠ bot_fingerprints query failed:", String(fpErr.message || fpErr).slice(0, 160));
 
 if (fps.length) {
   const botCount = (f) => f.is_bot_count ?? f.bot_count ?? f.bot_hits ?? 0;
   const humanCount = (f) => f.is_human_count ?? f.human_count ?? f.human_hits ?? 0;
   const blocked = fps.filter((f) => f.auto_blocked);
   console.log(`  fingerprints (recent 500): ${fps.length}, auto_blocked: ${blocked.length}`);
+  const mixed = fps.filter((f) => botCount(f) > 0 && humanCount(f) > 0);
+  console.log(`  mixed (both bot+human hits on same fingerprint): ${mixed.length}`);
   const humanBlocked = blocked.filter((f) => humanCount(f) > 0);
   if (humanBlocked.length) {
     console.log(`  ⚠ ${humanBlocked.length} blocked fingerprints ALSO have human hits (possible false positives):`);
-    humanBlocked.slice(0, 10).forEach((f) =>
-      console.log(`    ${f.fingerprint_hash} bot=${botCount(f)} human=${humanCount(f)} ${f.last_country ?? ""} ${f.last_ip ?? ""}`),
-    );
+    humanBlocked
+      .sort((a, b) => humanCount(b) - humanCount(a))
+      .slice(0, 10)
+      .forEach((f) =>
+        console.log(`    ${f.fingerprint_hash} bot=${botCount(f)} human=${humanCount(f)} ${f.last_country ?? ""} ${f.last_ip ?? ""}`),
+      );
+    console.log("  → these fingerprints are losing real traffic; raise BOT_BLOCK_THRESHOLD or clear them.");
   } else {
     console.log("  ✅ no auto-blocked fingerprint has human hits");
   }
-} else {
-  console.log("  (no fingerprint rows available — skipping)");
+} else if (!fpErr) {
+  console.log("  (bot_fingerprints table is empty — auto-block is not eating anyone)");
 }
+
+console.log("\n--- [8] live probe: is the ours ad link actually serving? ---");
+async function probe(url, ua, referer) {
+  try {
+    const res = await fetch(url, {
+      redirect: "manual",
+      headers: { "user-agent": ua, ...(referer ? { referer } : {}), accept: "text/html,*/*", "accept-language": "en-US,en;q=0.9" },
+    });
+    const loc = res.headers.get("location");
+    const body = res.status >= 300 && res.status < 400 ? "" : await res.text();
+    return { status: res.status, loc, len: body.length, snippet: body.slice(0, 120).replace(/\s+/g, " ") };
+  } catch (e) {
+    return { error: String(e.message || e) };
+  }
+}
+if (ourUrl) {
+  const UAS = [
+    ["mobile ", "Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"],
+    ["desktop", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"],
+  ];
+  let bad = 0;
+  for (const [label, ua] of UAS) {
+    const r = await probe(ourUrl, ua, "https://sleepox.com/");
+    if (r.error) { console.log(`  ${label}: ERROR ${r.error}`); bad++; continue; }
+    const verdict = r.loc ? `→ redirect ${r.loc.slice(0, 80)}` : r.len === 0 ? "❌ EMPTY BODY (no ad served / rejected)" : `body ${r.len}b`;
+    if (!r.loc && r.len === 0) bad++;
+    console.log(`  ${label}: HTTP ${r.status} ${verdict}`);
+    if (!r.loc && r.len > 0) console.log(`     ${r.snippet}`);
+  }
+  if (bad) {
+    console.log("  ❌ Adsterra is NOT serving on this direct link (empty/failed response).");
+    console.log("     → create a fresh Direct Link in Adsterra and replace it in Control Panel.");
+  } else {
+    console.log("  ✅ link responds with real ad content/redirect.");
+  }
+} else {
+  console.log("  (skipped — our_adsterra_url not set)");
+}
+
+console.log("\n--- [9] per-user traffic sanity (are users' own links delivering?) ---");
+try {
+  const links = await rest("links?select=id,short_code,user_id,adsterra_url,destination_url&limit=5000");
+  const byId = new Map(links.map((l) => [l.id, l]));
+  const perUser = new Map();
+  for (const c of clicks) {
+    const l = byId.get(c.link_id);
+    if (!l) continue;
+    const u = perUser.get(l.user_id) || { total: 0, offer: 0, ours: 0, safe: 0, bot: 0 };
+    u.total++;
+    if (c.is_bot) u.bot++;
+    if (c.routed_to === "offer") u.offer++;
+    if (c.routed_to === "ours") u.ours++;
+    if (c.routed_to === "safe" || c.routed_to === "fallback") u.safe++;
+    perUser.set(l.user_id, u);
+  }
+  const rows = [...perUser.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 12);
+  console.log("  user_id                              total  offer   ours   safe   bot");
+  for (const [uid, u] of rows) {
+    console.log(
+      `  ${uid}  ${String(u.total).padStart(5)}  ${String(u.offer).padStart(5)}  ${String(u.ours).padStart(5)}  ${String(u.safe).padStart(5)}  ${String(u.bot).padStart(4)}`,
+    );
+  }
+  const hurt = rows.filter(([, u]) => u.total >= 50 && u.safe / u.total > 0.1);
+  console.log(hurt.length ? `  ⚠ ${hurt.length} users have >10% traffic going to safe page` : "  ✅ no user is losing >10% traffic to the safe page");
+  const noAd = links.filter((l) => !l.adsterra_url && !l.destination_url).length;
+  if (noAd) console.log(`  ⚠ ${noAd} links have no destination/adsterra URL configured`);
+} catch (e) {
+  console.log("  ⚠ per-user check failed:", String(e.message || e).slice(0, 160));
+}
+
 
 
 console.log("\n=== VERDICT ===");
