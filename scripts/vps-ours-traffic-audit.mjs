@@ -126,10 +126,16 @@ if (ours.length) {
   for (const [k, v] of tally(ours, (c) => c.signals?.target_host)) console.log(`    ${k} → ${v}`);
   let ourHost = null;
   try { ourHost = ourUrl ? new URL(ourUrl).hostname : null; } catch {}
-  const mismatched = ours.filter((c) => c.signals?.target_host && c.signals.target_host !== ourHost);
+  // Only clicks AFTER the link was last changed can be expected to use the new host.
+  const changedAt = settings?.updated_at || since;
+  const afterChange = ours.filter((c) => c.created_at >= changedAt);
+  const stale = ours.length - afterChange.length;
+  if (stale) console.log(`  ℹ ${stale} ours clicks happened BEFORE the link was changed (${changedAt}) — old host is expected.`);
+  const mismatched = afterChange.filter((c) => c.signals?.target_host && c.signals.target_host !== ourHost);
   if (ourHost && mismatched.length)
-    console.log(`  ❌ ${mismatched.length} "ours" clicks did NOT go to ${ourHost} — they hit the safe/fallback page.`);
-  else if (ourHost) console.log(`  ✅ all "ours" clicks pointed at ${ourHost}`);
+    console.log(`  ❌ ${mismatched.length} of ${afterChange.length} post-change "ours" clicks did NOT go to ${ourHost}.`);
+  else if (ourHost) console.log(`  ✅ all ${afterChange.length} post-change "ours" clicks pointed at ${ourHost}`);
+
 } else {
   console.log("\n  ⚠ no 'ours' clicks recorded in this window");
 }
