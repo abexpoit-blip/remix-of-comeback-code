@@ -234,15 +234,22 @@ if (ourUrl) {
     ["desktop", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"],
   ];
   let bad = 0;
+  let proxyBlocked = 0;
   for (const [label, ua] of UAS) {
     const r = await probe(ourUrl, ua, "https://sleepox.com/");
     if (r.error) { console.log(`  ${label}: ERROR ${r.error}`); bad++; continue; }
+    const isProxyBlock = /anonymous proxy|proxy detected|vpn detected/i.test(r.snippet || "");
     const verdict = r.loc ? `→ redirect ${r.loc.slice(0, 80)}` : r.len === 0 ? "❌ EMPTY BODY (no ad served / rejected)" : `body ${r.len}b`;
     if (!r.loc && r.len === 0) bad++;
+    if (isProxyBlock) proxyBlocked++;
     console.log(`  ${label}: HTTP ${r.status} ${verdict}`);
     if (!r.loc && r.len > 0) console.log(`     ${r.snippet}`);
   }
-  if (bad) {
+  if (proxyBlocked) {
+    console.log("  ℹ INCONCLUSIVE — Adsterra answered \"Anonymous Proxy detected\" for THIS server's IP.");
+    console.log("     That is a datacenter-IP block on the probe, not proof the link is broken.");
+    console.log("     Real mobile users are not affected; test the link from a phone on mobile data instead.");
+  } else if (bad) {
     console.log("  ❌ Adsterra is NOT serving on this direct link (empty/failed response).");
     console.log("     → create a fresh Direct Link in Adsterra and replace it in Control Panel.");
   } else {
