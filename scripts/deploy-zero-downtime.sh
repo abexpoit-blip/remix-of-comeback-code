@@ -255,12 +255,11 @@ if [ ! -f "$LIVE/server/index.mjs" ]; then
   fail "incomplete build — nothing deployed"
 fi
 
-# Hard guard BEFORE any worker restart. The Supabase SDK ships inert API-doc
-# examples containing https://example.supabase.co; bundlers may preserve those
-# comments/source maps. Ignore only that exact documentation placeholder and
-# reject every real hosted project URL.
-leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE" 2>/dev/null \
-  | grep -vx 'https://example\.supabase\.co' \
+# Hard guard BEFORE any worker restart. The SDK ships inert documentation
+# examples such as example/project-id/xyzcompany/realtime.supabase.co, which
+# bundlers may preserve in comments and source maps. Real hosted project refs
+# are 20 lowercase alphanumeric characters; reject those while ignoring docs.
+leaked_host="$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' "$LIVE" 2>/dev/null \
   | sort -u \
   | head -1 \
   || true)"
@@ -307,8 +306,7 @@ bad=""
 while IFS= read -r asset; do
   [ -n "$asset" ] || continue
   bad=$(curl -s --max-time 5 -H 'Accept-Encoding: identity' "http://127.0.0.1:${PORTS[0]}$asset" \
-    | grep -aoE 'https://[a-z0-9-]+\.supabase\.co' \
-    | grep -vx 'https://example\.supabase\.co' \
+    | grep -aoE 'https://[a-z0-9]{20}\.supabase\.co' \
     | head -1 \
     || true)
   [ -z "$bad" ] || break
