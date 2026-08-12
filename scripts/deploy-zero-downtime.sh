@@ -51,6 +51,14 @@ done
 log()  { echo -e "\n===== $* ====="; }
 fail() { echo -e "\n❌ $*"; exit 1; }
 
+validate_production_env() {
+  local env_file="$1"
+  [ -f "$env_file" ] || return 1
+  ! grep -q 'supabase\.co' "$env_file" || return 1
+  grep -qE "^VITE_SUPABASE_URL=['\"]?https://supabase\.sleepox\.com/?['\"]?$" "$env_file" || return 1
+  grep -qE '^SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEY)=' "$env_file" || return 1
+}
+
 # --- health probe: ANY HTTP response means the worker is up -------------------
 worker_up() {
   local code
@@ -115,31 +123,35 @@ env_count() { [ -f "$1" ] && grep -c '=' "$1" || echo 0; }
 backup_count=$(env_count "$ENV_BACKUP")
 env_vars=$(env_count .env)
 
-# a git reset can replace prod .env with the repo placeholder — self-heal from backup
-if [ "$env_vars" -lt 10 ] && [ "$backup_count" -ge 10 ]; then
+# Recover from the legacy backup name when necessary.
+if ! validate_production_env "$ENV_BACKUP" && validate_production_env "/root/sleepox.env.GOOD"; then
+  cp /root/sleepox.env.GOOD "$ENV_BACKUP"
+  chmod 600 "$ENV_BACKUP"
+  backup_count=$(env_count "$ENV_BACKUP")
+fi
+
+# A tracked repository .env must never win over the VPS production environment.
+if ! validate_production_env .env && validate_production_env "$ENV_BACKUP"; then
   cp "$ENV_BACKUP" .env
   env_vars=$(env_count .env)
-  echo "  ♻️  .env looked like the repo placeholder — restored from $ENV_BACKUP"
+  echo "  ♻️  restored the verified self-hosted production .env"
 fi
 echo "  .env vars: $env_vars"
 [ "$env_vars" -ge 10 ] || fail ".env only has $env_vars vars and backup $ENV_BACKUP has $backup_count — restore production .env manually before deploying"
-grep -q 'supabase\.co' .env && fail ".env points at a *.supabase.co URL. Production must use https://supabase.sleepox.com"
-grep -qE "^VITE_SUPABASE_URL=['\"]?https://supabase\.sleepox\.com/?['\"]?$" .env || fail "VITE_SUPABASE_URL is not the self-hosted production URL — run scripts/vps-fix-selfhost-env.sh"
-grep -qE '^SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEY)=' .env || fail "server database key is missing — run scripts/vps-fix-selfhost-env.sh"
+validate_production_env .env || fail ".env is not the verified self-hosted production config — run scripts/vps-fix-selfhost-env.sh"
 node scripts/verify-env.mjs || fail "environment verification failed — run scripts/vps-fix-selfhost-env.sh"
 [ -f ecosystem.config.cjs ] || fail "ecosystem.config.cjs missing"
 avail_mb=$(free -m | awk '/^Mem:/{print $7}')
 echo "  available RAM: ${avail_mb}MB"
 [ "${avail_mb:-0}" -ge 700 ] || echo "  ⚠️  low RAM — build may be slow or OOM"
 
-# .env must never be tracked by git, otherwise every reset wipes prod values
+# Preserve the verified environment outside the repository BEFORE any git
+# operation. Some legacy repositories still track .env despite .gitignore.
+cp .env "$ENV_BACKUP"
+chmod 600 "$ENV_BACKUP"
 if git ls-files --error-unmatch .env >/dev/null 2>&1; then
-  echo "  🔒 .env is tracked by git — untracking it so resets can't wipe it"
-  git rm --cached .env >/dev/null 2>&1 || true
-  grep -qx '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+  echo "  ⚠️  repository tracks .env; deploy will restore the VPS copy after git sync"
 fi
-# keep a fresh backup of the known-good env
-cp .env "$ENV_BACKUP" 2>/dev/null || true
 
 # --- 2. git sync (divergence handling) ---------------------------------------
 if [ "$DO_PULL" = "1" ]; then
@@ -194,13 +206,18 @@ if [ "$DO_PULL" = "1" ]; then
         fail "merge conflict — resolve manually or re-run with --auto-reset"
       }
     fi
-    # .env is gitignored in the repo, but a reset can still wipe it if tracked
-    [ -f .env ] || { cp "$ENV_BACKUP" .env; echo "  restored .env after git operation"; }
-    [ "$(grep -c '=' .env)" -ge 10 ] || { cp "$ENV_BACKUP" .env; echo "  restored full prod .env"; }
   fi
 else
   log "[2/8] git sync skipped (--no-pull)"
 fi
+
+# Always restore after git sync. A fast-forward/reset can replace a tracked .env
+# with the repository's hosted-backend values even when .gitignore contains it.
+cp "$ENV_BACKUP" .env || fail "could not restore production .env after git sync"
+chmod 600 .env
+validate_production_env .env || fail "git sync replaced production .env and recovery validation failed"
+node scripts/verify-env.mjs || fail "post-sync environment verification failed"
+echo "  ✅ self-hosted production .env restored and verified after git sync"
 echo "  HEAD: $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
 
 # --- 3. deps -----------------------------------------------------------------
@@ -238,14 +255,21 @@ if [ ! -f "$LIVE/server/index.mjs" ]; then
   fail "incomplete build — nothing deployed"
 fi
 
-# hard guard: a build made with the wrong .env bakes the sandbox backend into the
-# browser bundle -> every user gets "login not working". Never ship that.
-leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE/client/assets" 2>/dev/null | sort -u | head -1 || true)"
+# Hard guard BEFORE any worker restart. Nitro browser assets live under
+# .output/public/assets (not .output/client/assets), so scan the entire fresh
+# output. This also catches a hosted URL embedded in an SSR chunk.
+leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE" 2>/dev/null | sort -u | head -1 || true)"
 if [ -n "$leaked_host" ]; then
   echo "  ❌ built bundle points at $leaked_host instead of the self-hosted backend"
   restore_prev && echo "  ✅ previous build restored (site untouched)"
   fail "wrong .env at build time — run: bash scripts/vps-fix-selfhost-env.sh && bash scripts/deploy-zero-downtime.sh --auto-reset"
 fi
+self_hosted_refs="$(grep -rla 'https://supabase\.sleepox\.com' "$LIVE" 2>/dev/null | wc -l)"
+[ "$self_hosted_refs" -gt 0 ] || {
+  restore_prev && echo "  ✅ previous build restored (workers untouched)"
+  fail "fresh build does not contain the required self-hosted backend URL"
+}
+echo "  ✅ fresh output contains only the self-hosted backend URL"
 
 
 # --- 6. keep old hashed chunks resolvable for draining tabs -------------------
