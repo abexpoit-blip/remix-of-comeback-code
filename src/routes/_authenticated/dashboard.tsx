@@ -13,6 +13,7 @@ import {
 import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
 
 import { getPrimaryShortenerDomain } from "@/lib/shortener-domains.functions";
+import { isFlaggedShortDomain } from "@/lib/short-domains";
 import { getClickResetNotice, dismissClickResetNotice } from "@/lib/click-reset.functions";
 import { BroadcastBell } from "@/components/broadcast-bell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
