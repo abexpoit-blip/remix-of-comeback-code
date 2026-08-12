@@ -134,12 +134,12 @@ function DashboardPage() {
     refetchOnWindowFocus: false,
   });
   const [selectedDomain, setSelectedDomain] = useState<string>("");
-  const rawPrimary = primaryQ.data?.domain ?? "breezysocial.com";
+  const rawPrimary = primaryQ.data?.domain ?? "mefok.com";
   // Never hand out a Safe-Browsing-flagged domain, even if the DB still lists it.
-  const primaryDomain = isFlaggedShortDomain(rawPrimary) ? "breezysocial.com" : rawPrimary;
+  const primaryDomain = isFlaggedShortDomain(rawPrimary) || rawPrimary === "sleepox.com" ? "mefok.com" : rawPrimary;
   const customDomains = (dashQ.data?.customDomains ?? []).filter((d: string) => !isFlaggedShortDomain(d));
   // Built-in shortener domains always available + any user custom domains.
-  const BUILTIN_DOMAINS = ["breezysocial.com", "skypq.com", "mefok.com", "sleepox.com"].filter(
+  const BUILTIN_DOMAINS = ["mefok.com", "skypq.com", "breezysocial.com"].filter(
     (d) => !isFlaggedShortDomain(d),
   );
   const allDomains = Array.from(new Set([primaryDomain, ...BUILTIN_DOMAINS, ...customDomains]));
