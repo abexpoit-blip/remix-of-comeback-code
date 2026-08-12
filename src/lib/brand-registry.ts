@@ -37,6 +37,18 @@ const REGISTRY: Record<string, Brand> = {
     email: "hello@breezysocial.com",
     city: "San Francisco, CA",
   },
+  "skypq.com": {
+    name: "Skypq",
+    tagline: "Everyday essentials, thoughtfully made.",
+    email: "hello@skypq.com",
+    city: "Denver, CO",
+  },
+  "mefok.com": {
+    name: "Mefok",
+    tagline: "Simple home gear for better daily routines.",
+    email: "hello@mefok.com",
+    city: "Portland, OR",
+  },
   "sleepox.com": {
     name: "Sleepox",
     tagline: "Sleep-first gear engineered for real rest.",

@@ -15,6 +15,8 @@ export function isFlaggedShortDomain(host: string): boolean {
 
 export const SHORT_DOMAINS = [
   { host: "breezysocial.com", label: "breezysocial.com" },
+  { host: "skypq.com", label: "skypq.com" },
+  { host: "mefok.com", label: "mefok.com" },
 ] as const;
 
 export type ShortDomainHost = (typeof SHORT_DOMAINS)[number]["host"];
