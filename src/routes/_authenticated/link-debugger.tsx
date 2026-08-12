@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 import { listMyLinks } from "@/lib/links.functions";
 import { debugLinkPreview, getMyPlan, type BotKey } from "@/lib/link-debugger.functions";
-import { useShortDomain, SHORT_DOMAINS } from "@/lib/short-domains";
+import { useShortDomain, SHORT_DOMAINS, FLAGGED_SHORT_DOMAINS } from "@/lib/short-domains";
 
 export const Route = createFileRoute("/_authenticated/link-debugger")({
   head: () => ({ meta: [{ title: "Link Debugger — Sleepox" }] }),
@@ -297,7 +297,7 @@ function Results({ r, botLabel }: { r: Extract<DebugResult, { locked: false }>; 
       <div className="space-y-5">
         <Panel title="Response details" icon={<Info className="w-4 h-4" />}>
           {(() => {
-            const OUR_HOSTS = SHORT_DOMAINS.map((d) => d.host);
+            const OUR_HOSTS = [...SHORT_DOMAINS.map((d) => d.host), ...FLAGGED_SHORT_DOMAINS];
             let finalHost = "";
             try { finalHost = new URL(r.finalUrl).host.toLowerCase(); } catch {}
             const isOurDomain = OUR_HOSTS.some((h) => finalHost === h || finalHost.endsWith(`.${h}`));

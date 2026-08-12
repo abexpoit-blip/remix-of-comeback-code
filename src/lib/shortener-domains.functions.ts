@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isFlaggedShortDomain } from "@/lib/short-domains";
 
 const domainRegex = /^(?!:\/\/)([a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,}$/;
 
@@ -25,7 +26,18 @@ export const getPrimaryShortenerDomain = createServerFn({ method: "GET" })
       .eq("is_primary", true)
       .eq("is_active", true)
       .maybeSingle();
-    return { domain: data?.domain ?? "sleepox.com" };
+    const primary = data?.domain as string | undefined;
+    // A Safe-Browsing-flagged domain must never be served as primary.
+    if (!primary || isFlaggedShortDomain(primary)) {
+      const { data: alt } = await supabase
+        .from("shortener_domains")
+        .select("domain")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      const safe = (alt ?? []).map((r: any) => r.domain as string).find((d: string) => !isFlaggedShortDomain(d));
+      return { domain: safe ?? "breezysocial.com" };
+    }
+    return { domain: primary };
   });
 
 export const listShortenerDomains = createServerFn({ method: "GET" })

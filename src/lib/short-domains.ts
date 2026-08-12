@@ -1,17 +1,29 @@
 import { useEffect, useState, useCallback } from "react";
 
+/**
+ * Domains flagged by Google Safe Browsing / blocklists. They must never be
+ * offered or used as a default short domain — every link on them renders a
+ * red "Dangerous site" interstitial. Remove a host from here only after the
+ * Safe Browsing review has actually cleared it.
+ */
+export const FLAGGED_SHORT_DOMAINS: readonly string[] = ["tekuc.com"];
+
+export function isFlaggedShortDomain(host: string): boolean {
+  const h = (host || "").toLowerCase().split(":")[0].replace(/^www\./, "").trim();
+  return FLAGGED_SHORT_DOMAINS.includes(h);
+}
+
 export const SHORT_DOMAINS = [
-  { host: "tekuc.com", label: "tekuc.com" },
   { host: "breezysocial.com", label: "breezysocial.com" },
 ] as const;
 
 export type ShortDomainHost = (typeof SHORT_DOMAINS)[number]["host"];
 
 const STORAGE_KEY = "sleepox.shortDomain";
-const DEFAULT_HOST: ShortDomainHost = "tekuc.com";
+const DEFAULT_HOST: ShortDomainHost = "breezysocial.com";
 
 function isValidHost(h: string | null): h is ShortDomainHost {
-  return !!h && SHORT_DOMAINS.some((d) => d.host === h);
+  return !!h && !isFlaggedShortDomain(h) && SHORT_DOMAINS.some((d) => d.host === h);
 }
 
 /**
