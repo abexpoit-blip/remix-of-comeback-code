@@ -255,10 +255,15 @@ if [ ! -f "$LIVE/server/index.mjs" ]; then
   fail "incomplete build — nothing deployed"
 fi
 
-# Hard guard BEFORE any worker restart. Nitro browser assets live under
-# .output/public/assets (not .output/client/assets), so scan the entire fresh
-# output. This also catches a hosted URL embedded in an SSR chunk.
-leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE" 2>/dev/null | sort -u | head -1 || true)"
+# Hard guard BEFORE any worker restart. The Supabase SDK ships inert API-doc
+# examples containing https://example.supabase.co; bundlers may preserve those
+# comments/source maps. Ignore only that exact documentation placeholder and
+# reject every real hosted project URL.
+leaked_host="$(grep -rhaoE 'https://[a-z0-9-]+\.supabase\.co' "$LIVE" 2>/dev/null \
+  | grep -vx 'https://example\.supabase\.co' \
+  | sort -u \
+  | head -1 \
+  || true)"
 if [ -n "$leaked_host" ]; then
   echo "  ❌ built bundle points at $leaked_host instead of the self-hosted backend"
   restore_prev && echo "  ✅ previous build restored (site untouched)"
@@ -302,8 +307,10 @@ bad=""
 while IFS= read -r asset; do
   [ -n "$asset" ] || continue
   bad=$(curl -s --max-time 5 -H 'Accept-Encoding: identity' "http://127.0.0.1:${PORTS[0]}$asset" \
-    | grep -aoE 'https://[a-z0-9-]*\.supabase\.co' \
-    | head -1)
+    | grep -aoE 'https://[a-z0-9-]+\.supabase\.co' \
+    | grep -vx 'https://example\.supabase\.co' \
+    | head -1 \
+    || true)
   [ -z "$bad" ] || break
 done <<< "$current_assets"
 if [ -n "$bad" ]; then
