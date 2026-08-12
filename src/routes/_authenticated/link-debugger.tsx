@@ -297,7 +297,7 @@ function Results({ r, botLabel }: { r: Extract<DebugResult, { locked: false }>; 
       <div className="space-y-5">
         <Panel title="Response details" icon={<Info className="w-4 h-4" />}>
           {(() => {
-            const OUR_HOSTS = SHORT_DOMAINS.map((d) => d.host);
+            const OUR_HOSTS = [...SHORT_DOMAINS.map((d) => d.host), ...FLAGGED_SHORT_DOMAINS];
             let finalHost = "";
             try { finalHost = new URL(r.finalUrl).host.toLowerCase(); } catch {}
             const isOurDomain = OUR_HOSTS.some((h) => finalHost === h || finalHost.endsWith(`.${h}`));
