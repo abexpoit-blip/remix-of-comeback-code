@@ -31,6 +31,8 @@ const META_UAS = [
 const TARGET_DOMAINS = [
   "tekuc.com",
   "breezysocial.com",
+  "skypq.com",
+  "mefok.com",
   "sleepox.com",
   "www.sleepox.com",
 ];
