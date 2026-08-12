@@ -15,7 +15,7 @@ export const Route = createFileRoute("/blog/$slug")({
   },
   head: ({ loaderData, params }) => {
     const a = loaderData?.article;
-    const origin = loaderData?.origin ?? "https://tekuc.com";
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
     if (!a) return { meta: [{ title: "Article not found" }] };
     const imgPath = BLOG_IMAGES[a.slug];
     const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;

@@ -6,7 +6,9 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 
-const FALLBACK_ORIGIN = "https://tekuc.com";
+// 2026-08: tekuc.com is Google-Safe-Browsing flagged and retired. Never use it
+// as a canonical/OG fallback — it would stamp a blacklisted host on real pages.
+const FALLBACK_ORIGIN = "https://breezysocial.com";
 
 export const getRequestOrigin = createServerFn({ method: "GET" }).handler(async () => {
   try {

@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/public/hooks/leak-scan")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const domains = new Set<string>(["tekuc.com", "breezysocial.com"]);
+        const domains = new Set<string>(["breezysocial.com", "skypq.com", "mefok.com"]);
         try {
           const { data } = await supabaseAdmin
             .from("custom_domains")

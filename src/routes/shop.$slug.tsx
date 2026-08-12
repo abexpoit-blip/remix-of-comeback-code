@@ -18,7 +18,7 @@ export const Route = createFileRoute("/shop/$slug")({
   },
   head: ({ loaderData, params }) => {
     const p = loaderData?.product;
-    const origin = loaderData?.origin ?? "https://tekuc.com";
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
     if (!p) return { meta: [{ title: "Product not found" }] };
     const imgPath = PRODUCT_IMAGES[p.slug];
     const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;

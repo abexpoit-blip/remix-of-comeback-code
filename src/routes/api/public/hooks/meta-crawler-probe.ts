@@ -29,7 +29,6 @@ const META_UAS = [
 // Domains we advertise on Facebook / Meta. Keep this list in sync with
 // src/lib/short-domains.ts and the primary app host.
 const TARGET_DOMAINS = [
-  "tekuc.com",
   "breezysocial.com",
   "skypq.com",
   "mefok.com",
