@@ -133,21 +133,25 @@ function DashboardPage() {
     refetchOnWindowFocus: false,
   });
   const [selectedDomain, setSelectedDomain] = useState<string>("");
-  const primaryDomain = primaryQ.data?.domain ?? "tekuc.com";
-  const customDomains = dashQ.data?.customDomains ?? [];
+  const rawPrimary = primaryQ.data?.domain ?? "breezysocial.com";
+  // Never hand out a Safe-Browsing-flagged domain, even if the DB still lists it.
+  const primaryDomain = isFlaggedShortDomain(rawPrimary) ? "breezysocial.com" : rawPrimary;
+  const customDomains = (dashQ.data?.customDomains ?? []).filter((d: string) => !isFlaggedShortDomain(d));
   // Built-in shortener domains always available + any user custom domains.
-  // tekuc.com is the current primary — always listed first.
-  const BUILTIN_DOMAINS = ["tekuc.com", "breezysocial.com", "sleepox.com"];
-  const allDomains = Array.from(new Set([...BUILTIN_DOMAINS, ...customDomains]));
-  // Load persisted choice from localStorage on mount; default to primary (tekuc.com).
+  const BUILTIN_DOMAINS = ["breezysocial.com", "sleepox.com"].filter((d) => !isFlaggedShortDomain(d));
+  const allDomains = Array.from(new Set([primaryDomain, ...BUILTIN_DOMAINS, ...customDomains]));
+  // Load persisted choice from localStorage on mount; ignore flagged/stale values.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem("sleepox.shortDomain");
-    if (saved && allDomains.includes(saved)) setSelectedDomain(saved);
-    else setSelectedDomain(primaryDomain);
+    if (saved && !isFlaggedShortDomain(saved) && allDomains.includes(saved)) setSelectedDomain(saved);
+    else {
+      setSelectedDomain(primaryDomain);
+      window.localStorage.setItem("sleepox.shortDomain", primaryDomain);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customDomains.join(","), primaryDomain]);
-  const effectiveDomain = selectedDomain || primaryDomain;
+  const effectiveDomain = !selectedDomain || isFlaggedShortDomain(selectedDomain) ? primaryDomain : selectedDomain;
 
   const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
