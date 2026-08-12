@@ -14,15 +14,15 @@ export function isFlaggedShortDomain(host: string): boolean {
 }
 
 export const SHORT_DOMAINS = [
-  { host: "breezysocial.com", label: "breezysocial.com" },
-  { host: "skypq.com", label: "skypq.com" },
   { host: "mefok.com", label: "mefok.com" },
+  { host: "skypq.com", label: "skypq.com" },
+  { host: "breezysocial.com", label: "breezysocial.com" },
 ] as const;
 
 export type ShortDomainHost = (typeof SHORT_DOMAINS)[number]["host"];
 
 const STORAGE_KEY = "sleepox.shortDomain";
-const DEFAULT_HOST: ShortDomainHost = "breezysocial.com";
+const DEFAULT_HOST: ShortDomainHost = "mefok.com";
 
 function isValidHost(h: string | null): h is ShortDomainHost {
   return !!h && !isFlaggedShortDomain(h) && SHORT_DOMAINS.some((d) => d.host === h);
