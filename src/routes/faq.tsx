@@ -23,7 +23,7 @@ const FAQS: Array<{ category: string; q: string; a: string }> = [
 export const Route = createFileRoute("/faq")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
-    const origin = loaderData?.origin ?? "https://tekuc.com";
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
     const { meta, links } = buildOg({
       origin,
       path: "/faq",
