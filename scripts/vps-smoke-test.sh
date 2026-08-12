@@ -79,7 +79,9 @@ if [ -z "$asset" ]; then
 else
   leak=0
   for a in $asset; do
-    if curl -s --compressed --max-time 20 "$SITE$a" | grep -aq '[a-z0-9]\{16,\}\.supabase\.co'; then
+    # Ignore SDK documentation placeholders; real hosted project references
+    # are exactly 20 lowercase alphanumeric characters.
+    if curl -s --compressed --max-time 20 "$SITE$a" | grep -aEq 'https://[a-z0-9]{20}\.supabase\.co'; then
       bad "leak in $a"; leak=1
     fi
   done
