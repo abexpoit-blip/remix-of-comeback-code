@@ -1063,6 +1063,9 @@ const BRANDS: Brand[] = [
   { name: "The Weekly Note", accent: "#1d4ed8", tagline: "Clear reporting, honest tone", email: "editor@weeklynote.example" },
   { name: "OpenDesk Review", accent: "#7c3aed", tagline: "Everyday stories that matter", email: "desk@opendeskreview.example" },
   { name: "SignalPost", accent: "#c2410c", tagline: "Signal over noise", email: "contact@signalpost.example" },
+  { name: "The Quiet Column", accent: "#065f46", tagline: "Slow reporting, plain language", email: "notes@quietcolumn.example" },
+  { name: "Northside Reader", accent: "#9d174d", tagline: "Local stories, told simply", email: "mail@northsidereader.example" },
+  { name: "Everyday Journal", accent: "#4338ca", tagline: "Useful writing for ordinary days", email: "hello@everydayjournal.example" },
 ];
 function pickBrand(code: string): Brand {
   return BRANDS[hashCode(`brand:${code}`) % BRANDS.length];
