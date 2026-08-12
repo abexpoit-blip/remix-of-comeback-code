@@ -1888,25 +1888,39 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // block, so reload / duplicate tab never regresses to the article.
     const REVIEWER_DESK_COUNTRIES = new Set(["US", "IE", "GB", "DE", "SG", "NL"]);
     const coldDesktop = !hasAdClickSignal(url, referer) && !refererDomain;
+    // 2026-08 (false-positive fix): a REAL browser navigation always sends both
+    // an HTML Accept header and an Accept-Language header. Scripts, curl-with-UA,
+    // headless probes and reviewer tooling almost never send both. This is the
+    // strongest "is this an actual human browser?" signal we have that does NOT
+    // depend on geography, so every reviewer heuristic below now requires the
+    // visit to FAIL this test (or carry a hard datacenter/incoherence signal)
+    // before we downgrade it to the safe article. Without it, an owner opening
+    // their own link in a US/GB desktop Chrome saw the article — real traffic lost.
+    const realBrowserNav = /text\/html/i.test(accept) && acceptLanguage.trim().length > 0;
+    const datacenterAsn = !!asn && (DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
     // 2026-08 (leak-monitor #2): reviewers/probes that reach us from a
     // datacenter have no confident geo (no CF country header) and often no
     // ASN at all. A REAL clicker from a residential/mobile network almost
     // always resolves a country, so requiring "cold desktop AND no geo at all"
     // keeps buyer-country traffic untouched while catching hosted reviewers.
     const hostedNoGeoDesktop =
-      coldDesktop && !countryConfident && (!asn || DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
+      coldDesktop && !countryConfident && !realBrowserNav && (!asn || datacenterAsn);
     // 2026-08 (leak-monitor #3): a cold desktop hit whose UA claims Chrome/Edge
-    // but sends NO sec-ch-ua is never a real Chromium browser over HTTPS —
-    // it's a script/probe/reviewer tool (node fetch, curl-with-UA, headless).
-    // Safari/Firefox UAs are excluded, and real Chrome always sends the hint,
-    // so no genuine desktop clicker is affected.
-    const fakeChromeDesktop = coldDesktop && /chrome\/|edg\//i.test(uaLowFb) && !secChUa;
+    // but sends NO sec-ch-ua AND no real browser header pair is a script/probe.
+    // Requiring both conditions protects Chromium users behind privacy proxies
+    // or header-stripping corporate gateways, who do send Accept + Accept-Language.
+    const fakeChromeDesktop =
+      coldDesktop && /chrome\/|edg\//i.test(uaLowFb) && !secChUa && !realBrowserNav;
     const reviewerDesk =
       coldDesktop &&
-      ((countryConfident && !!country && REVIEWER_DESK_COUNTRIES.has(country)) ||
+      ((countryConfident &&
+        !!country &&
+        REVIEWER_DESK_COUNTRIES.has(country) &&
+        (!realBrowserNav || datacenterAsn || signalScore >= 25)) ||
         hostedNoGeoDesktop ||
         fakeChromeDesktop ||
-        signalScore >= 25);
+        signalScore >= (realBrowserNav ? 40 : 25));
+
 
 
     if (
