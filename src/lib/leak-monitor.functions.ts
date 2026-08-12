@@ -9,7 +9,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 /** Every domain we advertise from: built-ins + verified user custom domains. */
 async function collectDomains(): Promise<string[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const set = new Set<string>(["tekuc.com", "breezysocial.com", "skypq.com", "mefok.com"]);
+  const set = new Set<string>(["breezysocial.com", "skypq.com", "mefok.com"]);
   try {
     const { data } = await supabaseAdmin
       .from("custom_domains")
