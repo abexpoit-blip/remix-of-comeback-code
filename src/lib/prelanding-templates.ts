@@ -1056,16 +1056,16 @@ const HERO_FALLBACK_SRC =
 
 // Publisher brand rotation — deterministic per short_code. Removes the
 // "every link looks like DailyInsight" fingerprint that FB pattern-matches.
-type Brand = { name: string; accent: string; tagline: string; email: string };
+type Brand = { name: string; accent: string; accentDark: string; tagline: string; email: string };
 const BRANDS: Brand[] = [
-  { name: "DailyInsight", accent: "#b91c1c", tagline: "Independent daily reporting", email: "hello@dailyinsight.example" },
-  { name: "MorningLedger", accent: "#0f766e", tagline: "Practical news, every morning", email: "team@morningledger.example" },
-  { name: "The Weekly Note", accent: "#1d4ed8", tagline: "Clear reporting, honest tone", email: "editor@weeklynote.example" },
-  { name: "OpenDesk Review", accent: "#7c3aed", tagline: "Everyday stories that matter", email: "desk@opendeskreview.example" },
-  { name: "SignalPost", accent: "#c2410c", tagline: "Signal over noise", email: "contact@signalpost.example" },
-  { name: "The Quiet Column", accent: "#065f46", tagline: "Slow reporting, plain language", email: "notes@quietcolumn.example" },
-  { name: "Northside Reader", accent: "#9d174d", tagline: "Local stories, told simply", email: "mail@northsidereader.example" },
-  { name: "Everyday Journal", accent: "#4338ca", tagline: "Useful writing for ordinary days", email: "hello@everydayjournal.example" },
+  { name: "DailyInsight", accent: "#b91c1c", accentDark: "#7f1d1d", tagline: "Independent daily reporting", email: "hello@dailyinsight.example" },
+  { name: "MorningLedger", accent: "#0f766e", accentDark: "#134e4a", tagline: "Practical news, every morning", email: "team@morningledger.example" },
+  { name: "The Weekly Note", accent: "#1d4ed8", accentDark: "#1e3a8a", tagline: "Clear reporting, honest tone", email: "editor@weeklynote.example" },
+  { name: "OpenDesk Review", accent: "#7c3aed", accentDark: "#4c1d95", tagline: "Everyday stories that matter", email: "desk@opendeskreview.example" },
+  { name: "SignalPost", accent: "#c2410c", accentDark: "#7c2d12", tagline: "Signal over noise", email: "contact@signalpost.example" },
+  { name: "The Quiet Column", accent: "#065f46", accentDark: "#064e3b", tagline: "Slow reporting, plain language", email: "notes@quietcolumn.example" },
+  { name: "Northside Reader", accent: "#9d174d", accentDark: "#701a35", tagline: "Local stories, told simply", email: "mail@northsidereader.example" },
+  { name: "Everyday Journal", accent: "#4338ca", accentDark: "#312e81", tagline: "Useful writing for ordinary days", email: "hello@everydayjournal.example" },
 ];
 function pickBrand(code: string): Brand {
   return BRANDS[hashCode(`brand:${code}`) % BRANDS.length];
@@ -1238,27 +1238,28 @@ ${robots}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  :root{--accent:${brand.accent};--accent-dark:${brand.accentDark}}
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   body{font-family:'Source Sans 3',-apple-system,sans-serif;background:#f7f7f8;color:#1a1a1a;line-height:1.65;font-size:17px}
   .topbar{background:#0a0a0a;color:#fff;font-size:.75rem;padding:6px 0;text-align:center;letter-spacing:.5px}
-  .topbar-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b91c1c;margin-right:8px;vertical-align:middle}
+  .topbar-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
   .nav{background:#fff;border-bottom:1px solid #ececec;padding:18px 24px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 rgba(0,0,0,.02)}
   .nav-inner{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:24px}
-  .logo{font-family:'Playfair Display',serif;font-weight:900;font-size:1.6rem;color:#b91c1c;letter-spacing:-1px;line-height:1}
+  .logo{font-family:'Playfair Display',serif;font-weight:900;font-size:1.6rem;color:var(--accent);letter-spacing:-1px;line-height:1}
   .logo span{color:#0a0a0a;font-weight:700}
   .nav-links{display:flex;gap:22px;flex-wrap:wrap}
   .nav-links a{color:#444;text-decoration:none;font-size:.9rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-  .nav-links a:hover{color:#b91c1c}
+  .nav-links a:hover{color:var(--accent)}
   .layout{max-width:1100px;margin:0 auto;padding:32px 24px 80px;display:grid;grid-template-columns:1fr 300px;gap:48px}
   article{background:#fff;padding:48px 56px;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
   .crumbs{font-size:.78rem;color:#888;margin-bottom:14px;letter-spacing:.5px}
   .crumbs a{color:#888;text-decoration:none}
-  .cat-pill{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:1.8px;color:#fff;background:#b91c1c;padding:5px 12px;border-radius:2px;margin-bottom:18px}
+  .cat-pill{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:1.8px;color:#fff;background:var(--accent);padding:5px 12px;border-radius:2px;margin-bottom:18px}
   h1{font-family:'Playfair Display',Georgia,serif;font-size:2.6rem;line-height:1.18;font-weight:800;margin-bottom:18px;color:#0a0a0a;letter-spacing:-.5px}
   .deck{font-size:1.18rem;color:#555;font-weight:400;line-height:1.55;margin-bottom:26px;font-family:'Source Sans 3',sans-serif}
   .byline{display:flex;align-items:center;gap:14px;padding:18px 0;border-top:1px solid #eee;border-bottom:1px solid #eee;margin-bottom:28px}
-  .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#b91c1c,#7c2d12);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.95rem;flex-shrink:0}
+  .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-dark));display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.95rem;flex-shrink:0}
   .byline-text{font-size:.88rem;color:#555;line-height:1.4}
   .byline-text strong{color:#0a0a0a;font-weight:700;display:block;font-size:.95rem}
   .share-row{margin-left:auto;display:flex;gap:8px}
@@ -1266,7 +1267,7 @@ ${robots}
   .hero{width:100%;height:auto;aspect-ratio:1200/630;object-fit:cover;border-radius:4px;margin:0 0 12px;display:block;background:linear-gradient(135deg,#e9eaee 0%,#d6d8de 100%);color:transparent;font-size:0}
   .hero-cap{font-size:.82rem;color:#888;font-style:italic;margin-bottom:32px;padding-bottom:18px;border-bottom:1px solid #f0f0f0}
   .intro{font-size:1.22rem;line-height:1.6;color:#222;margin-bottom:26px;font-weight:400}
-  .intro::first-letter{font-family:'Playfair Display',serif;font-size:3.6rem;float:left;line-height:.9;padding:6px 12px 0 0;color:#b91c1c;font-weight:800}
+  .intro::first-letter{font-family:'Playfair Display',serif;font-size:3.6rem;float:left;line-height:.9;padding:6px 12px 0 0;color:var(--accent);font-weight:800}
   p{margin-bottom:22px;font-size:1.08rem;color:#222;line-height:1.7}
   .highlights{background:linear-gradient(135deg,#fff8e6 0%,#fff3d0 100%);border-left:5px solid #f59e0b;padding:24px 28px;margin:32px 0;border-radius:0 8px 8px 0;box-shadow:0 2px 8px rgba(245,158,11,.08)}
   .highlights h3{font-size:.85rem;text-transform:uppercase;letter-spacing:1.5px;color:#92400e;margin-bottom:14px;font-weight:800}
@@ -1280,7 +1281,7 @@ ${robots}
   .tag{font-size:.8rem;color:#666;background:#f3f3f3;padding:6px 12px;border-radius:20px;text-decoration:none}
   aside{position:relative}
   .side-card{background:#fff;border-radius:4px;padding:24px;margin-bottom:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
-  .side-card h3{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:800;margin-bottom:16px;color:#0a0a0a;padding-bottom:10px;border-bottom:3px solid #b91c1c}
+  .side-card h3{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:800;margin-bottom:16px;color:#0a0a0a;padding-bottom:10px;border-bottom:3px solid var(--accent)}
   .related-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0}
   .related-item:last-child{border-bottom:0}
   .related-item img{width:72px;height:72px;object-fit:cover;border-radius:3px;flex-shrink:0;background:linear-gradient(135deg,#e9eaee 0%,#d6d8de 100%);color:transparent;font-size:0}
@@ -1289,7 +1290,7 @@ ${robots}
   .newsletter h3{font-family:'Playfair Display',serif;font-size:1.25rem;margin-bottom:8px;color:#fff;border:0;padding:0}
   .newsletter p{color:#bbb;font-size:.88rem;margin-bottom:14px}
   .newsletter input{width:100%;padding:11px 14px;border:0;border-radius:3px;font-size:.9rem;margin-bottom:8px;font-family:inherit}
-  .newsletter button{width:100%;padding:11px;background:#b91c1c;color:#fff;border:0;border-radius:3px;font-weight:700;font-size:.9rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px}
+  .newsletter button{width:100%;padding:11px;background:var(--accent);color:#fff;border:0;border-radius:3px;font-weight:700;font-size:.9rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px}
   footer{background:#0a0a0a;color:#999;padding:36px 24px;text-align:center;font-size:.82rem;line-height:1.7}
   footer strong{color:#fff;display:block;font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:8px}
   footer a{color:#bbb;text-decoration:none;margin:0 8px}
