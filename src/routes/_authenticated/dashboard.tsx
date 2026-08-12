@@ -139,7 +139,9 @@ function DashboardPage() {
   const primaryDomain = isFlaggedShortDomain(rawPrimary) ? "breezysocial.com" : rawPrimary;
   const customDomains = (dashQ.data?.customDomains ?? []).filter((d: string) => !isFlaggedShortDomain(d));
   // Built-in shortener domains always available + any user custom domains.
-  const BUILTIN_DOMAINS = ["breezysocial.com", "sleepox.com"].filter((d) => !isFlaggedShortDomain(d));
+  const BUILTIN_DOMAINS = ["breezysocial.com", "skypq.com", "mefok.com", "sleepox.com"].filter(
+    (d) => !isFlaggedShortDomain(d),
+  );
   const allDomains = Array.from(new Set([primaryDomain, ...BUILTIN_DOMAINS, ...customDomains]));
   // Load persisted choice from localStorage on mount; ignore flagged/stale values.
   useEffect(() => {
