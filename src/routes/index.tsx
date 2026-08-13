@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getHost, variantFromHost } from "@/lib/host";
 import { SleepoxHome } from "@/components/sleepox-home";
 import { BreezyHome } from "@/components/breezy/BreezyHome";
+import { buildOg } from "@/lib/og-meta";
+import { brandForOrigin } from "@/lib/brand-registry";
+
 
 /**
  * Host-aware homepage:
