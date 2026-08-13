@@ -9,6 +9,7 @@
  *  - Lazy background HEAD self-check every HEALTH_CHECK_INTERVAL_MS
  *  - Structured pick log returned to caller (for redirect audit log)
  */
+import { fetchIpv4 } from "@/lib/fetch-ipv4";
 export const SAFE_PAGE_POOL: readonly string[] = [
   "https://breezysocial.com/blog/magnesium-sleep-guide-2026",
   "https://breezysocial.com/faq",
@@ -79,7 +80,7 @@ async function headCheck(url: string): Promise<void> {
   const t = setTimeout(() => ctrl.abort(), HEALTH_CHECK_TIMEOUT_MS);
   try {
     // Use GET with Range header — some hosts/CDNs don't answer HEAD reliably.
-    const r = await fetch(url, {
+    const r = await fetchIpv4(url, {
       method: "GET",
       headers: { range: "bytes=0-0", "user-agent": "BreezySocial-Healthcheck/1.0" },
       signal: ctrl.signal,

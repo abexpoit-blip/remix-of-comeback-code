@@ -1,3 +1,4 @@
+import { fetchIpv4 } from "@/lib/fetch-ipv4";
 /**
  * SMART BRAIN — LEAK MONITOR
  * ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ async function probe(
       "Accept-Language": "en-US,en;q=0.9",
     };
     if (opts.referer) headers.Referer = opts.referer;
-    const res = await fetch(url, {
+    const res = await fetchIpv4(url, {
       method: "GET",
       headers,
       redirect: opts.redirect ?? "manual",
