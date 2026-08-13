@@ -1,25 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
+import { buildOg } from "@/lib/og-meta";
+import { brandForOrigin } from "@/lib/brand-registry";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/contact")({
-  head: () => ({
-    meta: [
-      { title: `Contact — ${SITE.name}` },
-      { name: "description", content: `Reach the BreezySocial team. Email ${SITE.email} or use our contact form. We respond within 24 hours, Mon–Fri.` },
-      { property: "og:title", content: `Contact — ${SITE.name}` },
-      { property: "og:description", content: "Questions, returns, partnerships — we're here to help. 24-hour response on business days." },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://breezysocial.com/contact" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: `Contact — ${SITE.name}` },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/contact" }],
-  }),
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const brand = brandForOrigin(origin);
+    const { meta, links } = buildOg({
+      origin,
+      path: "/contact",
+      title: `Contact — ${SITE.name}`,
+      description: `Reach the ${brand.name} team. Email ${brand.email} or use our contact form. We respond within 24 hours, Mon–Fri.`,
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: ContactPage,
 });
+
 
 
 function ContactPage() {
