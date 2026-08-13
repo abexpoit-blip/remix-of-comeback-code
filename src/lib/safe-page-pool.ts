@@ -98,12 +98,13 @@ async function headCheck(url: string): Promise<void> {
       }));
     }
   } catch (e) {
-    markSafePageUnhealthy(url, null);
+    // Network-level failure (DNS/IPv6/hairpin from inside the VPS) is NOT
+    // evidence the page is broken for real visitors. Never mark unhealthy on
+    // transport errors — only real 4xx/5xx responses count.
     console.warn(JSON.stringify({
-      event: "safe_pool.unhealthy",
+      event: "safe_pool.check_skipped",
       url,
-      status: null,
-      reason: "fetch-failed",
+      reason: "transport-error",
       error: (e as Error)?.message,
     }));
   } finally {
