@@ -21,6 +21,7 @@ import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as OrderConfirmedRouteImport } from './routes/order-confirmed'
+import { Route as ManifestDotjsonRouteImport } from './routes/manifest[.]json'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -111,6 +112,11 @@ const PricingRoute = PricingRouteImport.update({
 const OrderConfirmedRoute = OrderConfirmedRouteImport.update({
   id: '/order-confirmed',
   path: '/order-confirmed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotjsonRoute = ManifestDotjsonRouteImport.update({
+  id: '/manifest.json',
+  path: '/manifest.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/order-confirmed': typeof OrderConfirmedRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/order-confirmed': typeof OrderConfirmedRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/order-confirmed': typeof OrderConfirmedRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -420,6 +429,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/llms.txt'
     | '/login'
+    | '/manifest.json'
     | '/order-confirmed'
     | '/pricing'
     | '/privacy'
@@ -463,6 +473,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/llms.txt'
     | '/login'
+    | '/manifest.json'
     | '/order-confirmed'
     | '/pricing'
     | '/privacy'
@@ -508,6 +519,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/llms.txt'
     | '/login'
+    | '/manifest.json'
     | '/order-confirmed'
     | '/pricing'
     | '/privacy'
@@ -554,6 +566,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
+  ManifestDotjsonRoute: typeof ManifestDotjsonRoute
   OrderConfirmedRoute: typeof OrderConfirmedRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -660,6 +673,13 @@ declare module '@tanstack/react-router' {
       path: '/order-confirmed'
       fullPath: '/order-confirmed'
       preLoaderRoute: typeof OrderConfirmedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.json': {
+      id: '/manifest.json'
+      path: '/manifest.json'
+      fullPath: '/manifest.json'
+      preLoaderRoute: typeof ManifestDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -945,6 +965,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
+  ManifestDotjsonRoute: ManifestDotjsonRoute,
   OrderConfirmedRoute: OrderConfirmedRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
