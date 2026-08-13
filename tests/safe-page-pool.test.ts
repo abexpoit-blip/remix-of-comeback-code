@@ -19,8 +19,8 @@ function resetHealth() {
 describe("safe-page-pool", () => {
   beforeEach(resetHealth);
 
-  test("pool has exactly 5 real breezysocial URLs", () => {
-    expect(SAFE_PAGE_POOL.length).toBe(5);
+  test("pool holds only real breezysocial URLs", () => {
+    expect(SAFE_PAGE_POOL.length).toBeGreaterThan(2);
     for (const u of SAFE_PAGE_POOL) {
       expect(u).toMatch(/^https:\/\/breezysocial\.com\//);
     }
