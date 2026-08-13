@@ -2,26 +2,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { ARTICLES } from "@/lib/breezy-data";
 import { BLOG_IMAGES } from "@/lib/breezy-content";
+import { buildOg } from "@/lib/og-meta";
+import { brandForOrigin } from "@/lib/brand-registry";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/blog/")({
-  head: () => ({
-    meta: [
-      { title: "Journal — BreezySocial" },
-      { name: "description", content: "Sleep science, wellness, gift guides, and travel — written by our editors and experts." },
-      { property: "og:title", content: "Journal — BreezySocial" },
-      { property: "og:description", content: "Sleep science, wellness, and lifestyle stories worth your time." },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://breezysocial.com/blog" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Journal — BreezySocial" },
-      { name: "twitter:description", content: "Sleep science, wellness, and lifestyle stories worth your time." },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/blog" }],
-  }),
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const brand = brandForOrigin(origin);
+    const { meta, links } = buildOg({
+      origin,
+      path: "/blog",
+      title: `Journal — ${brand.name}`,
+      description: "Sleep science, wellness, gift guides, and travel — written by our editors and experts.",
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: BlogIndexPage,
 });
+
 
 function BlogIndexPage() {
   return (

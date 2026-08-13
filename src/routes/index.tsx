@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getHost, variantFromHost } from "@/lib/host";
 import { SleepoxHome } from "@/components/sleepox-home";
 import { BreezyHome } from "@/components/breezy/BreezyHome";
+import { buildOg } from "@/lib/og-meta";
+import { brandForOrigin } from "@/lib/brand-registry";
+
 
 /**
  * Host-aware homepage:
@@ -20,28 +23,25 @@ export const Route = createFileRoute("/")({
   },
   head: ({ loaderData }) => {
     if (loaderData?.variant === "breezysocial") {
+      // Self-referencing origin + per-host brand. NEVER hard-code
+      // breezysocial.com here — every ad domain must look like its own
+      // independent store to Meta / Google, not a mirror of one brand.
+      const host = (loaderData?.host || "breezysocial.com").replace(/^www\./, "");
+      const origin = `https://${host}`;
+      const brand = brandForOrigin(origin);
+      const { meta, links } = buildOg({
+        origin,
+        path: "/",
+        title: `${brand.name} — ${brand.tagline}`,
+        description:
+          "Thoughtfully designed tools for better sleep, sharper focus, and easier travel. Free shipping over $50. 30-day returns.",
+        imageAlt: `${brand.name} — ${brand.tagline}`,
+        type: "website",
+      });
       return {
-        meta: [
-          { title: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
-          {
-            name: "description",
-            content:
-              "Thoughtfully designed tools for better sleep, sharper focus, and easier travel. Free shipping over $50. 30-day returns.",
-          },
-          { property: "og:title", content: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
-          { property: "og:description", content: "Curated sleep, wellness, and travel gadgets. Free shipping over $50." },
-          { property: "og:type", content: "website" },
-          { property: "og:url", content: "https://breezysocial.com/" },
-          { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-          { property: "og:image:width", content: "1200" },
-          { property: "og:image:height", content: "630" },
-          { name: "twitter:card", content: "summary_large_image" },
-          { name: "twitter:title", content: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
-          { name: "twitter:description", content: "Curated sleep, wellness, and travel gadgets. Free shipping over $50." },
-          { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-        ],
+        meta,
         links: [
-          { rel: "canonical", href: "https://breezysocial.com/" },
+          ...links,
           { rel: "preconnect", href: "https://fonts.googleapis.com" },
           { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
           {
@@ -55,16 +55,14 @@ export const Route = createFileRoute("/")({
             children: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
-              name: "BreezySocial",
-              url: "https://breezysocial.com",
-              logo: "https://breezysocial.com/favicon.svg",
-              email: "hello@breezysocial.com",
+              name: brand.name,
+              url: origin,
+              logo: `${origin}/favicon.svg`,
+              email: brand.email,
               address: {
                 "@type": "PostalAddress",
-                streetAddress: "1280 Market Street, Suite 400",
-                addressLocality: "San Francisco",
-                addressRegion: "CA",
-                postalCode: "94102",
+                addressLocality: brand.city.split(",")[0]?.trim(),
+                addressRegion: brand.city.split(",")[1]?.trim(),
                 addressCountry: "US",
               },
               foundingDate: "2019",
@@ -74,6 +72,7 @@ export const Route = createFileRoute("/")({
         ],
       };
     }
+
     return {
       meta: [
         { title: "Sleepox — Smart Link Manager & Real-Time Analytics" },

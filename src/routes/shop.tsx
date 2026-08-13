@@ -2,26 +2,27 @@ import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout, TrustBar } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
 import { PRODUCTS } from "@/lib/breezy-data";
+import { buildOg } from "@/lib/og-meta";
+import { brandForOrigin } from "@/lib/brand-registry";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/shop")({
-  head: () => ({
-    meta: [
-      { title: "Shop — BreezySocial Smart Gadgets" },
-      { name: "description", content: "Browse the full BreezySocial collection: sleep, wellness, smart home, and travel gadgets. Free shipping over $50." },
-      { property: "og:title", content: "Shop All Products — BreezySocial" },
-      { property: "og:description", content: "8 hand-picked gadgets for calm, modern living. Sleep, focus, travel." },
-      { property: "og:url", content: "https://breezysocial.com/shop" },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Shop All Products — BreezySocial" },
-      { name: "twitter:description", content: "8 hand-picked gadgets for calm, modern living. Sleep, focus, travel." },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/shop" }],
-  }),
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const brand = brandForOrigin(origin);
+    const { meta, links } = buildOg({
+      origin,
+      path: "/shop",
+      title: `Shop — ${brand.name} Smart Gadgets`,
+      description: `Browse the full ${brand.name} collection: sleep, wellness, smart home, and travel gadgets. Free shipping over $50.`,
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: ShopPage,
 });
+
 
 function ShopPage() {
   return (

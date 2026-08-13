@@ -1,9 +1,0 @@
-# LinkShield
-
-> Bot-filtered short links built for Facebook & Instagram ad campaigns. Cut wasted spend, boost real CTR, protect your ad accounts.
-
-## Pages
-
-- [Home](/): Smart URL shortener for Meta ad boosting.
-- [Pricing](/pricing): Plans for solo media buyers, pros, and agencies.
-- [Sign up](/signup): Create an account and start a free trial.

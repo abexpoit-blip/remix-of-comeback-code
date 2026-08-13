@@ -1,25 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
+import { buildOg } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({
-    meta: [
-      { title: `Terms of Service — ${SITE.name}` },
-      { name: "description", content: `The terms and conditions for using ${SITE.name} and purchasing our products.` },
-      { property: "og:title", content: `Terms of Service — ${SITE.name}` },
-      { property: "og:description", content: `The terms and conditions for using ${SITE.name} and purchasing our products.` },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://breezysocial.com/terms" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: `Terms of Service — ${SITE.name}` },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/terms" }],
-  }),
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const { meta, links } = buildOg({
+      origin,
+      path: "/terms",
+      title: `Terms of Service — ${SITE.name}`,
+      description: `The terms and conditions for using ${SITE.name} and purchasing our products.`,
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: TermsPage,
 });
+
 
 
 function TermsPage() {
