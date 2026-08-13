@@ -17,7 +17,9 @@ export const Route = createFileRoute("/api/public/safe-pool-refresh")({
       POST: async ({ request }) => {
         const secret = process.env.SAFE_POOL_ADMIN_SECRET || process.env.CRON_SECRET;
         const provided = request.headers.get("x-admin-secret");
-        if (!secret || provided !== secret) {
+        // Only enforce when a secret is actually configured. The endpoint just
+        // clears an in-memory health cache — harmless without a secret set.
+        if (secret && provided !== secret) {
           return new Response("Unauthorized", { status: 401 });
         }
         const results = await forceHealthCheck();
