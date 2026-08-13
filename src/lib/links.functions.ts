@@ -166,14 +166,18 @@ async function computeDashboardPayload(context: Awaited<ReturnType<typeof getReq
   }
 
   const clicksByDay: Record<string, number> = {};
-  (archivedRes.data ?? []).forEach((row: any) => {
-    const k = row.day;
-    clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(row.human_clicks ?? 0);
-  });
-
+  // The RPC already merges daily_stats archive for days no longer in the clicks
+  // table. To avoid double-counting, prefer the RPC value when present and only
+  // fall back to the archive for days the RPC does not cover (older RPCs).
   for (let i = 29; i >= 0; i--) {
     const k = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    clicksByDay[k] = (clicksByDay[k] ?? 0) + Number(stats.clicksByDay?.[k] ?? 0);
+    const rpcVal = Number(stats.clicksByDay?.[k] ?? 0);
+    if (rpcVal > 0) {
+      clicksByDay[k] = rpcVal;
+    } else {
+      const archived = (archivedRes.data ?? []).find((r: any) => r.day === k);
+      clicksByDay[k] = Number(archived?.human_clicks ?? 0);
+    }
   }
 
   return {
