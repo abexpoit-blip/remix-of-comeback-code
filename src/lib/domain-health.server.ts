@@ -1,3 +1,4 @@
+import { fetchIpv4 } from "@/lib/fetch-ipv4";
 /**
  * Server-only domain health probes: DNS, HTTP (+ redirect chain), SSL cert, DNSBL blacklist.
  *
@@ -82,7 +83,7 @@ async function checkHttp(domain: string) {
       const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
       let res: Response;
       try {
-        res = await fetch(url, {
+        res = await fetchIpv4(url, {
           method: "GET",
           redirect: "manual",
           signal: ctrl.signal,

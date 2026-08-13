@@ -1,3 +1,4 @@
+import { fetchIpv4 } from "@/lib/fetch-ipv4";
 // Meta crawler probe — runs on a cron schedule.
 // For each target domain we serve short links from, we fetch a canary URL
 // (root + newest short code) with each Meta / Facebook crawler UA. If the
@@ -43,7 +44,7 @@ async function probeOnce(url: string, ua: string) {
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   const startedAt = Date.now();
   try {
-    const res = await fetch(url, {
+    const res = await fetchIpv4(url, {
       method: "GET",
       headers: {
         "User-Agent": ua,
