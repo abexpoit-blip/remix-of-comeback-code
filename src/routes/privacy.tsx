@@ -1,25 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
+import { buildOg } from "@/lib/og-meta";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({
-    meta: [
-      { title: `Privacy Policy — ${SITE.name}` },
-      { name: "description", content: `How ${SITE.name} collects, uses, and protects your personal information.` },
-      { property: "og:title", content: `Privacy Policy — ${SITE.name}` },
-      { property: "og:description", content: `How ${SITE.name} collects, uses, and protects your personal information.` },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://breezysocial.com/privacy" },
-      { property: "og:image", content: "https://breezysocial.com/og-default.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: `Privacy Policy — ${SITE.name}` },
-      { name: "twitter:image", content: "https://breezysocial.com/og-default.png" },
-    ],
-    links: [{ rel: "canonical", href: "https://breezysocial.com/privacy" }],
-  }),
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }) => {
+    const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const { meta, links } = buildOg({
+      origin,
+      path: "/privacy",
+      title: `Privacy Policy — ${SITE.name}`,
+      description: `How ${SITE.name} collects, uses, and protects your personal information.`,
+      type: "website",
+    });
+    return { meta, links };
+  },
   component: PrivacyPage,
 });
+
 
 
 function PrivacyPage() {
