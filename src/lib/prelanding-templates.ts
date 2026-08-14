@@ -3,6 +3,7 @@
 // - 5 OG variants per template = 100 unique FB previews
 // - Deterministic per short_code (same link = same article = FB-cache safe)
 // - JSON-LD Article schema for richer crawler signals
+import { applySkin } from "@/lib/page-skin";
 
 export type PrelandingTemplate =
   | "verify"
