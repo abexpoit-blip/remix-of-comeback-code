@@ -282,7 +282,7 @@ export const createLink = createServerFn({ method: "POST" })
         user_id: context.userId,
         short_code: code,
         title: data.title ?? null,
-        destination_url: safeUrlToStore,
+        destination_url: safeUrlToStore ?? "https://sleepox.com/",
         adsterra_url: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",
