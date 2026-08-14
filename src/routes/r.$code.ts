@@ -14,6 +14,7 @@ import {
 } from "@/lib/bot-detect";
 import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
+import { resolveDestination } from "@/lib/destination-rotation";
 
 
 const SAFE_FALLBACK = "https://sleepox.com/";
@@ -1593,10 +1594,16 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       return new Response(html, { status: 200, headers });
     }
 
-    const missTarget =
-      globalCache.settings?.our_adsterra_url ||
-      globalCache.settings?.fallback_url ||
-      SAFE_FALLBACK;
+    // Rotated per short code: an unknown/expired code must not funnel the
+    // whole platform into one URL either.
+    const missTarget = resolveDestination({
+      code,
+      poolRaw: globalCache.settings?.destination_pool,
+      fallback:
+        globalCache.settings?.our_adsterra_url ||
+        globalCache.settings?.fallback_url ||
+        SAFE_FALLBACK,
+    });
     return redirectTo(missTarget, "offer", !link ? "link-not-found" : "link-inactive");
   }
 
@@ -1607,7 +1614,23 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const referrerRules = globalCache.referrer as ReferrerRule[];
   const countryTier = globalCache.tiers.get(country) ?? 3;
 
-  const OUR_URL = settings?.our_adsterra_url || SAFE_FALLBACK;
+  // PER-LINK DESTINATION ROTATION.
+  // Same system for every user: the global pool in app_settings.destination_pool
+  // is hashed by short code, so each link owns its own destination and stays on
+  // it forever (a link that changes target between two reviewer visits is itself
+  // a cloaking signal). Empty pool → previous single-URL behaviour.
+  const OUR_URL = resolveDestination({
+    code,
+    poolRaw: settings?.destination_pool,
+    fallback: settings?.our_adsterra_url || SAFE_FALLBACK,
+  });
+  // Offer-side rotation: used wherever a link has no destination of its own.
+  const ROTATED_OFFER = resolveDestination({
+    code,
+    linkUrl: link.adsterra_url,
+    poolRaw: settings?.destination_pool,
+    fallback: SAFE_FALLBACK,
+  });
   // SAFETY CLAMP: never allow misconfigured settings to push 100% of traffic
   // to OUR_URL. THRESHOLD floor = 100 → max injection probability = 33%.
   // Default 900 / 100 → 100/(900+100) = 10% ours, 90% offer.
@@ -2210,7 +2233,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     if (overQuota) {
       // Quota exceeded → would normally route to ours, but respect 1-ad-per-24h cap
       if (visitorAlreadySawAdToday) {
-        target = link.adsterra_url || SAFE_FALLBACK;
+        target = ROTATED_OFFER;
         routedTo = "offer";
       } else {
         target = OUR_URL;
@@ -2246,7 +2269,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
             abVariantLabel = picked.variant_label;
             routedTo = "offer";
           } else {
-            target = link.adsterra_url || SAFE_FALLBACK;
+            target = ROTATED_OFFER;
             routedTo = "offer";
           }
         } else if (geoRows && geoRows.length > 0) {
@@ -2266,10 +2289,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
           );
           const pool = exact.length > 0 ? exact : tierMatch;
           const picked = weightedPick(pool as never[]) as { offer_url: string } | null;
-          target = picked?.offer_url || link.adsterra_url || SAFE_FALLBACK;
+          target = picked?.offer_url || ROTATED_OFFER;
           routedTo = "offer";
         } else {
-          target = link.adsterra_url || SAFE_FALLBACK;
+          target = ROTATED_OFFER;
           routedTo = "offer";
         }
       }
