@@ -373,16 +373,17 @@ function DashboardPage() {
                   <Field label="Adsterra Direct Link *">
                     <input type="url" required value={adsterra} onChange={(e) => setAdsterra(e.target.value)} placeholder="https://..." className={fieldCls} />
                   </Field>
-                  <Field label="Safe URL (optional)" full>
+                  <Field label="Your own safe page / landing page (optional)" full>
                     <input
                       type="url"
                       value={safe}
                       onChange={(e) => setSafe(e.target.value)}
-                      placeholder="https://sleepox.com/"
+                      placeholder="https://your-site.com/article"
                       className={fieldCls}
                     />
                     <p className="text-[11px] text-[#A38D7D] mt-1">
-                      FB crawler & ad reviewers automatically receive our built safe article (200 OK HTML). Real users go to your offer.
+                      Leave empty → bots &amp; ad reviewers get our built-in rotating safe article (200 OK HTML).
+                      Paste your own URL → only <b>this link</b> shows your page to bots/reviewers. Real users always go to your offer.
                     </p>
                   </Field>
                   <div className="sm:col-span-2 flex gap-3 pt-1">
