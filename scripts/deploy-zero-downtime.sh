@@ -228,9 +228,14 @@ bun install --frozen-lockfile || bun install || fail "bun install failed"
 log "[4/8] snapshot current live build"
 snapshot_live
 [ -d "$PREV" ] && echo "  snapshot: $(du -sh "$PREV" | cut -f1)" || echo "  (no previous build to snapshot)"
+# The snapshot is a hardlink copy, so wiping the live tree is free and keeps the
+# rollback point intact. Building on top of an old .output is what leaves stale
+# server/_ssr chunks behind → ERR_MODULE_NOT_FOUND at runtime.
+[ -d "$PREV" ] && rm -rf "$LIVE"
 
 # --- 5. build ----------------------------------------------------------------
 log "[5/8] build"
+
 # Ignore stale Supabase variables exported in the deploy shell. Vite must read
 # the canonical values from the verified production .env above.
 if ! env \
