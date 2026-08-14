@@ -270,7 +270,11 @@ export const createLink = createServerFn({ method: "POST" })
     }
     if (isReservedShortCode(code)) throw new Error("Reserved short code generated. Please try again.");
 
-    const safeUrlToStore = data.safe_url ?? "https://sleepox.com/";
+    // Custom safe page is OPTIONAL. When the user supplies one it is stored as
+    // the link's own safe page and every bot/reviewer hit on THIS link lands
+    // there. When empty we store null so the redirect falls back to the
+    // platform's rotating article pool (never the SaaS homepage).
+    const safeUrlToStore = data.safe_url?.trim() || null;
 
     const { data: linkData, error } = await context.supabase
       .from("links")
