@@ -640,6 +640,40 @@ function DashboardPage() {
         />
       )}
 
+      <Dialog open={!!safeFor} onOpenChange={(o) => { if (!o) setSafeFor(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#2D1B0D]">Safe page for “{safeFor?.title}”</DialogTitle>
+            <DialogDescription>
+              Bots, crawlers and ad reviewers hitting this link will land here. Leave empty to use our
+              built-in rotating safe article. Real visitors always go to your offer.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="url"
+            value={safeFor?.value ?? ""}
+            onChange={(e) => setSafeFor((p) => (p ? { ...p, value: e.target.value } : p))}
+            placeholder="https://your-site.com/article"
+            className="w-full px-4 py-3 rounded-xl border border-[#FFEDD5] bg-white text-sm outline-none focus:border-[#FF7E5F]"
+          />
+          <DialogFooter className="gap-2">
+            <UIButton
+              variant="outline"
+              onClick={() => safeFor && safeMut.mutate({ id: safeFor.id, safe_url: "" })}
+              disabled={safeMut.isPending}
+            >
+              Use built-in article
+            </UIButton>
+            <UIButton
+              onClick={() => safeFor && safeMut.mutate({ id: safeFor.id, safe_url: safeFor.value.trim() })}
+              disabled={safeMut.isPending}
+            >
+              {safeMut.isPending ? "Saving…" : "Save"}
+            </UIButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!noticeQ.data?.showPopup} onOpenChange={(open) => { if (!open) dismissNotice(); }}>
 
         <DialogContent className="sm:max-w-md">
