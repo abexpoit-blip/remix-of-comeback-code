@@ -953,6 +953,7 @@ function TrafficTab() {
   const settings = useQuery({ queryKey: ["app-settings"], queryFn: () => settingsFn() });
   const [fallbackUrl, setFallbackUrl] = useState("");
   const [ourUrl, setOurUrl] = useState("");
+  const [destPool, setDestPool] = useState("");
   const [threshold, setThreshold] = useState(900);
   const [count, setCount] = useState(100);
   const [dailyOn, setDailyOn] = useState(true);
@@ -966,6 +967,14 @@ function TrafficTab() {
       const s: any = settings.data;
       setFallbackUrl(s.fallback_url ?? "");
       setOurUrl(s.our_adsterra_url ?? "");
+      setDestPool(
+        Array.isArray(s.destination_pool)
+          ? s.destination_pool
+              .map((d: any) => (typeof d === "string" ? d : d?.url))
+              .filter(Boolean)
+              .join("\n")
+          : "",
+      );
       setThreshold(s.injection_threshold ?? 900);
       setCount(s.injection_count ?? 100);
       setDailyOn(s.daily_redirect_enabled ?? true);
@@ -982,6 +991,10 @@ function TrafficTab() {
       const payload: any = {
         fallback_url: fallbackUrl,
         our_adsterra_url: ourUrl,
+        destination_pool: destPool
+          .split(/[\n,]+/)
+          .map((u) => u.trim())
+          .filter((u) => /^https?:\/\//i.test(u)),
         injection_threshold: Number(threshold),
         injection_count: Number(count),
         daily_redirect_enabled: dailyOn,
@@ -1010,6 +1023,16 @@ function TrafficTab() {
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Fallback / Daily redirect URL"><input value={fallbackUrl} onChange={(e) => setFallbackUrl(e.target.value)} className={inputCls} /></Field>
         <Field label="Our Adsterra Direct URL"><input value={ourUrl} onChange={(e) => setOurUrl(e.target.value)} className={inputCls} /></Field>
+        <Field label="Destination Pool (one URL per line — each link gets its own, permanently)">
+          <textarea
+            value={destPool}
+            onChange={(e) => setDestPool(e.target.value)}
+            rows={5}
+            spellCheck={false}
+            placeholder={"https://offer-a.example/xyz\nhttps://offer-b.example/xyz"}
+            className={inputCls + " font-mono text-xs"}
+          />
+        </Field>
         <Field label="Injection threshold"><input type="number" min={100} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className={inputCls} /></Field>
         <Field label="Injection count"><input type="number" min={1} value={count} onChange={(e) => setCount(Number(e.target.value))} className={inputCls} /></Field>
         <label className="sm:col-span-2 flex items-center gap-3 cursor-pointer">
