@@ -1222,8 +1222,9 @@ function processLinkRow(code: string, row: Record<string, unknown> | null): { li
   const adsterraDirect = (row.adsterra_direct_link as string | null) ?? null;
   const destination = (row.destination_url as string | null) ?? null;
   const adsterra = (row.adsterra_url as string | null) ?? adsterraDirect ?? destination ?? null;
-  const safe =
-    (row.safe_url as string | null) ?? (adsterraDirect ? destination : null) ?? SAFE_FALLBACK;
+  // Blank ("" or null) = no custom safe page → legacy behaviour, then pool.
+  const storedSafe = ((row.safe_url as string | null) ?? "").trim();
+  const safe = storedSafe || (adsterraDirect ? destination : null) || SAFE_FALLBACK;
   const isActive =
     typeof row.is_active === "boolean" ? (row.is_active as boolean) : row.status === "active";
   // Deterministic per-short-code article template. Same code → same article

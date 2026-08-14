@@ -352,7 +352,8 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const context = await getRequestAuth();
     await assertNotBanned(context.supabase, context.userId);
-    const value = data.safe_url.trim() || null;
+    // Column is NOT NULL in production — store "" (not null) when cleared.
+    const value = data.safe_url.trim();
     const { data: row, error } = await (context.supabase as any)
       .from("links")
       .update({ safe_url: value })
