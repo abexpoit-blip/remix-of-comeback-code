@@ -2175,11 +2175,8 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // Owner-supplied safe page wins for this one link, including for Meta's
     // crawler: preview and reviewer must see the SAME page a bot lands on.
     const ownSafe = customSafePage(link.safe_url);
-    if (ownSafe) {
-      return redirectTo(ownSafe, "safe", `custom-safe-page:${reason || (isFbBot ? "fb" : "bot")}`);
-    }
 
-    if (isFbBot) {
+    if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
       routedTo = "fb-article";
