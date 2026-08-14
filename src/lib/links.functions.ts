@@ -337,6 +337,36 @@ export const toggleLink = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// CUSTOM SAFE PAGE — per link. The user can point a single link at their own
+// landing / safe page; bots, ad reviewers and crawlers hitting THAT link are
+// sent there instead of our built-in rotating article. Empty string clears it
+// and restores the platform pool.
+export const updateSafeUrl = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({
+      id: z.string().uuid(),
+      safe_url: z.union([z.string().url(), z.literal("")]),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const context = await getRequestAuth();
+    await assertNotBanned(context.supabase, context.userId);
+    const value = data.safe_url.trim() || null;
+    const { data: row, error } = await (context.supabase as any)
+      .from("links")
+      .update({ safe_url: value })
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .select("short_code")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache(row?.short_code);
+    return { ok: true, safe_url: value };
+  });
+
+
+
 
 // COUNTRY SHIELD — paid-only feature. Users on `monthly` or `lifetime` plans
 // can block specific countries per link. Visitors from those countries are
