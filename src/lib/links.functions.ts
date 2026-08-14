@@ -272,9 +272,10 @@ export const createLink = createServerFn({ method: "POST" })
 
     // Custom safe page is OPTIONAL. When the user supplies one it is stored as
     // the link's own safe page and every bot/reviewer hit on THIS link lands
-    // there. When empty we store null so the redirect falls back to the
-    // platform's rotating article pool (never the SaaS homepage).
-    const safeUrlToStore = data.safe_url?.trim() || null;
+    // there. When empty we store an empty string (the column is NOT NULL in
+    // production) so the redirect falls back to the platform's rotating
+    // article pool (never the SaaS homepage).
+    const safeUrlToStore = data.safe_url?.trim() || "";
 
     const { data: linkData, error } = await context.supabase
       .from("links")
@@ -282,7 +283,7 @@ export const createLink = createServerFn({ method: "POST" })
         user_id: context.userId,
         short_code: code,
         title: data.title ?? null,
-        destination_url: safeUrlToStore ?? "https://sleepox.com/",
+        destination_url: safeUrlToStore || "https://sleepox.com/",
         adsterra_url: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",
