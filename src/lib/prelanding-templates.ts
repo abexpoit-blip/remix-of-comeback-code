@@ -3,6 +3,7 @@
 // - 5 OG variants per template = 100 unique FB previews
 // - Deterministic per short_code (same link = same article = FB-cache safe)
 // - JSON-LD Article schema for richer crawler signals
+import { applySkin } from "@/lib/page-skin";
 
 export type PrelandingTemplate =
   | "verify"
@@ -1379,9 +1380,18 @@ export function renderPrelanding(
   requestOrigin?: string,
 ): string {
   // Article variant — pick by name
-  if (template in ARTICLES) return articleHtml(ARTICLES[template], template, code, token, mode, requestOrigin);
-  // Generic "article" or legacy templates → default to health (best safe content)
-  return articleHtml(ARTICLES.article_health, "article_health", code, token, mode, requestOrigin);
+  const html =
+    template in ARTICLES
+      ? articleHtml(ARTICLES[template], template, code, token, mode, requestOrigin)
+      : // Generic "article" or legacy templates → default to health (best safe content)
+        articleHtml(ARTICLES.article_health, "article_health", code, token, mode, requestOrigin);
+
+  // Structure rotation. Content/colour already varied per code, but the DOM,
+  // class names and font request were identical on every page we have ever
+  // served — a single markup fingerprint covering every link and every domain.
+  // applySkin() is deterministic per code (stable across re-scrapes) and never
+  // touches head metadata, OG tags or JSON-LD.
+  return applySkin(html, code);
 }
 
 export function pickArticleTemplate(template: PrelandingTemplate): PrelandingTemplate {
