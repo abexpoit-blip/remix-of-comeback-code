@@ -2011,10 +2011,28 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       }
     }
     if (shieldCountry && link.blocked_countries.includes(shieldCountry)) {
-      isBot = true;
-      isFbBot = true; // serve article HTML, matches FB-safe routing
-      reason = `country-shield:${shieldCountry}`;
+      // 2026-08 SMART SHIELD: geography alone is no longer enough. A real ad
+      // clicker from a "blocked" country (owner testing, diaspora audience,
+      // VPN user) carries at least one human signal: an ad click-id / social
+      // referer, or a genuine browser navigation (HTML Accept + Accept-Language)
+      // from a residential network on mobile. We only force the safe page when
+      // the visit ALSO looks automated. This removes the need for users to
+      // manually curate country lists — the system decides per visit.
+      const shieldRealBrowser =
+        /text\/html/i.test(accept) && acceptLanguage.trim().length > 0;
+      const shieldAdClick = hasAdClickSignal(url, referer);
+      const shieldDatacenter = !!asn && (DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
+      const shieldDevice = detectDevice(ua);
+      const looksHuman =
+        !shieldDatacenter &&
+        (shieldAdClick || (shieldRealBrowser && shieldDevice !== "desktop"));
+      if (!looksHuman) {
+        isBot = true;
+        isFbBot = true; // serve article HTML, matches FB-safe routing
+        reason = `country-shield:${shieldCountry}${shieldDatacenter ? ":dc" : shieldDevice === "desktop" ? ":desktop" : ":nosignal"}`;
+      }
     }
+
   }
 
 
