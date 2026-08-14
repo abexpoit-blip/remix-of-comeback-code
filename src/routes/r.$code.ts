@@ -681,6 +681,24 @@ function markKnownHuman(code: string, fpHash: string): void {
 
 
 
+/**
+ * The link owner's OWN safe page / landing page, when they set one while
+ * creating (or editing) the link. Only this link uses it — every other link
+ * keeps the platform's rotating article pool. Returns null when unset,
+ * blank, the legacy SaaS-homepage default, or not a valid http(s) URL.
+ */
+function customSafePage(safeUrl: string | null | undefined): string | null {
+  const v = (safeUrl ?? "").trim();
+  if (!v || v === SAFE_FALLBACK) return null;
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeRedirectTarget(target: string | null | undefined): string {
   try {
     if (!target) return SAFE_FALLBACK;
