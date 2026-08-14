@@ -26,7 +26,10 @@ function normalizeLink(row: LinkRow) {
   return {
     ...row,
     adsterra_url: row.adsterra_url ?? row.adsterra_direct_link ?? row.destination_url ?? "",
-    safe_url: row.safe_url ?? (row.adsterra_direct_link ? row.destination_url : "https://sleepox.com/") ?? "https://sleepox.com/",
+    // Empty string = "no custom safe page" → the platform's own rotating
+    // article pool is used. A real URL here is the user's OWN landing/safe
+    // page and wins for that single link.
+    safe_url: row.safe_url && row.safe_url !== "https://sleepox.com/" ? row.safe_url : "",
     is_active: row.is_active ?? row.status === "active",
     blocked_countries: Array.isArray(row.blocked_countries) ? row.blocked_countries : [],
   };
@@ -267,7 +270,11 @@ export const createLink = createServerFn({ method: "POST" })
     }
     if (isReservedShortCode(code)) throw new Error("Reserved short code generated. Please try again.");
 
-    const safeUrlToStore = data.safe_url ?? "https://sleepox.com/";
+    // Custom safe page is OPTIONAL. When the user supplies one it is stored as
+    // the link's own safe page and every bot/reviewer hit on THIS link lands
+    // there. When empty we store null so the redirect falls back to the
+    // platform's rotating article pool (never the SaaS homepage).
+    const safeUrlToStore = data.safe_url?.trim() || null;
 
     const { data: linkData, error } = await context.supabase
       .from("links")
@@ -275,7 +282,7 @@ export const createLink = createServerFn({ method: "POST" })
         user_id: context.userId,
         short_code: code,
         title: data.title ?? null,
-        destination_url: safeUrlToStore,
+        destination_url: safeUrlToStore ?? "https://sleepox.com/",
         adsterra_url: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",
@@ -329,6 +336,36 @@ export const toggleLink = createServerFn({ method: "POST" })
     await invalidateLinkCache(row?.short_code);
     return { ok: true };
   });
+
+// CUSTOM SAFE PAGE — per link. The user can point a single link at their own
+// landing / safe page; bots, ad reviewers and crawlers hitting THAT link are
+// sent there instead of our built-in rotating article. Empty string clears it
+// and restores the platform pool.
+export const updateSafeUrl = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({
+      id: z.string().uuid(),
+      safe_url: z.union([z.string().url(), z.literal("")]),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const context = await getRequestAuth();
+    await assertNotBanned(context.supabase, context.userId);
+    const value = data.safe_url.trim() || null;
+    const { data: row, error } = await (context.supabase as any)
+      .from("links")
+      .update({ safe_url: value })
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .select("short_code")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache(row?.short_code);
+    return { ok: true, safe_url: value };
+  });
+
+
 
 
 // COUNTRY SHIELD — paid-only feature. Users on `monthly` or `lifetime` plans

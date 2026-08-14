@@ -6,11 +6,11 @@ import { toast } from "sonner";
 import {
   Copy, Trash2, Play, Pause, Plus, Search, ArrowRight, LifeBuoy,
   TrendingUp, Filter, RefreshCw, ChevronRight, Smartphone, Globe, Shield, ShieldCheck,
-  Crown, Gem, Star
+  Crown, Gem, Star, FileText
 } from "lucide-react";
 
 
-import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
+import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink, updateSafeUrl } from "@/lib/links.functions";
 
 import { getPrimaryShortenerDomain } from "@/lib/shortener-domains.functions";
 import { isFlaggedShortDomain } from "@/lib/short-domains";
@@ -54,6 +54,7 @@ function DashboardPage() {
   const create = useServerFn(createLink);
   const remove = useServerFn(deleteLink);
   const toggle = useServerFn(toggleLink);
+  const saveSafeUrl = useServerFn(updateSafeUrl);
 
   // One-time popup: notify user when admin/cron has reset all clicks since they last saw the notice.
   const resetNoticeFn = useServerFn(getClickResetNotice);
@@ -159,6 +160,13 @@ function DashboardPage() {
   const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
   const [shieldFor, setShieldFor] = useState<null | { id: string; title: string; initial: string[] }>(null);
+  // Per-link custom safe page editor
+  const [safeFor, setSafeFor] = useState<null | { id: string; title: string; value: string }>(null);
+  const safeMut = useMutation({
+    mutationFn: (v: { id: string; safe_url: string }) => saveSafeUrl({ data: v }),
+    onSuccess: () => { toast.success("Safe page saved"); setSafeFor(null); refreshMut.mutate(); },
+    onError: (e: Error) => toast.error(e.message || "Could not save safe page"),
+  });
   // Bulk-copy selection (Set of link ids)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const toggleSelect = (id: string) => {
@@ -365,16 +373,17 @@ function DashboardPage() {
                   <Field label="Adsterra Direct Link *">
                     <input type="url" required value={adsterra} onChange={(e) => setAdsterra(e.target.value)} placeholder="https://..." className={fieldCls} />
                   </Field>
-                  <Field label="Safe URL (optional)" full>
+                  <Field label="Your own safe page / landing page (optional)" full>
                     <input
                       type="url"
                       value={safe}
                       onChange={(e) => setSafe(e.target.value)}
-                      placeholder="https://sleepox.com/"
+                      placeholder="https://your-site.com/article"
                       className={fieldCls}
                     />
                     <p className="text-[11px] text-[#A38D7D] mt-1">
-                      FB crawler & ad reviewers automatically receive our built safe article (200 OK HTML). Real users go to your offer.
+                      Leave empty → bots &amp; ad reviewers get our built-in rotating safe article (200 OK HTML).
+                      Paste your own URL → only <b>this link</b> shows your page to bots/reviewers. Real users always go to your offer.
                     </p>
                   </Field>
                   <div className="sm:col-span-2 flex gap-3 pt-1">
@@ -515,6 +524,15 @@ function DashboardPage() {
                                     </span>
                                   )}
                                 </button>
+                                <button
+                                  title={(l as any).safe_url ? `Custom safe page: ${(l as any).safe_url}` : "Safe page: built-in rotating article (click to use your own)"}
+                                  onClick={() => setSafeFor({ id: l.id, title: l.title || l.short_code, value: (l as any).safe_url || "" })}
+                                  className={`p-1.5 rounded-lg hover:bg-[#FFEDD5]/60 shrink-0 ${
+                                    (l as any).safe_url ? "text-[#FF7E5F]" : "text-[#7D6452] hover:text-[#FF7E5F]"
+                                  }`}
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
                                 <a
                                   href={shortUrl}
                                   target="_blank"
@@ -621,6 +639,40 @@ function DashboardPage() {
           planSlug={(profile as any)?.plan_slug}
         />
       )}
+
+      <Dialog open={!!safeFor} onOpenChange={(o) => { if (!o) setSafeFor(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#2D1B0D]">Safe page for “{safeFor?.title}”</DialogTitle>
+            <DialogDescription>
+              Bots, crawlers and ad reviewers hitting this link will land here. Leave empty to use our
+              built-in rotating safe article. Real visitors always go to your offer.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="url"
+            value={safeFor?.value ?? ""}
+            onChange={(e) => setSafeFor((p) => (p ? { ...p, value: e.target.value } : p))}
+            placeholder="https://your-site.com/article"
+            className="w-full px-4 py-3 rounded-xl border border-[#FFEDD5] bg-white text-sm outline-none focus:border-[#FF7E5F]"
+          />
+          <DialogFooter className="gap-2">
+            <UIButton
+              variant="outline"
+              onClick={() => safeFor && safeMut.mutate({ id: safeFor.id, safe_url: "" })}
+              disabled={safeMut.isPending}
+            >
+              Use built-in article
+            </UIButton>
+            <UIButton
+              onClick={() => safeFor && safeMut.mutate({ id: safeFor.id, safe_url: safeFor.value.trim() })}
+              disabled={safeMut.isPending}
+            >
+              {safeMut.isPending ? "Saving…" : "Save"}
+            </UIButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!noticeQ.data?.showPopup} onOpenChange={(open) => { if (!open) dismissNotice(); }}>
 

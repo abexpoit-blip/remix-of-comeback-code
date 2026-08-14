@@ -681,6 +681,24 @@ function markKnownHuman(code: string, fpHash: string): void {
 
 
 
+/**
+ * The link owner's OWN safe page / landing page, when they set one while
+ * creating (or editing) the link. Only this link uses it — every other link
+ * keeps the platform's rotating article pool. Returns null when unset,
+ * blank, the legacy SaaS-homepage default, or not a valid http(s) URL.
+ */
+function customSafePage(safeUrl: string | null | undefined): string | null {
+  const v = (safeUrl ?? "").trim();
+  if (!v || v === SAFE_FALLBACK) return null;
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeRedirectTarget(target: string | null | undefined): string {
   try {
     if (!target) return SAFE_FALLBACK;
@@ -2154,7 +2172,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // actively blocks facebookexternalhit with 403, which causes FB to mark
     // the ad as "broken link" and reject it. Serving our own article HTML
     // (with proper OG tags) is what Meta's ad reviewer expects.
-    if (isFbBot) {
+    // Owner-supplied safe page wins for this one link, including for Meta's
+    // crawler: preview and reviewer must see the SAME page a bot lands on.
+    const ownSafe = customSafePage(link.safe_url);
+
+    if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
       routedTo = "fb-article";
@@ -2206,8 +2228,18 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // Phase A: rotate across 5 fixed real Breezy URLs (sitemap-indexed, real
     // content) instead of random safe_url. Same visitor+code → same URL.
     // Pool auto-skips unhealthy URLs (4xx/5xx) until next health check.
-    if (link.safe_url && link.safe_url !== SAFE_FALLBACK) {
-      target = link.safe_url;
+    // Owner-supplied safe page (set on the link) always wins — for this link
+    // only. Everyone else keeps the rotating pool.
+    if (ownSafe) {
+      target = ownSafe;
+      console.log(JSON.stringify({
+        event: "redirect.custom_safe_page",
+        code,
+        fp: fpHash,
+        target: ownSafe,
+        reason,
+        ua_class: isFbBot ? "fb-bot" : "non-fb-bot",
+      }));
     } else {
       const pick = pickSafePage(code, fpHash);
       target = pick.url;
