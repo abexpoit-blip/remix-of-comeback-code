@@ -302,13 +302,8 @@ find "$ATTIC" -type d -empty -delete 2>/dev/null || true
 mkdir -p "$ATTIC"
 # 4. restore historic chunks into the live build WITHOUT overwriting fresh files
 cp -rn "$ATTIC/." "$LIVE/public/" 2>/dev/null || true
+echo "  attic: $(du -sh "$ATTIC" 2>/dev/null | cut -f1) | live build: $(du -sh "$LIVE" | cut -f1)"
 
-# Safety: the server tree must contain no leftovers from the previous build.
-stale_ssr=$(comm -23 \
-  <(find "$LIVE/server" -type f -name '*.mjs' -printf '%P\n' 2>/dev/null | sort) \
-  <(find "$LIVE/server" -type f -name '*.mjs' -printf '%P\n' 2>/dev/null | sort) \
-  | wc -l)
-echo "  attic: $(du -sh "$ATTIC" 2>/dev/null | cut -f1) | live build: $(du -sh "$LIVE" | cut -f1) | stale ssr: $stale_ssr"
 
 
 # --- 7. rolling restart ------------------------------------------------------
