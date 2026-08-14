@@ -2172,6 +2172,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // actively blocks facebookexternalhit with 403, which causes FB to mark
     // the ad as "broken link" and reject it. Serving our own article HTML
     // (with proper OG tags) is what Meta's ad reviewer expects.
+    // Owner-supplied safe page wins for this one link, including for Meta's
+    // crawler: preview and reviewer must see the SAME page a bot lands on.
+    const ownSafe = customSafePage(link.safe_url);
+    if (ownSafe) {
+      return redirectTo(ownSafe, "safe", `custom-safe-page:${reason || (isFbBot ? "fb" : "bot")}`);
+    }
+
     if (isFbBot) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
