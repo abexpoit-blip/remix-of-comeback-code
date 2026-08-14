@@ -130,18 +130,40 @@ type DashboardPayload = {
   _fresh?: boolean;
 };
 
+// Never let a slow analytics query hang the whole dashboard. Links + profile
+// are what the UI needs to render; stats degrade gracefully to empty.
+async function withTimeout<T>(p: PromiseLike<T>, ms: number, fallback: T): Promise<T> {
+  return await Promise.race([
+    Promise.resolve(p).catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function computeDashboardPayload(context: Awaited<ReturnType<typeof getRequestAuth>>): Promise<DashboardPayload> {
   const linksRes = await selectLinks(context.supabase);
   const linkIds = (linksRes.data ?? []).map((l: any) => l.id);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const emptyRes = { data: null as any, error: null as any };
   const [profileRes, statsRes, domainsRes, archivedRes] = await Promise.all([
     context.supabase.from("profiles").select(
       "id, email, full_name, plan_slug, link_limit, links_used, click_quota, clicks_used, ours_clicks, plan_expires_at, avatar_url, is_banned, clicks_period_start"
     ).eq("id", context.userId).single(),
-    context.supabase.rpc("get_dashboard_stats" as never, { _user_id: context.userId } as never),
-    context.supabase.from("custom_domains").select("domain").eq("user_id", context.userId).eq("verified", true),
+    withTimeout<any>(
+      context.supabase.rpc("get_dashboard_stats" as never, { _user_id: context.userId } as never),
+      9000,
+      emptyRes,
+    ),
+    withTimeout<any>(
+      context.supabase.from("custom_domains").select("domain").eq("user_id", context.userId).eq("verified", true),
+      6000,
+      emptyRes,
+    ),
     linkIds.length
-      ? context.supabase.from("daily_stats").select("day, human_clicks").in("link_id", linkIds).gte("day", thirtyDaysAgo)
+      ? withTimeout<any>(
+          context.supabase.from("daily_stats").select("day, human_clicks").in("link_id", linkIds).gte("day", thirtyDaysAgo),
+          8000,
+          emptyRes,
+        )
       : Promise.resolve({ data: [] as any[], error: null as any }),
   ]);
   if (linksRes.error) throw new Error(linksRes.error.message);
@@ -352,7 +374,8 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const context = await getRequestAuth();
     await assertNotBanned(context.supabase, context.userId);
-    const value = data.safe_url.trim() || null;
+    // Column is NOT NULL in production — store "" (not null) when cleared.
+    const value = data.safe_url.trim();
     const { data: row, error } = await (context.supabase as any)
       .from("links")
       .update({ safe_url: value })
