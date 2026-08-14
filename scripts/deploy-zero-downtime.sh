@@ -277,9 +277,39 @@ echo "  ✅ fresh output contains only the self-hosted backend URL"
 
 
 # --- 6. keep old hashed chunks resolvable for draining tabs -------------------
-log "[6/8] merge old asset chunks (no overwrite)"
-[ -d "$PREV" ] && cp -rn "$PREV/." "$LIVE/" 2>/dev/null || true
-echo "  live build: $(du -sh "$LIVE" | cut -f1)"
+log "[6/8] keep old client chunks resolvable (asset attic)"
+# CLIENT assets only. Merging the previous server/ tree into a fresh build mixes
+# two module graphs and produces ERR_MODULE_NOT_FOUND on _ssr chunks, so the
+# server directory must stay 100% from the fresh build.
+#
+# The attic accumulates client chunks across MANY deploys (not just the last
+# one), so tabs opened several deploys ago still resolve their hashed chunks
+# instead of throwing ENOENT / "Failed to fetch dynamically imported module".
+ATTIC="$APP_DIR/.asset-attic"
+mkdir -p "$ATTIC"
+
+# 1. archive the chunks of the build we are replacing
+if [ -d "$PREV/public" ]; then
+  cp -rn "$PREV/public/." "$ATTIC/" 2>/dev/null || true
+fi
+# 2. archive the fresh chunks too (so the NEXT deploy can serve them)
+if [ -d "$LIVE/public" ]; then
+  cp -rn "$LIVE/public/." "$ATTIC/" 2>/dev/null || true
+fi
+# 3. prune anything untouched for 21 days so the attic cannot grow forever
+find "$ATTIC" -type f -mtime +21 -delete 2>/dev/null || true
+find "$ATTIC" -type d -empty -delete 2>/dev/null || true
+mkdir -p "$ATTIC"
+# 4. restore historic chunks into the live build WITHOUT overwriting fresh files
+cp -rn "$ATTIC/." "$LIVE/public/" 2>/dev/null || true
+
+# Safety: the server tree must contain no leftovers from the previous build.
+stale_ssr=$(comm -23 \
+  <(find "$LIVE/server" -type f -name '*.mjs' -printf '%P\n' 2>/dev/null | sort) \
+  <(find "$LIVE/server" -type f -name '*.mjs' -printf '%P\n' 2>/dev/null | sort) \
+  | wc -l)
+echo "  attic: $(du -sh "$ATTIC" 2>/dev/null | cut -f1) | live build: $(du -sh "$LIVE" | cut -f1) | stale ssr: $stale_ssr"
+
 
 # --- 7. rolling restart ------------------------------------------------------
 log "[7/8] rolling restart (1 worker at a time, 7 stay online)"
