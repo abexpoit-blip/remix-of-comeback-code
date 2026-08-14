@@ -154,13 +154,34 @@ function applySecurityHeaders(request: Request, response: Response): Response {
   });
 }
 
+/** On ad/shortener domains every SaaS path must look like it never existed. */
+function saasShield(request: Request): Response | null {
+  const url = new URL(request.url);
+  const host = (
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    ""
+  ).split(",")[0].trim();
+
+  if (isSleepoxSaasHost(host)) return null;
+  if (!isSaasOnlyPath(url.pathname)) return null;
+
+  return new Response(
+    "<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"><title>Page not found</title></head><body><h1>404 — Page not found</h1><p>The page you requested does not exist.</p></body></html>",
+    { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const routedRequest = restoreSaasRoute(request);
+      const shielded = saasShield(routedRequest);
+      if (shielded) return applySecurityHeaders(routedRequest, shielded);
       const handler = await getServerEntry();
       const response = await handler.fetch(routedRequest, env, ctx);
       return applySecurityHeaders(routedRequest, response);
+
     } catch (error) {
       console.error(error);
       return applySecurityHeaders(
