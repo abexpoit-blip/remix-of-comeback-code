@@ -148,21 +148,21 @@ async function computeDashboardPayload(context: Awaited<ReturnType<typeof getReq
     context.supabase.from("profiles").select(
       "id, email, full_name, plan_slug, link_limit, links_used, click_quota, clicks_used, ours_clicks, plan_expires_at, avatar_url, is_banned, clicks_period_start"
     ).eq("id", context.userId).single(),
-    withTimeout(
+    withTimeout<any>(
       context.supabase.rpc("get_dashboard_stats" as never, { _user_id: context.userId } as never),
       9000,
       emptyRes,
     ),
-    withTimeout(
+    withTimeout<any>(
       context.supabase.from("custom_domains").select("domain").eq("user_id", context.userId).eq("verified", true),
       6000,
-      { data: [] as any[], error: null as any },
+      emptyRes,
     ),
     linkIds.length
-      ? withTimeout(
+      ? withTimeout<any>(
           context.supabase.from("daily_stats").select("day, human_clicks").in("link_id", linkIds).gte("day", thirtyDaysAgo),
           8000,
-          { data: [] as any[], error: null as any },
+          emptyRes,
         )
       : Promise.resolve({ data: [] as any[], error: null as any }),
   ]);
