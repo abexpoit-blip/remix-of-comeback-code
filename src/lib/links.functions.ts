@@ -26,7 +26,10 @@ function normalizeLink(row: LinkRow) {
   return {
     ...row,
     adsterra_url: row.adsterra_url ?? row.adsterra_direct_link ?? row.destination_url ?? "",
-    safe_url: row.safe_url ?? (row.adsterra_direct_link ? row.destination_url : "https://sleepox.com/") ?? "https://sleepox.com/",
+    // Empty string = "no custom safe page" → the platform's own rotating
+    // article pool is used. A real URL here is the user's OWN landing/safe
+    // page and wins for that single link.
+    safe_url: row.safe_url && row.safe_url !== "https://sleepox.com/" ? row.safe_url : "",
     is_active: row.is_active ?? row.status === "active",
     blocked_countries: Array.isArray(row.blocked_countries) ? row.blocked_countries : [],
   };
