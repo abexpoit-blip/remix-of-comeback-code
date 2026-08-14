@@ -54,6 +54,7 @@ function DashboardPage() {
   const create = useServerFn(createLink);
   const remove = useServerFn(deleteLink);
   const toggle = useServerFn(toggleLink);
+  const saveSafeUrl = useServerFn(updateSafeUrl);
 
   // One-time popup: notify user when admin/cron has reset all clicks since they last saw the notice.
   const resetNoticeFn = useServerFn(getClickResetNotice);
