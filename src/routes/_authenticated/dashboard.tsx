@@ -524,6 +524,15 @@ function DashboardPage() {
                                     </span>
                                   )}
                                 </button>
+                                <button
+                                  title={(l as any).safe_url ? `Custom safe page: ${(l as any).safe_url}` : "Safe page: built-in rotating article (click to use your own)"}
+                                  onClick={() => setSafeFor({ id: l.id, title: l.title || l.short_code, value: (l as any).safe_url || "" })}
+                                  className={`p-1.5 rounded-lg hover:bg-[#FFEDD5]/60 shrink-0 ${
+                                    (l as any).safe_url ? "text-[#FF7E5F]" : "text-[#7D6452] hover:text-[#FF7E5F]"
+                                  }`}
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
                                 <a
                                   href={shortUrl}
                                   target="_blank"
