@@ -159,6 +159,13 @@ function DashboardPage() {
   const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
   const [shieldFor, setShieldFor] = useState<null | { id: string; title: string; initial: string[] }>(null);
+  // Per-link custom safe page editor
+  const [safeFor, setSafeFor] = useState<null | { id: string; title: string; value: string }>(null);
+  const safeMut = useMutation({
+    mutationFn: (v: { id: string; safe_url: string }) => saveSafeUrl({ data: v }),
+    onSuccess: () => { toast.success("Safe page saved"); setSafeFor(null); refreshMut.mutate(); },
+    onError: (e: Error) => toast.error(e.message || "Could not save safe page"),
+  });
   // Bulk-copy selection (Set of link ids)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const toggleSelect = (id: string) => {
