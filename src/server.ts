@@ -164,13 +164,21 @@ function saasShield(request: Request): Response | null {
   ).split(",")[0].trim();
 
   if (isSleepoxSaasHost(host)) return null;
-  if (!isSaasOnlyPath(url.pathname)) return null;
+
+  // The proxy rewrites bare paths on shortener hosts into `/r/<code>`, so
+  // `mefok.com/dashboard` arrives as `/r/dashboard` and used to render a safe
+  // article (HTTP 200) instead of vanishing. A SaaS path must 404 in BOTH
+  // shapes, otherwise an ad reviewer sees an article at a product URL.
+  const p = url.pathname;
+  const bare = p.toLowerCase().startsWith("/r/") ? p.slice(2) || "/" : p;
+  if (!isSaasOnlyPath(bare)) return null;
 
   return new Response(
     "<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"><title>Page not found</title></head><body><h1>404 — Page not found</h1><p>The page you requested does not exist.</p></body></html>",
-    { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+    { status: 404, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
   );
 }
+
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
