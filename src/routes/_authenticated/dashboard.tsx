@@ -6,11 +6,11 @@ import { toast } from "sonner";
 import {
   Copy, Trash2, Play, Pause, Plus, Search, ArrowRight, LifeBuoy,
   TrendingUp, Filter, RefreshCw, ChevronRight, Smartphone, Globe, Shield, ShieldCheck,
-  Crown, Gem, Star
+  Crown, Gem, Star, FileText
 } from "lucide-react";
 
 
-import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink } from "@/lib/links.functions";
+import { getDashboardData, refreshDashboardData, createLink, deleteLink, toggleLink, updateSafeUrl } from "@/lib/links.functions";
 
 import { getPrimaryShortenerDomain } from "@/lib/shortener-domains.functions";
 import { isFlaggedShortDomain } from "@/lib/short-domains";
