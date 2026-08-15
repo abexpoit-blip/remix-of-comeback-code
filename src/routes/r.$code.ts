@@ -2027,6 +2027,28 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   }
 
 
+  // 0d-bis. GLOBAL COUNTRY BLOCK — applies to every link, no per-link config.
+  // The 10h audit showed US traffic is 99.96% Meta/reviewer infrastructure
+  // (36.6k facebookexternalhit + Meta ASN 32934, 15 humans total). Those hits
+  // must never see an offer. Default: US. Override with a comma list, or set
+  // SLEEPOX_GLOBAL_BLOCK_COUNTRIES="" to disable entirely.
+  if (!isBot && GLOBAL_BLOCK_COUNTRIES.size > 0) {
+    let gCountry = countryConfident ? country : "";
+    if (!gCountry && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
+      gCountry = await resolveCountryByIp(ip, 400);
+      if (gCountry) {
+        country = gCountry;
+        countryConfident = true;
+      }
+    }
+    // Unknown geo still passes — fail-open protects real revenue.
+    if (gCountry && GLOBAL_BLOCK_COUNTRIES.has(gCountry)) {
+      isBot = true;
+      isFbBot = true; // 200 OK article, never a redirect
+      reason = `global-country-block:${gCountry}`;
+    }
+  }
+
 
   // 0e. COUNTRY SHIELD — per-link user-defined country block list.
   // Paid users (monthly/lifetime) can pick countries (e.g. US, DK, IE, OM)
