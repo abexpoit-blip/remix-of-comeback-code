@@ -315,6 +315,13 @@ const GLOBAL_BLOCK_COUNTRIES = new Set(
     .filter(Boolean),
 );
 
+/**
+ * Buyer geos that must never be country-blocked (real human traffic).
+ * Reviewers from these countries are still caught by bot detection.
+ */
+const NEVER_BLOCK_COUNTRIES = new Set(["PH", "BD", "IN", "ID", "PK", "NP", "VN"]);
+
+
 
 function hasAdClickSignal(url: URL, referer: string): boolean {
   for (const p of AD_CLICK_PARAMS) {
