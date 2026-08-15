@@ -44,13 +44,10 @@ SET search_path = public
 AS $$
 BEGIN
   IF coalesce(NEW.safe_url, '') <> '' AND (
-       NEW.safe_url ILIKE '%sleepox.com%'
-    OR NEW.safe_url = NEW.destination_url
-    OR NEW.safe_url = NEW.adsterra_url
-    OR split_part(split_part(NEW.safe_url, '//', 2), '/', 1)
-       = split_part(split_part(coalesce(NEW.adsterra_url, ''), '//', 2), '/', 1)
-    OR split_part(split_part(NEW.safe_url, '//', 2), '/', 1)
-       = split_part(split_part(coalesce(NEW.destination_url, ''), '//', 2), '/', 1)
+       NEW.safe_url ~* 'sleepox'
+    OR NEW.safe_url ILIKE '%localhost%'
+    OR extract_host(NEW.safe_url) = extract_host(NEW.destination_url)
+    OR extract_host(NEW.safe_url) = extract_host(NEW.adsterra_url)
   ) THEN
     NEW.safe_url := '';
   END IF;
