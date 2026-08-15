@@ -307,7 +307,16 @@ find "$ATTIC" -type d -empty -delete 2>/dev/null || true
 mkdir -p "$ATTIC"
 # 4. restore historic chunks into the live build WITHOUT overwriting fresh files
 cp -rn "$ATTIC/." "$LIVE/public/" 2>/dev/null || true
+# 5. guarantee the repo's static files (favicon.ico, icons, og-default.png…)
+#    exist in the served root. Some builds skip copying public/, which turns
+#    every favicon request into an ENOENT stack trace in the worker logs.
+if [ -d "$APP_DIR/public" ]; then
+  mkdir -p "$LIVE/public"
+  cp -rn "$APP_DIR/public/." "$LIVE/public/" 2>/dev/null || true
+fi
 echo "  attic: $(du -sh "$ATTIC" 2>/dev/null | cut -f1) | live build: $(du -sh "$LIVE" | cut -f1)"
+
+
 
 
 
