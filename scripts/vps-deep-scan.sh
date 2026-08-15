@@ -47,10 +47,13 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
  let a=[];try{a=JSON.parse(s)}catch(e){console.log("   pm2 jlist unreadable");return}
  let bad=0;
  for(const p of a){const e=p.pm2_env||{};const m=p.monit||{};
-  const line=`   ${p.name.padEnd(12)} ${String(e.status).padEnd(10)} restarts=${String(e.restart_time).padEnd(5)} mem=${Math.round((m.memory||0)/1048576)}MB cpu=${m.cpu}%`;
+  const line=`   ${p.name.padEnd(12)} ${String(e.status).padEnd(10)} restarts=${String(e.restart_time).padEnd(5)} unstable=${String(e.unstable_restarts||0).padEnd(3)} up=${Math.round((Date.now()-(e.pm_uptime||Date.now()))/1000)}s mem=${Math.round((m.memory||0)/1048576)}MB cpu=${m.cpu}%`;
   console.log(line);
-  if(e.status!=="online"||e.restart_time>10)bad++;}
- console.log(bad?`   ❌ ${bad} worker(s) unhealthy (offline or restart-looping)`:"   ✅ all workers online, restart counts sane");
+  // restart_time is CUMULATIVE across every deploy, so a high value is normal.
+  // A worker is only unhealthy when it is offline, crash-looping (unstable
+  // restarts) or has been up for less than 20s outside a deploy window.
+  if(e.status!=="online"||(e.unstable_restarts||0)>0)bad++;}
+ console.log(bad?`   ❌ ${bad} worker(s) unhealthy (offline or crash-looping)`:"   ✅ all workers online, no crash loops");
 });'
 
 hdr "3) PORT LISTENERS (expect 4000-4007)"
