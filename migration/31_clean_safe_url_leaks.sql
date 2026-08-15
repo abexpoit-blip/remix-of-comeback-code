@@ -1,21 +1,39 @@
 -- 2026-08-15 — remove safe_url values that expose the operation to reviewers.
 -- 1351 links pointed their "safe page" at our own SaaS (sleepox.com) and 92 at
--- the offer / ad-network host itself. NULL means "use the rotating article
+-- the offer / ad-network host itself. '' means "use the rotating article
 -- pool", which is always the safe behaviour.
 
+-- Robust hostname extractor: handles protocol, userinfo, port, path.
+CREATE OR REPLACE FUNCTION public.extract_host(url text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT lower(
+    regexp_replace(
+      split_part(regexp_replace(coalesce(url, ''), '^\s+', ''), '/', 3),
+      '^([^@]+@|www\.)', ''
+    )
+  )
+$$;
+
+-- First pass: broad match (sleepox / localhost / own offer host).
 UPDATE public.links
 SET safe_url = ''
 WHERE coalesce(safe_url, '') <> ''
   AND (
-    safe_url ILIKE '%sleepox.com%'
+    safe_url ~* 'sleepox'
     OR safe_url ILIKE '%localhost%'
-    OR safe_url = destination_url
-    OR safe_url = adsterra_url
-    OR split_part(split_part(safe_url, '//', 2), '/', 1)
-       = split_part(split_part(coalesce(adsterra_url, ''), '//', 2), '/', 1)
-    OR split_part(split_part(safe_url, '//', 2), '/', 1)
-       = split_part(split_part(coalesce(destination_url, ''), '//', 2), '/', 1)
+    OR extract_host(safe_url) = extract_host(destination_url)
+    OR extract_host(safe_url) = extract_host(adsterra_url)
   );
+
+-- Second pass: catch any remaining safe_url that still contains sleepox
+-- (handles whitespace, encoded chars, unusual protocols).
+UPDATE public.links
+SET safe_url = ''
+WHERE coalesce(safe_url, '') <> ''
+  AND safe_url ~* 'sleepox';
 
 -- Guard: block the same mistake at write time.
 CREATE OR REPLACE FUNCTION public.sanitize_link_safe_url()
