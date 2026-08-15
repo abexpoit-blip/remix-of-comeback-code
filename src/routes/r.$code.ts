@@ -15,9 +15,12 @@ import {
 import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 import { resolveDestination } from "@/lib/destination-rotation";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 
 
-const SAFE_FALLBACK = "https://sleepox.com/";
+// Never point a bot/reviewer at the SaaS host — that is cloaking proof.
+const SAFE_FALLBACK = "https://breezysocial.com/blog";
+const LEGACY_SAAS_SAFE_URL = "https://sleepox.com/";
 const RESERVED_PUBLIC_PATHS = new Set([
   "about",
   "privacy",
@@ -300,6 +303,18 @@ const AD_CLICK_PARAMS = [
 ];
 const SOCIAL_REFERRER_RE =
   /(facebook|fb\.me|fbcdn|instagram|messenger|whatsapp|tiktok|t\.co|twitter|x\.com|snapchat|pinterest|google|bing|yandex)\./i;
+
+/**
+ * Countries blocked on EVERY link (not per-link). Default US — the traffic
+ * audit showed it is Meta reviewer / crawler infrastructure, not buyers.
+ */
+const GLOBAL_BLOCK_COUNTRIES = new Set(
+  (process.env.SLEEPOX_GLOBAL_BLOCK_COUNTRIES ?? "US")
+    .split(",")
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean),
+);
+
 
 function hasAdClickSignal(url: URL, referer: string): boolean {
   for (const p of AD_CLICK_PARAMS) {
@@ -687,17 +702,44 @@ function markKnownHuman(code: string, fpHash: string): void {
  * keeps the platform's rotating article pool. Returns null when unset,
  * blank, the legacy SaaS-homepage default, or not a valid http(s) URL.
  */
-function customSafePage(safeUrl: string | null | undefined): string | null {
+/**
+ * Owner-supplied safe page. Rejected when it would expose the operation:
+ *   • our own SaaS host (sleepox.com) — a reviewer landing on a link-shortener
+ *     dashboard is the single clearest cloaking proof there is,
+ *   • the link's own offer / ad-network host — that sends the reviewer straight
+ *     to the money page (24 live links were configured exactly like this),
+ *   • empty / non-http values.
+ * Rejection just means "use the rotating article pool instead", never an error.
+ */
+function customSafePage(
+  safeUrl: string | null | undefined,
+  offerHosts: Array<string | null | undefined> = [],
+): string | null {
   const v = (safeUrl ?? "").trim();
-  if (!v || v === SAFE_FALLBACK) return null;
+  if (!v || v === SAFE_FALLBACK || v === LEGACY_SAAS_SAFE_URL) return null;
   try {
     const parsed = new URL(v);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    const host = parsed.hostname.toLowerCase();
+    if (isSleepoxSaasHost(host)) return null;
+    const banned = new Set(
+      offerHosts
+        .map((u) => {
+          try {
+            return new URL(u ?? "").hostname.toLowerCase();
+          } catch {
+            return "";
+          }
+        })
+        .filter(Boolean),
+    );
+    if (banned.has(host)) return null;
     return parsed.toString();
   } catch {
     return null;
   }
 }
+
 
 function sanitizeRedirectTarget(target: string | null | undefined): string {
   try {
@@ -2027,6 +2069,28 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   }
 
 
+  // 0d-bis. GLOBAL COUNTRY BLOCK — applies to every link, no per-link config.
+  // The 10h audit showed US traffic is 99.96% Meta/reviewer infrastructure
+  // (36.6k facebookexternalhit + Meta ASN 32934, 15 humans total). Those hits
+  // must never see an offer. Default: US. Override with a comma list, or set
+  // SLEEPOX_GLOBAL_BLOCK_COUNTRIES="" to disable entirely.
+  if (!isBot && GLOBAL_BLOCK_COUNTRIES.size > 0) {
+    let gCountry = countryConfident ? country : "";
+    if (!gCountry && ip && ip !== "127.0.0.1" && !ip.startsWith("::1")) {
+      gCountry = await resolveCountryByIp(ip, 400);
+      if (gCountry) {
+        country = gCountry;
+        countryConfident = true;
+      }
+    }
+    // Unknown geo still passes — fail-open protects real revenue.
+    if (gCountry && GLOBAL_BLOCK_COUNTRIES.has(gCountry)) {
+      isBot = true;
+      isFbBot = true; // 200 OK article, never a redirect
+      reason = `global-country-block:${gCountry}`;
+    }
+  }
+
 
   // 0e. COUNTRY SHIELD — per-link user-defined country block list.
   // Paid users (monthly/lifetime) can pick countries (e.g. US, DK, IE, OM)
@@ -2051,27 +2115,32 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       }
     }
     if (shieldCountry && link.blocked_countries.includes(shieldCountry)) {
-      // 2026-08 SMART SHIELD: geography alone is no longer enough. A real ad
-      // clicker from a "blocked" country (owner testing, diaspora audience,
-      // VPN user) carries at least one human signal: an ad click-id / social
-      // referer, or a genuine browser navigation (HTML Accept + Accept-Language)
-      // from a residential network on mobile. We only force the safe page when
-      // the visit ALSO looks automated. This removes the need for users to
-      // manually curate country lists — the system decides per visit.
-      const shieldRealBrowser =
-        /text\/html/i.test(accept) && acceptLanguage.trim().length > 0;
-      const shieldAdClick = hasAdClickSignal(url, referer);
+      // 2026-08 HARD SHIELD (restored). The country shield is an explicit,
+      // per-link owner decision: "nobody from this country reaches my offer."
+      // The smart/signal-based variant let ad-reviewer traffic through whenever
+      // it carried an fbclid or a mobile UA — and Meta's reviewers carry both.
+      // A blocked country now ALWAYS gets the article, no exceptions.
+      // SLEEPOX_SMART_SHIELD=1 restores the signal-based behaviour.
       const shieldDatacenter = !!asn && (DATACENTER_ASNS.has(asn) || BOT_ASNS.has(asn));
       const shieldDevice = detectDevice(ua);
-      const looksHuman =
-        !shieldDatacenter &&
-        (shieldAdClick || (shieldRealBrowser && shieldDevice !== "desktop"));
-      if (!looksHuman) {
+      let letThrough = false;
+
+      if (process.env.SLEEPOX_SMART_SHIELD === "1") {
+        const shieldRealBrowser =
+          /text\/html/i.test(accept) && acceptLanguage.trim().length > 0;
+        const shieldAdClick = hasAdClickSignal(url, referer);
+        letThrough =
+          !shieldDatacenter &&
+          (shieldAdClick || (shieldRealBrowser && shieldDevice !== "desktop"));
+      }
+
+      if (!letThrough) {
         isBot = true;
         isFbBot = true; // serve article HTML, matches FB-safe routing
-        reason = `country-shield:${shieldCountry}${shieldDatacenter ? ":dc" : shieldDevice === "desktop" ? ":desktop" : ":nosignal"}`;
+        reason = `country-shield:${shieldCountry}${shieldDatacenter ? ":dc" : shieldDevice === "desktop" ? ":desktop" : ":blocked"}`;
       }
     }
+
 
   }
 
@@ -2233,7 +2302,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // (with proper OG tags) is what Meta's ad reviewer expects.
     // Owner-supplied safe page wins for this one link, including for Meta's
     // crawler: preview and reviewer must see the SAME page a bot lands on.
-    const ownSafe = customSafePage(link.safe_url);
+    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url, ROTATED_OFFER, OUR_URL]);
 
     if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
