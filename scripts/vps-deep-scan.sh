@@ -27,10 +27,13 @@ echo "   Build stamp: $(cat .sleepox-build 2>/dev/null || echo 'MISSING')"
 git fetch origin -q 2>/dev/null
 BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
 [ "$BEHIND" = "0" ] && ok "code up to date with GitHub" || bad "VPS is $BEHIND commits BEHIND origin/main — deploy needed"
-if git status --porcelain 2>/dev/null | grep -q .; then
+# .env is intentionally VPS-local (self-hosted backend creds) and the deploy
+# artifacts below are runtime state, so none of them count as drift.
+DIRTY=$(git status --porcelain 2>/dev/null | grep -vE '(^.. |^\?\? )(\.env|\.output|\.output\.previous/|\.asset-attic/|\.last-deploy-traffic-loss|\.sleepox-build)' || true)
+if [ -n "$DIRTY" ]; then
   bad "uncommitted local changes on VPS (will be stashed on next deploy):"
-  git status --porcelain | head -10 | sed 's/^/      /'
-else ok "working tree clean"; fi
+  echo "$DIRTY" | head -10 | sed 's/^/      /'
+else ok "working tree clean (ignoring .env + deploy artifacts)"; fi
 [ -f ".output/server/index.mjs" ] && ok "server bundle present ($(du -sh .output 2>/dev/null | cut -f1))" || bad ".output/server/index.mjs MISSING — app is running old/none build"
 CHUNKS=$(ls .output/public/assets/*.js .output/public/_build/assets/*.js 2>/dev/null | wc -l)
 echo "   client chunks: $CHUNKS"
