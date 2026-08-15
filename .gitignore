@@ -35,3 +35,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# VPS deploy runtime artifacts (never part of the repo)
+.output.previous/
+.asset-attic/
+.last-deploy-traffic-loss
+.sleepox-build

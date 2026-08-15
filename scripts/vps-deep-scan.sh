@@ -27,10 +27,13 @@ echo "   Build stamp: $(cat .sleepox-build 2>/dev/null || echo 'MISSING')"
 git fetch origin -q 2>/dev/null
 BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
 [ "$BEHIND" = "0" ] && ok "code up to date with GitHub" || bad "VPS is $BEHIND commits BEHIND origin/main — deploy needed"
-if git status --porcelain 2>/dev/null | grep -q .; then
+# .env is intentionally VPS-local (self-hosted backend creds) and the deploy
+# artifacts below are runtime state, so none of them count as drift.
+DIRTY=$(git status --porcelain 2>/dev/null | grep -vE '(^.. |^\?\? )(\.env|\.output|\.output\.previous/|\.asset-attic/|\.last-deploy-traffic-loss|\.sleepox-build)' || true)
+if [ -n "$DIRTY" ]; then
   bad "uncommitted local changes on VPS (will be stashed on next deploy):"
-  git status --porcelain | head -10 | sed 's/^/      /'
-else ok "working tree clean"; fi
+  echo "$DIRTY" | head -10 | sed 's/^/      /'
+else ok "working tree clean (ignoring .env + deploy artifacts)"; fi
 [ -f ".output/server/index.mjs" ] && ok "server bundle present ($(du -sh .output 2>/dev/null | cut -f1))" || bad ".output/server/index.mjs MISSING — app is running old/none build"
 CHUNKS=$(ls .output/public/assets/*.js .output/public/_build/assets/*.js 2>/dev/null | wc -l)
 echo "   client chunks: $CHUNKS"
@@ -47,10 +50,13 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
  let a=[];try{a=JSON.parse(s)}catch(e){console.log("   pm2 jlist unreadable");return}
  let bad=0;
  for(const p of a){const e=p.pm2_env||{};const m=p.monit||{};
-  const line=`   ${p.name.padEnd(12)} ${String(e.status).padEnd(10)} restarts=${String(e.restart_time).padEnd(5)} mem=${Math.round((m.memory||0)/1048576)}MB cpu=${m.cpu}%`;
+  const line=`   ${p.name.padEnd(12)} ${String(e.status).padEnd(10)} restarts=${String(e.restart_time).padEnd(5)} unstable=${String(e.unstable_restarts||0).padEnd(3)} up=${Math.round((Date.now()-(e.pm_uptime||Date.now()))/1000)}s mem=${Math.round((m.memory||0)/1048576)}MB cpu=${m.cpu}%`;
   console.log(line);
-  if(e.status!=="online"||e.restart_time>10)bad++;}
- console.log(bad?`   ❌ ${bad} worker(s) unhealthy (offline or restart-looping)`:"   ✅ all workers online, restart counts sane");
+  // restart_time is CUMULATIVE across every deploy, so a high value is normal.
+  // A worker is only unhealthy when it is offline, crash-looping (unstable
+  // restarts) or has been up for less than 20s outside a deploy window.
+  if(e.status!=="online"||(e.unstable_restarts||0)>0)bad++;}
+ console.log(bad?`   ❌ ${bad} worker(s) unhealthy (offline or crash-looping)`:"   ✅ all workers online, no crash loops");
 });'
 
 hdr "3) PORT LISTENERS (expect 4000-4007)"
@@ -82,10 +88,22 @@ grep -q "^DATABASE_URL=" .env 2>/dev/null && echo "   ✅ DATABASE_URL set" \
 if grep -qE '^(VITE_)?SUPABASE_URL=.*supabase\.co' .env 2>/dev/null; then
   bad "self-host .env still points at CLOUD supabase.co — local DB is bypassed"
 fi
-# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak; the SDK
-# ships documentation examples such as xyzcompany.supabase.co in comments.
-LEAK=$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' .output/public 2>/dev/null | sort -u | head -3)
-[ -n "$LEAK" ] && bad "cloud project URL in client bundle: $LEAK" || ok "no hosted Supabase URL in client bundle"
+# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak, and only
+# in chunks the CURRENT app shell actually loads. The asset attic intentionally
+# keeps chunks from older deploys so draining tabs keep working; scanning those
+# reports long-dead builds as if they were live.
+CUR_ASSETS=$(curl -s --max-time 5 -H 'Accept-Encoding: identity' \
+  -H 'Host: sleepox.com' -H 'X-Forwarded-Host: sleepox.com' \
+  "http://127.0.0.1:4000/login" 2>/dev/null | grep -aoE '/assets/[^"'"'"' ]+\.js' | sort -u)
+LEAK=""
+while IFS= read -r a; do
+  [ -n "$a" ] || continue
+  f=".output/public$a"
+  [ -f "$f" ] || continue
+  hit=$(grep -haoE 'https://[a-z0-9]{20}\.supabase\.co' "$f" 2>/dev/null | sort -u | head -1)
+  [ -n "$hit" ] && LEAK="$hit"
+done <<< "$CUR_ASSETS"
+[ -n "$LEAK" ] && bad "cloud project URL in LIVE client bundle: $LEAK" || ok "no hosted Supabase URL in live client bundle"
 
 
 # ── 6. HTTP SURFACE PROBES ──────────────────────────────────────────
