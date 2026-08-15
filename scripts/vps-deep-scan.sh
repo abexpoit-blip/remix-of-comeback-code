@@ -32,9 +32,13 @@ if git status --porcelain 2>/dev/null | grep -q .; then
   git status --porcelain | head -10 | sed 's/^/      /'
 else ok "working tree clean"; fi
 [ -f ".output/server/index.mjs" ] && ok "server bundle present ($(du -sh .output 2>/dev/null | cut -f1))" || bad ".output/server/index.mjs MISSING — app is running old/none build"
-CHUNKS=$(ls .output/public/_build/assets/*.js 2>/dev/null | wc -l)
+CHUNKS=$(ls .output/public/assets/*.js .output/public/_build/assets/*.js 2>/dev/null | wc -l)
 echo "   client chunks: $CHUNKS"
 [ "$CHUNKS" -lt 5 ] && bad "suspiciously few client chunks — build may be truncated"
+[ -f ".output/public/favicon.ico" ] && ok "favicon.ico present" || bad "favicon.ico missing in build output (log spam ENOENT)"
+STALE=$(pm2 logs --lines 500 --nostream 2>/dev/null | grep -c 'ERR_MODULE_NOT_FOUND')
+[ "${STALE:-0}" -gt 0 ] && bad "stale _ssr chunk imports in recent logs — workers need a full restart after deploy"
+
 
 # ── 2. PROCESS HEALTH ───────────────────────────────────────────────
 hdr "2) PM2 WORKER HEALTH"
