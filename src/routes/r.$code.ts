@@ -699,17 +699,44 @@ function markKnownHuman(code: string, fpHash: string): void {
  * keeps the platform's rotating article pool. Returns null when unset,
  * blank, the legacy SaaS-homepage default, or not a valid http(s) URL.
  */
-function customSafePage(safeUrl: string | null | undefined): string | null {
+/**
+ * Owner-supplied safe page. Rejected when it would expose the operation:
+ *   • our own SaaS host (sleepox.com) — a reviewer landing on a link-shortener
+ *     dashboard is the single clearest cloaking proof there is,
+ *   • the link's own offer / ad-network host — that sends the reviewer straight
+ *     to the money page (24 live links were configured exactly like this),
+ *   • empty / non-http values.
+ * Rejection just means "use the rotating article pool instead", never an error.
+ */
+function customSafePage(
+  safeUrl: string | null | undefined,
+  offerHosts: Array<string | null | undefined> = [],
+): string | null {
   const v = (safeUrl ?? "").trim();
   if (!v || v === SAFE_FALLBACK) return null;
   try {
     const parsed = new URL(v);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    const host = parsed.hostname.toLowerCase();
+    if (isSleepoxSaasHost(host)) return null;
+    const banned = new Set(
+      offerHosts
+        .map((u) => {
+          try {
+            return new URL(u ?? "").hostname.toLowerCase();
+          } catch {
+            return "";
+          }
+        })
+        .filter(Boolean),
+    );
+    if (banned.has(host)) return null;
     return parsed.toString();
   } catch {
     return null;
   }
 }
+
 
 function sanitizeRedirectTarget(target: string | null | undefined): string {
   try {
