@@ -2443,6 +2443,29 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     ]);
   }
 
+  // Content bridge: a paid-social click must land on the article its ad preview
+  // promised, not on a bare 302 to the offer host. Set SLEEPOX_CONTENT_BRIDGE=0
+  // to disable. Only for human offer traffic that carries an ad-click signal —
+  // "ours" (monetisation) and direct/organic hits keep the old behaviour.
+  if (
+    process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
+    !isBot &&
+    routedTo === "offer" &&
+    hasAdClickSignal(url, referer)
+  ) {
+    const tpl =
+      (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
+    const article = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+    const headers = new Headers({
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "referrer-policy": "unsafe-url",
+    });
+    headers.append("Set-Cookie", humanCookieHeader());
+    return new Response(renderOfferBridge(article, target), { status: 200, headers });
+  }
+
+
   const reasonOut = isBot
     ? reason
     : whitelistHit
