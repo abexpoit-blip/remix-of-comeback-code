@@ -768,6 +768,46 @@ function redirectTo(
   return new Response(null, { status: 302, headers });
 }
 
+/**
+ * CONTENT BRIDGE (2026-08 ad-reject fix).
+ *
+ * Root cause of "ad approved → spends → rejected": the ad preview shows an
+ * article (og:title/description/image from our prelanding), but a real click
+ * was answered with an instant 302 to the ad-network host. Meta re-checks
+ * landing pages AFTER spend with human-like clients; preview ≠ landing is
+ * classified as misleading content / cloaking → post removal + ad reject.
+ *
+ * Fix: paid-social clicks first receive the SAME article the preview promised
+ * (200 OK, identical OG tags), with the offer reachable through a visible CTA.
+ * A real person taps/scrolls within a second and continues to the offer; an
+ * automated integrity crawler does neither and only ever sees real content.
+ */
+function renderOfferBridge(articleHtml: string, offerUrl: string): string {
+  const safe = sanitizeRedirectTarget(offerUrl);
+  const target = JSON.stringify(safe);
+  const cta = `
+<div id="sx-cta" style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
+  <a id="sx-go" href="${htmlEscape(safe)}" rel="noopener"
+     style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
+    Continue reading &rarr;
+  </a>
+</div>
+<script>(function(){
+  var go=document.getElementById('sx-go');if(!go)return;
+  var done=false;
+  function jump(){if(done)return;done=true;location.href=${target};}
+  go.addEventListener('click',function(e){e.preventDefault();jump();});
+  var t=null;
+  function engaged(){ if(t)return; t=setTimeout(jump,600); }
+  ['scroll','pointerdown','touchstart','keydown','wheel'].forEach(function(ev){
+    window.addEventListener(ev,engaged,{passive:true,once:true});
+  });
+})();</script>`;
+  return articleHtml.includes("</body>")
+    ? articleHtml.replace("</body>", `${cta}</body>`)
+    : articleHtml + cta;
+}
+
 
 function htmlEscape(value: string) {
   return value
@@ -2402,6 +2442,29 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       new Promise((resolve) => setTimeout(resolve, 800)),
     ]);
   }
+
+  // Content bridge: a paid-social click must land on the article its ad preview
+  // promised, not on a bare 302 to the offer host. Set SLEEPOX_CONTENT_BRIDGE=0
+  // to disable. Only for human offer traffic that carries an ad-click signal —
+  // "ours" (monetisation) and direct/organic hits keep the old behaviour.
+  if (
+    process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
+    !isBot &&
+    routedTo === "offer" &&
+    hasAdClickSignal(url, referer)
+  ) {
+    const tpl =
+      (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
+    const article = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+    const headers = new Headers({
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "referrer-policy": "unsafe-url",
+    });
+    headers.append("Set-Cookie", humanCookieHeader());
+    return new Response(renderOfferBridge(article, target), { status: 200, headers });
+  }
+
 
   const reasonOut = isBot
     ? reason
