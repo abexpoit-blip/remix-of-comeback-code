@@ -15,9 +15,12 @@ import {
 import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 import { resolveDestination } from "@/lib/destination-rotation";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 
 
-const SAFE_FALLBACK = "https://sleepox.com/";
+// Never point a bot/reviewer at the SaaS host — that is cloaking proof.
+const SAFE_FALLBACK = "https://breezysocial.com/blog";
+const LEGACY_SAAS_SAFE_URL = "https://sleepox.com/";
 const RESERVED_PUBLIC_PATHS = new Set([
   "about",
   "privacy",
@@ -713,7 +716,7 @@ function customSafePage(
   offerHosts: Array<string | null | undefined> = [],
 ): string | null {
   const v = (safeUrl ?? "").trim();
-  if (!v || v === SAFE_FALLBACK) return null;
+  if (!v || v === SAFE_FALLBACK || v === LEGACY_SAAS_SAFE_URL) return null;
   try {
     const parsed = new URL(v);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
@@ -2299,7 +2302,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // (with proper OG tags) is what Meta's ad reviewer expects.
     // Owner-supplied safe page wins for this one link, including for Meta's
     // crawler: preview and reviewer must see the SAME page a bot lands on.
-    const ownSafe = customSafePage(link.safe_url);
+    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url, target0OfferHint]);
 
     if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
