@@ -2035,38 +2035,51 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // or header-stripping corporate gateways, who do send Accept + Accept-Language.
     const fakeChromeDesktop =
       coldDesktop && /chrome\/|edg\//i.test(uaLowFb) && !secChUa && !realBrowserNav;
+    // 2026-08-15 (deep scan): the leak monitor proved a COLD desktop visit was
+    // still reaching the offer (`reviewer_reaches_offer`, cold curl = 302).
+    // A genuine ad click ALWAYS carries either an ad param (fbclid/gclid/ttclid)
+    // or a social referer. A desktop browser with neither is, in practice,
+    // either a manual reviewer or a probe — so it now always gets the safe
+    // article. Set SLEEPOX_COLD_DESKTOP_PASS=1 to revert to the old heuristics.
+    const COLD_DESKTOP_HARD = process.env.SLEEPOX_COLD_DESKTOP_PASS !== "1";
     const reviewerDesk =
       coldDesktop &&
-      ((countryConfident &&
-        !!country &&
-        REVIEWER_DESK_COUNTRIES.has(country) &&
-        (!realBrowserNav || datacenterAsn || signalScore >= 25)) ||
+      (COLD_DESKTOP_HARD ||
+        (countryConfident &&
+          !!country &&
+          REVIEWER_DESK_COUNTRIES.has(country) &&
+          (!realBrowserNav || datacenterAsn || signalScore >= 25)) ||
         hostedNoGeoDesktop ||
         fakeChromeDesktop ||
         signalScore >= (realBrowserNav ? 40 : 25));
 
-
+    // Non-browser client (curl/wget/scripted fetch — UA without any browser
+    // token) with no ad signal must never be redirected to the money page.
+    const nonBrowserProbe = !looksLikeBrowser && !hasAdClickSignal(url, referer);
 
     if (
-      isDesktopUa &&
-      (STRICT_DESKTOP_BLOCK ||
-        (!hasAdClickSignal(url, referer) && desktopLooksAutomated) ||
-        reviewerDesk)
+      (isDesktopUa &&
+        (STRICT_DESKTOP_BLOCK ||
+          (!hasAdClickSignal(url, referer) && desktopLooksAutomated) ||
+          reviewerDesk)) ||
+      nonBrowserProbe
     ) {
       isBot = true;
       isFbBot = true; // serve article HTML, not redirect to safe URL
-      reason = STRICT_DESKTOP_BLOCK
-        ? `desktop-block:${country || "??"}`
-        : desktopLooksAutomated
-          ? `desktop-automated:${country || "??"}`
-          : hostedNoGeoDesktop
-            ? `desktop-reviewer-hosted:${asn || "noasn"}`
-            : fakeChromeDesktop
-              ? `desktop-reviewer-nohints:${country || "??"}`
-              : `desktop-reviewer:${country || "??"}`;
-
+      reason = nonBrowserProbe
+        ? `nonbrowser-probe:${country || "??"}`
+        : STRICT_DESKTOP_BLOCK
+          ? `desktop-block:${country || "??"}`
+          : desktopLooksAutomated
+            ? `desktop-automated:${country || "??"}`
+            : hostedNoGeoDesktop
+              ? `desktop-reviewer-hosted:${asn || "noasn"}`
+              : fakeChromeDesktop
+                ? `desktop-reviewer-nohints:${country || "??"}`
+                : `desktop-cold:${country || "??"}`;
     }
   }
+
 
 
   // 0d-bis. GLOBAL COUNTRY BLOCK — applies to every link, no per-link config.
