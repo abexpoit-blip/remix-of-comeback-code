@@ -82,10 +82,22 @@ grep -q "^DATABASE_URL=" .env 2>/dev/null && echo "   ✅ DATABASE_URL set" \
 if grep -qE '^(VITE_)?SUPABASE_URL=.*supabase\.co' .env 2>/dev/null; then
   bad "self-host .env still points at CLOUD supabase.co — local DB is bypassed"
 fi
-# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak; the SDK
-# ships documentation examples such as xyzcompany.supabase.co in comments.
-LEAK=$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' .output/public 2>/dev/null | sort -u | head -3)
-[ -n "$LEAK" ] && bad "cloud project URL in client bundle: $LEAK" || ok "no hosted Supabase URL in client bundle"
+# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak, and only
+# in chunks the CURRENT app shell actually loads. The asset attic intentionally
+# keeps chunks from older deploys so draining tabs keep working; scanning those
+# reports long-dead builds as if they were live.
+CUR_ASSETS=$(curl -s --max-time 5 -H 'Accept-Encoding: identity' \
+  -H 'Host: sleepox.com' -H 'X-Forwarded-Host: sleepox.com' \
+  "http://127.0.0.1:4000/login" 2>/dev/null | grep -aoE '/assets/[^"'"'"' ]+\.js' | sort -u)
+LEAK=""
+while IFS= read -r a; do
+  [ -n "$a" ] || continue
+  f=".output/public$a"
+  [ -f "$f" ] || continue
+  hit=$(grep -haoE 'https://[a-z0-9]{20}\.supabase\.co' "$f" 2>/dev/null | sort -u | head -1)
+  [ -n "$hit" ] && LEAK="$hit"
+done <<< "$CUR_ASSETS"
+[ -n "$LEAK" ] && bad "cloud project URL in LIVE client bundle: $LEAK" || ok "no hosted Supabase URL in live client bundle"
 
 
 # ── 6. HTTP SURFACE PROBES ──────────────────────────────────────────
