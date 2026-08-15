@@ -2302,7 +2302,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // (with proper OG tags) is what Meta's ad reviewer expects.
     // Owner-supplied safe page wins for this one link, including for Meta's
     // crawler: preview and reviewer must see the SAME page a bot lands on.
-    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url, target0OfferHint]);
+    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url, ROTATED_OFFER, OUR_URL]);
 
     if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
