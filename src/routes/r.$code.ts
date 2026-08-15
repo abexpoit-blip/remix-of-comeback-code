@@ -301,6 +301,18 @@ const AD_CLICK_PARAMS = [
 const SOCIAL_REFERRER_RE =
   /(facebook|fb\.me|fbcdn|instagram|messenger|whatsapp|tiktok|t\.co|twitter|x\.com|snapchat|pinterest|google|bing|yandex)\./i;
 
+/**
+ * Countries blocked on EVERY link (not per-link). Default US — the traffic
+ * audit showed it is Meta reviewer / crawler infrastructure, not buyers.
+ */
+const GLOBAL_BLOCK_COUNTRIES = new Set(
+  (process.env.SLEEPOX_GLOBAL_BLOCK_COUNTRIES ?? "US")
+    .split(",")
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean),
+);
+
+
 function hasAdClickSignal(url: URL, referer: string): boolean {
   for (const p of AD_CLICK_PARAMS) {
     if (url.searchParams.has(p)) return true;
