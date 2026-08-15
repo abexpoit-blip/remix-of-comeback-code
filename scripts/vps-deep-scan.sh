@@ -74,13 +74,19 @@ echo "   click-batch DROP=$DROP FAIL=$FAIL"
 
 # ── 5. ENV / SECRET SANITY ──────────────────────────────────────────
 hdr "5) ENV SANITY (values never printed)"
-for k in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY DATABASE_URL; do
+for k in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY; do
   grep -q "^$k=" .env 2>/dev/null && echo "   ✅ $k set" || bad "$k MISSING in .env"
 done
+grep -q "^DATABASE_URL=" .env 2>/dev/null && echo "   ✅ DATABASE_URL set" \
+  || echo "   ℹ️  DATABASE_URL not set (optional — app uses the Supabase REST/service key)"
 if grep -qE '^(VITE_)?SUPABASE_URL=.*supabase\.co' .env 2>/dev/null; then
   bad "self-host .env still points at CLOUD supabase.co — local DB is bypassed"
 fi
-grep -rl "supabase.co" .output/public 2>/dev/null | head -3 | sed 's/^/   ⚠️  cloud URL leaked into client bundle: /'
+# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak; the SDK
+# ships documentation examples such as xyzcompany.supabase.co in comments.
+LEAK=$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' .output/public 2>/dev/null | sort -u | head -3)
+[ -n "$LEAK" ] && bad "cloud project URL in client bundle: $LEAK" || ok "no hosted Supabase URL in client bundle"
+
 
 # ── 6. HTTP SURFACE PROBES ──────────────────────────────────────────
 hdr "6) HTTP SURFACE (SaaS vs ad domains)"
