@@ -4,8 +4,8 @@
 -- pool", which is always the safe behaviour.
 
 UPDATE public.links
-SET safe_url = NULL
-WHERE safe_url IS NOT NULL
+SET safe_url = ''
+WHERE coalesce(safe_url, '') <> ''
   AND (
     safe_url ILIKE '%sleepox.com%'
     OR safe_url ILIKE '%localhost%'
@@ -25,7 +25,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.safe_url IS NOT NULL AND (
+  IF coalesce(NEW.safe_url, '') <> '' AND (
        NEW.safe_url ILIKE '%sleepox.com%'
     OR NEW.safe_url = NEW.destination_url
     OR NEW.safe_url = NEW.adsterra_url
@@ -34,7 +34,7 @@ BEGIN
     OR split_part(split_part(NEW.safe_url, '//', 2), '/', 1)
        = split_part(split_part(coalesce(NEW.destination_url, ''), '//', 2), '/', 1)
   ) THEN
-    NEW.safe_url := NULL;
+    NEW.safe_url := '';
   END IF;
   RETURN NEW;
 END;
