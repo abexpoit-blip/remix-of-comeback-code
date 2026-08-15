@@ -2044,7 +2044,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     const COLD_DESKTOP_HARD = process.env.SLEEPOX_COLD_DESKTOP_PASS !== "1";
     const reviewerDesk =
       coldDesktop &&
-      (COLD_DESKTOP_HARD ||
+      // 2026-08-15 (owner/real-desktop fix): the hard cold-desktop rule sent
+      // EVERY refererless desktop visit to the safe article — including the
+      // owner opening his own link and any real user pasting the URL. It now
+      // only fires when the visit is not a genuine browser navigation (no
+      // Accept: text/html + Accept-Language pair) or comes from a datacenter.
+      ((COLD_DESKTOP_HARD && (!realBrowserNav || datacenterAsn)) ||
+
         (countryConfident &&
           !!country &&
           REVIEWER_DESK_COUNTRIES.has(country) &&
