@@ -16,26 +16,23 @@ type Props = {
   planSlug: string | null | undefined;
 };
 
-// Hot reviewer countries derived from your live data (>50% bot rate).
+// 2026-08-15: shield list trimmed to the real ad-reviewer desks only
+// (US / FR / GB / CA). Buyer countries such as PH, IN, ID, BD are NEVER
+// offered here — they carry real human traffic and are handled by the
+// automatic bot-detection layer instead of a country block.
 const PRESET_HIGH_RISK = [
   { code: "US", name: "United States", botPct: "98.6%" },
+  { code: "FR", name: "France", botPct: "22.1%" },
+  { code: "GB", name: "United Kingdom", botPct: "—" },
+  { code: "CA", name: "Canada", botPct: "—" },
+];
+
+const PRESET_MEDIUM_RISK = [
   { code: "DK", name: "Denmark", botPct: "97.6%" },
   { code: "IE", name: "Ireland", botPct: "91.0%" },
   { code: "OM", name: "Oman", botPct: "56.8%" },
 ];
 
-const PRESET_MEDIUM_RISK = [
-  { code: "IN", name: "India", botPct: "38.6%" },
-  { code: "FR", name: "France", botPct: "22.1%" },
-  { code: "SG", name: "Singapore", botPct: "15.6%" },
-  { code: "HK", name: "Hong Kong", botPct: "13.8%" },
-  { code: "ES", name: "Spain", botPct: "13.2%" },
-  { code: "GB", name: "United Kingdom", botPct: "—" },
-  { code: "DE", name: "Germany", botPct: "—" },
-  { code: "NL", name: "Netherlands", botPct: "—" },
-  { code: "SE", name: "Sweden", botPct: "—" },
-  { code: "PH", name: "Philippines", botPct: "—" },
-];
 
 export function CountryShieldDialog({ open, onOpenChange, linkId, linkTitle, initial, planSlug }: Props) {
   const qc = useQueryClient();

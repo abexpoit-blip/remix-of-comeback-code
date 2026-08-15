@@ -419,14 +419,18 @@ export const updateBlockedCountries = createServerFn({ method: "POST" })
       throw new Error("Country Shield is a Pro feature. Please upgrade to Monthly or Lifetime.");
     }
 
-    // Normalize + dedupe
+    // Normalize + dedupe. 2026-08-15: buyer countries that carry real human
+    // traffic can never be shielded — blocking them only burns revenue, the
+    // bot-detection layer handles reviewers from those geos.
+    const NEVER_BLOCK = new Set(["PH", "BD", "IN", "ID", "PK", "NP", "VN"]);
     const cleaned = Array.from(
       new Set(
         data.countries
           .map((c) => c.trim().toUpperCase())
-          .filter((c) => ISO_COUNTRY.test(c)),
+          .filter((c) => ISO_COUNTRY.test(c) && !NEVER_BLOCK.has(c)),
       ),
     );
+
 
     const { data: updatedLink, error } = await (context.supabase as any)
       .from("links")

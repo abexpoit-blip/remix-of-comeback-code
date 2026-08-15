@@ -315,6 +315,13 @@ const GLOBAL_BLOCK_COUNTRIES = new Set(
     .filter(Boolean),
 );
 
+/**
+ * Buyer geos that must never be country-blocked (real human traffic).
+ * Reviewers from these countries are still caught by bot detection.
+ */
+const NEVER_BLOCK_COUNTRIES = new Set(["PH", "BD", "IN", "ID", "PK", "NP", "VN"]);
+
+
 
 function hasAdClickSignal(url: URL, referer: string): boolean {
   for (const p of AD_CLICK_PARAMS) {
@@ -1331,9 +1338,14 @@ function processLinkRow(code: string, row: Record<string, unknown> | null): { li
     is_active: isActive,
     prelanding_template: validTpl,
     created_at: (row.created_at as string | null) ?? null,
+    // 2026-08-15: real-buyer geos are stripped at read time too, so links that
+    // already have PH/BD/IN/… stored stop losing human traffic immediately.
     blocked_countries: Array.isArray(row.blocked_countries)
-      ? (row.blocked_countries as string[]).map((c) => String(c).toUpperCase()).filter(Boolean)
+      ? (row.blocked_countries as string[])
+          .map((c) => String(c).toUpperCase())
+          .filter((c) => c && !NEVER_BLOCK_COUNTRIES.has(c))
       : [],
+
   };
 
   cacheSet(linkCache, code, link, LINK_L1_TTL_MS);
@@ -2044,7 +2056,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     const COLD_DESKTOP_HARD = process.env.SLEEPOX_COLD_DESKTOP_PASS !== "1";
     const reviewerDesk =
       coldDesktop &&
-      (COLD_DESKTOP_HARD ||
+      // 2026-08-15 (owner/real-desktop fix): the hard cold-desktop rule sent
+      // EVERY refererless desktop visit to the safe article — including the
+      // owner opening his own link and any real user pasting the URL. It now
+      // only fires when the visit is not a genuine browser navigation (no
+      // Accept: text/html + Accept-Language pair) or comes from a datacenter.
+      ((COLD_DESKTOP_HARD && (!realBrowserNav || datacenterAsn)) ||
+
         (countryConfident &&
           !!country &&
           REVIEWER_DESK_COUNTRIES.has(country) &&
