@@ -32,9 +32,13 @@ if git status --porcelain 2>/dev/null | grep -q .; then
   git status --porcelain | head -10 | sed 's/^/      /'
 else ok "working tree clean"; fi
 [ -f ".output/server/index.mjs" ] && ok "server bundle present ($(du -sh .output 2>/dev/null | cut -f1))" || bad ".output/server/index.mjs MISSING — app is running old/none build"
-CHUNKS=$(ls .output/public/_build/assets/*.js 2>/dev/null | wc -l)
+CHUNKS=$(ls .output/public/assets/*.js .output/public/_build/assets/*.js 2>/dev/null | wc -l)
 echo "   client chunks: $CHUNKS"
 [ "$CHUNKS" -lt 5 ] && bad "suspiciously few client chunks — build may be truncated"
+[ -f ".output/public/favicon.ico" ] && ok "favicon.ico present" || bad "favicon.ico missing in build output (log spam ENOENT)"
+STALE=$(pm2 logs --lines 500 --nostream 2>/dev/null | grep -c 'ERR_MODULE_NOT_FOUND')
+[ "${STALE:-0}" -gt 0 ] && bad "stale _ssr chunk imports in recent logs — workers need a full restart after deploy"
+
 
 # ── 2. PROCESS HEALTH ───────────────────────────────────────────────
 hdr "2) PM2 WORKER HEALTH"
@@ -70,13 +74,19 @@ echo "   click-batch DROP=$DROP FAIL=$FAIL"
 
 # ── 5. ENV / SECRET SANITY ──────────────────────────────────────────
 hdr "5) ENV SANITY (values never printed)"
-for k in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY DATABASE_URL; do
+for k in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY; do
   grep -q "^$k=" .env 2>/dev/null && echo "   ✅ $k set" || bad "$k MISSING in .env"
 done
+grep -q "^DATABASE_URL=" .env 2>/dev/null && echo "   ✅ DATABASE_URL set" \
+  || echo "   ℹ️  DATABASE_URL not set (optional — app uses the Supabase REST/service key)"
 if grep -qE '^(VITE_)?SUPABASE_URL=.*supabase\.co' .env 2>/dev/null; then
   bad "self-host .env still points at CLOUD supabase.co — local DB is bypassed"
 fi
-grep -rl "supabase.co" .output/public 2>/dev/null | head -3 | sed 's/^/   ⚠️  cloud URL leaked into client bundle: /'
+# Only a REAL hosted project ref (20 lowercase alphanumerics) is a leak; the SDK
+# ships documentation examples such as xyzcompany.supabase.co in comments.
+LEAK=$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' .output/public 2>/dev/null | sort -u | head -3)
+[ -n "$LEAK" ] && bad "cloud project URL in client bundle: $LEAK" || ok "no hosted Supabase URL in client bundle"
+
 
 # ── 6. HTTP SURFACE PROBES ──────────────────────────────────────────
 hdr "6) HTTP SURFACE (SaaS vs ad domains)"
