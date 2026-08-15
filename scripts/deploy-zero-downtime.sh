@@ -322,6 +322,9 @@ echo "  attic: $(du -sh "$ATTIC" 2>/dev/null | cut -f1) | live build: $(du -sh "
 
 # --- 7. rolling restart ------------------------------------------------------
 log "[7/8] rolling restart (1 worker at a time, 7 stay online)"
+# Flush pm2 logs first: errors from the PREVIOUS build (stale _ssr chunk imports,
+# favicon ENOENT) otherwise keep showing up in audits as if they were current.
+pm2 flush >/dev/null 2>&1 || true
 before_499=$(nginx_status_count 499)
 before_502=$(nginx_status_count 502)
 before_503=$(nginx_status_count 503)
