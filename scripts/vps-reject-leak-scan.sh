@@ -28,10 +28,13 @@ for d in "${AD_DOMAINS[@]}" "$STORE_DOMAIN"; do
     c=$(code "https://$d$p")
     [ "$c" = "404" ] || bad "$d$p = $c (SaaS leak to reviewer)"
   done
-  # internal/ops endpoints
-  for p in /api/public/health /api/public/hooks/leak-scan /api/public/hooks/meta-crawler-probe /api/public/safe-pool-refresh; do
-    c=$(code "https://$d$p")
-    [ "$c" = "404" ] || bad "$d$p = $c (ops endpoint exposed)"
+  # internal/ops endpoints — probe BOTH verbs; a cron route that only takes
+  # POST still leaks if a GET falls through to the app shell with 200.
+  for p in /api/public/health /api/public/hooks/leak-scan /api/public/hooks/meta-crawler-probe /api/public/hooks/domain-health-scan /api/public/safe-pool-refresh; do
+    g=$(code "https://$d$p")
+    o=$(curl -s -o /dev/null -w '%{http_code}' -m 15 -X POST -A "$UA_DESK" "https://$d$p")
+    [ "$g" = "404" ] || bad "$d$p GET = $g (ops endpoint exposed)"
+    [ "$o" = "404" ] || bad "$d$p POST = $o (ops endpoint exposed)"
   done
 done
 [ "$F" -eq 0 ] && ok "no SaaS/ops paths reachable on ad domains"
@@ -40,13 +43,13 @@ done
 hdr "2) BRAND / FOOTPRINT LEAKS IN HTML"
 for d in "${AD_DOMAINS[@]}"; do
   for p in / /about /contact /privacy /terms /faq /shop /blog; do
-    H=$(curl -s -m 15 -A "$UA_FBC" "https://$d$p?cb=$RANDOM")
+    H=$(curl -s -m 15 -A "$UA_FBC" "https://$d$p?cb=$RANDOM" | tr -d '\000')
     for word in breezysocial sleepox adsterra cloak short_code shortener "redirect_to" "safe page" prelanding "1280 Market" "415 555"; do
       n=$(printf '%s' "$H" | grep -oic "$word")
       [ "${n:-0}" -gt 0 ] && bad "$d$p leaks '$word' ×$n"
     done
     # analytics / verification tags must not be shared
-    printf '%s' "$H" | grep -oiE 'G-[A-Z0-9]{8,}|google-site-verification[^>]*' | sort -u | sed "s|^|   ℹ️  $d$p tag: |"
+    printf '%s' "$H" | grep -oE 'G-[A-Z0-9]{9,}|google-site-verification[^>]*' | sort -u | sed "s|^|   !! $d$p analytics/verify tag: |"
   done
 done
 
@@ -63,9 +66,13 @@ echo "   (identical hashes across an ad domain and $SAAS_DOMAIN = footprint)"
 
 # ── 4. Crawler vs human on real links (cloaking exposure) ───────
 hdr "4) PERSONA TEST ON LIVE SHORT LINKS"
-DB=$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n1)
-CODES=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
-  "SELECT short_code FROM links WHERE is_active ORDER BY click_count DESC LIMIT 3;" 2>/dev/null)
+DB=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|db.*supabase|postgres' | head -n1)
+CODES=""
+if [ -n "$DB" ]; then
+  CODES=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
+    "SELECT short_code FROM links WHERE is_active ORDER BY click_count DESC NULLS LAST LIMIT 3;" 2>/dev/null | tr -d '\r')
+fi
+[ -z "$CODES" ] && bad "no live short codes read from DB (container='${DB:-none}') — persona test skipped"
 for c in $CODES; do
   d="${AD_DOMAINS[0]}"
   echo "   /$c on $d"
