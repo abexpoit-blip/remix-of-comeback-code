@@ -33,7 +33,7 @@ function isValidHost(h: string | null): h is ShortDomainHost {
  * and a setter that persists the choice to localStorage.
  *
  * Both domains route to the same backend, so any short code works on either.
- * Default: breezysocial.com (the dedicated shortener domain).
+ * Default: mefok.com (the dedicated shortener domain).
  */
 export function useShortDomain(): {
   host: ShortDomainHost;
