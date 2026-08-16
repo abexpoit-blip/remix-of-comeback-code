@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { internalHostGuard } from "@/lib/internal-endpoint";
+import { internalHostGuard, opsNotFound } from "@/lib/internal-endpoint";
 
 /**
  * Public health endpoint — GET /api/public/health
@@ -14,6 +14,7 @@ import { internalHostGuard } from "@/lib/internal-endpoint";
 export const Route = createFileRoute("/api/public/health")({
   server: {
     handlers: {
+      POST: async () => opsNotFound(),
       GET: async ({ request }) => {
         const blocked = internalHostGuard(request);
         if (blocked) return blocked;
