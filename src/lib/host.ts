@@ -26,7 +26,9 @@ export const getHost = createIsomorphicFn()
     return window.location.hostname.toLowerCase();
   });
 
-export type SiteVariant = "breezysocial" | "sleepox";
+// Neutral labels: these values are serialized into the SSR hydration payload,
+// so brand words here would show up in every page's HTML on every domain.
+export type SiteVariant = "store" | "app";
 
 /**
  * Only the real SaaS hosts render the Sleepox landing page. Every shortener /
@@ -35,5 +37,5 @@ export type SiteVariant = "breezysocial" | "sleepox";
  * sees ordinary content, never a link-shortener product page.
  */
 export function variantFromHost(host: string): SiteVariant {
-  return isSleepoxSaasHost(host) ? "sleepox" : "breezysocial";
+  return isSleepoxSaasHost(host) ? "app" : "store";
 }
