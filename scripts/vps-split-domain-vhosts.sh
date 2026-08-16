@@ -23,6 +23,7 @@ BACKUP=/root/nginx-backup-$STAMP
 
 mkdir -p "$BACKUP"
 cp -a /etc/nginx/sites-available "$BACKUP/" 2>/dev/null || true
+cp -a /etc/nginx/sites-enabled "$BACKUP/" 2>/dev/null || true
 echo "🗄  nginx backup: $BACKUP"
 
 # ---------------------------------------------------------------- upstream
