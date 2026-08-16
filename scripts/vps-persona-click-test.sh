@@ -49,9 +49,10 @@ hit() {
       # This IS the offer path for ad-click traffic, not traffic loss.
       got="bridge(offer)"
       hop=$(grep -o 'id="sx-go" href="[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*href="//;s/"$//')
-    elif grep -qiE 'location\.href|http-equiv="refresh"' /tmp/pct-body.html; then
+    elif grep -qiE 'location\.(href|replace|assign)|http-equiv="?refresh' /tmp/pct-body.html; then
       got="bounce(offer)"
-      hop=$(grep -oE 'location\.href *= *"[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*= *"//;s/"$//')
+      hop=$(grep -oE 'location\.(replace|assign)\("[^"]*"\)|location\.href *= *"[^"]*"' /tmp/pct-body.html | head -1 | grep -oE '"[^"]*"' | head -1 | tr -d '"')
+
     elif grep -qiE '<article|<h1' /tmp/pct-body.html; then
       got="article"
     else
@@ -67,12 +68,21 @@ hit() {
   fi
   [ -n "$hop" ] && loc="$hop"
 
+  # A bridge/bounce whose next hop is a safe page is a SAFE serve, not an offer serve.
+  case "$got" in
+    bridge\(offer\)|bounce\(offer\))
+      case "$hop" in
+        *"$SAFE_HOST"*|*/blog*|*/faq*|*/about*|*/size-guide*|*/shipping*|*/returns*|*/contact*|*/shop*) got="safe" ;;
+      esac ;;
+  esac
+
   local ok="❌"
   case "$expect|$got" in
     "article|article") ok="✅" ;;
     "safe|safe"|"safe|article") ok="✅" ;;
     "offer|offer"|"offer|bridge(offer)"|"offer|bounce(offer)") ok="✅" ;;
   esac
+
   # A human landing on a pure safe/article page with no way forward = real loss.
   if [ "$expect" = "offer" ] && [ "$got" = "article" ]; then got="article(LOSS)"; fi
   [ "$ok" = "✅" ] && pass=$((pass+1)) || fail=$((fail+1))
