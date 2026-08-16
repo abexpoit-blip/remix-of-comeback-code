@@ -89,7 +89,9 @@ for d in "${DOMAINS[@]}"; do
   for c in "${CODES[@]}"; do
     [ -z "$c" ] && continue
     U="https://$d/$c"
-    echo " -- /$c --"
+    dbstat=$(docker exec supabase-db psql -U postgres -d postgres -tAc \
+      "SELECT is_active||' safe_url='||COALESCE(NULLIF(safe_url,''),'(pool)') FROM links WHERE short_code='$c' LIMIT 1" 2>/dev/null | tr -d '\r')
+    echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}"
     hit "human desktop"   "$U" "$UA_DESKTOP" offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Site: none' -H 'Upgrade-Insecure-Requests: 1'
     hit "human android"   "$U" "$UA_MOBILE"  offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Referer: https://l.facebook.com/'
     hit "human iphone"    "$U" "$UA_IPHONE"  offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document'
