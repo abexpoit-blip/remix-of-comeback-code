@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { internalHostGuard } from "@/lib/internal-endpoint";
+import { internalHostGuard, opsNotFound } from "@/lib/internal-endpoint";
 
 /**
  * Daily cron entry point that scans every active monitored domain.
@@ -11,6 +11,7 @@ import { internalHostGuard } from "@/lib/internal-endpoint";
 export const Route = createFileRoute("/api/public/hooks/domain-health-scan")({
   server: {
     handlers: {
+      GET: async () => opsNotFound(),
       POST: async ({ request }) => {
         const blocked = internalHostGuard(request);
         if (blocked) return blocked;
