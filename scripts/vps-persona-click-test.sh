@@ -83,14 +83,26 @@ hit() {
     "offer|offer"|"offer|bridge(offer)"|"offer|bounce(offer)") ok="✅" ;;
   esac
 
+  # The link owner blocked this VPS's own country in Country Shield:
+  # an article here is the CORRECT result, not traffic loss.
+  if [ "${SHIELDED:-0}" = "1" ] && [ "$expect" = "offer" ] && [ "$got" = "article" ]; then
+    ok="✅"; got="article(shield:$VPS_CC)"
+  fi
+
   # A human landing on a pure safe/article page with no way forward = real loss.
   if [ "$expect" = "offer" ] && [ "$got" = "article" ]; then got="article(LOSS)"; fi
   [ "$ok" = "✅" ] && pass=$((pass+1)) || fail=$((fail+1))
+
 
   printf '   %s %-22s want=%-7s got=%-14s http=%s route=%s\n' \
     "$ok" "$label" "$expect" "$got" "$status" "${routed:-–}"
   [ -n "$loc" ] && printf '        -> %s\n' "${loc:0:110}"
 }
+
+# This VPS's own exit country — link owners can legitimately block it.
+VPS_CC=$(curl -s --max-time 8 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n ' )
+[ -z "$VPS_CC" ] && VPS_CC="??"
+echo "   test origin country = $VPS_CC"
 
 for d in "${DOMAINS[@]}"; do
   SAFE_HOST="$d"
@@ -100,8 +112,14 @@ for d in "${DOMAINS[@]}"; do
     [ -z "$c" ] && continue
     U="https://$d/$c"
     dbstat=$(docker exec supabase-db psql -U postgres -d postgres -tAc \
-      "SELECT is_active||' safe_url='||COALESCE(NULLIF(safe_url,''),'(pool)') FROM links WHERE short_code='$c' LIMIT 1" 2>/dev/null | tr -d '\r')
-    echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}"
+      "SELECT is_active||' safe_url='||COALESCE(NULLIF(safe_url,''),'(pool)')||' blocked='||COALESCE(array_to_string(blocked_countries,','),'-') FROM links WHERE short_code='$c' LIMIT 1" 2>/dev/null | tr -d '\r')
+    case ",${dbstat#*blocked=}," in
+      *",$VPS_CC,"*) SHIELDED=1 ;;
+      *) SHIELDED=0 ;;
+    esac
+    note=""; [ "$SHIELDED" = "1" ] && note="  [owner blocks $VPS_CC → article is CORRECT here]"
+    echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}$note"
+
     hit "human desktop"   "$U" "$UA_DESKTOP" offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Site: none' -H 'Upgrade-Insecure-Requests: 1'
     hit "human android"   "$U" "$UA_MOBILE"  offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Referer: https://l.facebook.com/'
     hit "human iphone"    "$U" "$UA_IPHONE"  offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document'
