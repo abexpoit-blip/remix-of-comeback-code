@@ -299,7 +299,12 @@ fi
 # from their old graph. Preserve old hash-named server chunks without replacing
 # any fresh file, then validate both graphs' references before the atomic swap.
 if [ -d "$PREV/server" ]; then
-  cp -an "$PREV/server/." "$FRESH/server/" 2>/dev/null || true
+  if validate_server_graph "$PREV" >/dev/null 2>&1; then
+    cp -an "$PREV/server/." "$FRESH/server/" 2>/dev/null || true
+    echo "  ✅ retained the previous complete server graph for draining workers"
+  else
+    echo "  ⚠️  previous server graph is incomplete; skipped it and will recover with the clean release"
+  fi
 fi
 validate_server_graph "$FRESH" || {
   rm -rf "$STAGING"
