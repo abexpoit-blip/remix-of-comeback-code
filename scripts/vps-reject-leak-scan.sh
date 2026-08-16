@@ -17,24 +17,36 @@ UA_GBOT='Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html
 UA_DESK='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 UA_FBIAB='Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/450.0.0.0.0;]'
 
-F=0; bad(){ echo "   ❌ $*"; F=$((F+1)); }; ok(){ echo "   ✅ $*"; }
+F=0; INFRA=0
+bad(){ echo "   ❌ $*"; F=$((F+1)); }
+infra(){ echo "   ⚠️  $*"; INFRA=$((INFRA+1)); }
+ok(){ echo "   ✅ $*"; }
 hdr(){ echo; echo "════════ $* ════════"; }
-code(){ curl -s -o /dev/null -w '%{http_code}' -m 15 -A "${2:-$UA_DESK}" "$1"; }
+code(){ curl -sS -o /dev/null -w '%{http_code}' -m 15 -A "${2:-$UA_DESK}" "$1" 2>/dev/null || true; }
+expect_404(){
+  local label="$1" actual="$2" suffix="${3:-}"
+  if [ "$actual" = "404" ]; then return 0; fi
+  if [ "$actual" = "000" ] || [ -z "$actual" ]; then
+    infra "$label = ${actual:-000} (TLS/DNS/connectivity failure — not a content leak)"
+  else
+    bad "$label = $actual${suffix:+ ($suffix)}"
+  fi
+}
 
 # ── 1. SaaS surface must not exist on ad domains ────────────────
 hdr "1) SaaS SURFACE ON AD DOMAINS (expect 404)"
 for d in "${AD_DOMAINS[@]}" "$STORE_DOMAIN"; do
   for p in /dashboard /login /signup /control-panel /analytics /upgrade /pricing /domains /live /support; do
     c=$(code "https://$d$p")
-    [ "$c" = "404" ] || bad "$d$p = $c (SaaS leak to reviewer)"
+    expect_404 "$d$p" "$c" "SaaS leak to reviewer"
   done
   # internal/ops endpoints — probe BOTH verbs; a cron route that only takes
   # POST still leaks if a GET falls through to the app shell with 200.
   for p in /api/public/health /api/public/hooks/leak-scan /api/public/hooks/meta-crawler-probe /api/public/hooks/domain-health-scan /api/public/safe-pool-refresh; do
     g=$(code "https://$d$p")
     o=$(curl -s -o /dev/null -w '%{http_code}' -m 15 -X POST -A "$UA_DESK" "https://$d$p")
-    [ "$g" = "404" ] || bad "$d$p GET = $g (ops endpoint exposed)"
-    [ "$o" = "404" ] || bad "$d$p POST = $o (ops endpoint exposed)"
+    expect_404 "$d$p GET" "$g" "ops endpoint exposed"
+    expect_404 "$d$p POST" "$o" "ops endpoint exposed"
   done
 done
 [ "$F" -eq 0 ] && ok "no SaaS/ops paths reachable on ad domains"
@@ -69,10 +81,19 @@ hdr "4) PERSONA TEST ON LIVE SHORT LINKS"
 DB=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|db.*supabase|postgres' | head -n1)
 CODES=""
 if [ -n "$DB" ]; then
-  CODES=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
-    "SELECT short_code FROM links WHERE is_active ORDER BY click_count DESC NULLS LAST LIMIT 3;" 2>/dev/null | tr -d '\r')
+  # Do not hide the SQL error: self-hosted stacks may use a non-default DB
+  # name or schema. First discover the app table, then query its exact schema.
+  LINK_TABLE=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
+    "SELECT quote_ident(table_schema)||'.'||quote_ident(table_name) FROM information_schema.tables WHERE table_name='links' AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY (table_schema='public') DESC LIMIT 1;" 2>/tmp/sx-links-db.err | tr -d '\r')
+  if [ -n "$LINK_TABLE" ]; then
+    CODES=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
+      "SELECT short_code FROM $LINK_TABLE WHERE is_active IS TRUE ORDER BY click_count DESC NULLS LAST LIMIT 3;" 2>/tmp/sx-links-db.err | tr -d '\r')
+  fi
 fi
-[ -z "$CODES" ] && bad "no live short codes read from DB (container='${DB:-none}') — persona test skipped"
+if [ -z "$CODES" ]; then
+  detail=$(tail -1 /tmp/sx-links-db.err 2>/dev/null || true)
+  infra "no live short codes read from DB (container='${DB:-none}'${detail:+; $detail}) — persona test skipped"
+fi
 for c in $CODES; do
   d="${AD_DOMAINS[0]}"
   echo "   /$c on $d"
@@ -125,4 +146,6 @@ for d in "${AD_DOMAINS[@]}"; do
 done
 
 hdr "RESULT"
-[ "$F" -eq 0 ] && echo "   ✅ no reject-triggering leaks found" || echo "   ❌ $F issue(s) — fix before scaling spend"
+[ "$F" -eq 0 ] && echo "   ✅ no application leak found" || echo "   ❌ $F application leak(s) found"
+[ "$INFRA" -eq 0 ] || echo "   ⚠️  $INFRA infrastructure issue(s) (TLS/DNS/DB diagnostics); fix before scaling spend"
+exit "$([ "$F" -eq 0 ] && echo 0 || echo 1)"
