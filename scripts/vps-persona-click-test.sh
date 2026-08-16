@@ -42,10 +42,21 @@ hit() {
   status="$out"
   loc=$(grep -i '^location:' /tmp/pct-hdr.txt | tail -1 | tr -d '\r' | sed 's/^[Ll]ocation: *//')
   routed=$(grep -i '^x-sx-route:' /tmp/pct-hdr.txt | tail -1 | tr -d '\r' | sed 's/.*: *//')
-  local got="?"
+  local got="?" hop=""
   if [ "$status" = "200" ]; then
-    got="article"
-    grep -qiE '<article|<h1' /tmp/pct-body.html || got="200-nonarticle"
+    if grep -q 'id="sx-go"' /tmp/pct-body.html; then
+      # content bridge: real article + CTA that forwards to the offer.
+      # This IS the offer path for ad-click traffic, not traffic loss.
+      got="bridge(offer)"
+      hop=$(grep -o 'id="sx-go" href="[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*href="//;s/"$//')
+    elif grep -qiE 'location\.href|http-equiv="refresh"' /tmp/pct-body.html; then
+      got="bounce(offer)"
+      hop=$(grep -oE 'location\.href *= *"[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*= *"//;s/"$//')
+    elif grep -qiE '<article|<h1' /tmp/pct-body.html; then
+      got="article"
+    else
+      got="200-unknown"
+    fi
   elif [ "$status" = "301" ] || [ "$status" = "302" ]; then
     case "$loc" in
       *"$SAFE_HOST"/blog*|*/faq*|*/about*|*/size-guide*|*/shipping*|*/returns*|*/contact*|*/shop*) got="safe" ;;
@@ -54,12 +65,16 @@ hit() {
   else
     got="http-$status"
   fi
+  [ -n "$hop" ] && loc="$hop"
 
   local ok="❌"
-  if [ "$expect" = "article" ] && { [ "$got" = "article" ]; }; then ok="✅"
-  elif [ "$expect" = "safe" ] && { [ "$got" = "safe" ] || [ "$got" = "article" ]; }; then ok="✅"
-  elif [ "$expect" = "offer" ] && [ "$got" = "offer" ]; then ok="✅"
-  fi
+  case "$expect|$got" in
+    "article|article") ok="✅" ;;
+    "safe|safe"|"safe|article") ok="✅" ;;
+    "offer|offer"|"offer|bridge(offer)"|"offer|bounce(offer)") ok="✅" ;;
+  esac
+  # A human landing on a pure safe/article page with no way forward = real loss.
+  if [ "$expect" = "offer" ] && [ "$got" = "article" ]; then got="article(LOSS)"; fi
   [ "$ok" = "✅" ] && pass=$((pass+1)) || fail=$((fail+1))
 
   printf '   %s %-22s want=%-7s got=%-14s http=%s route=%s\n' \
