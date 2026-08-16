@@ -12,8 +12,12 @@ import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CartProvider } from "@/lib/cart-context";
+import { assetsForHost, fontsHref, iconPath } from "@/lib/brand-assets";
 import { installChunkErrorRecovery, isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
+import { getHost } from "@/lib/host";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import appCss from "../styles.css?url";
+
 
 
 function NotFoundComponent() {
