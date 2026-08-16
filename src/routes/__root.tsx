@@ -110,12 +110,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // Host-aware identity. Every domain must present its OWN favicon, font
+  // stack, analytics property and verification tokens — sharing them across
+  // the ad domain, the storefront and the SaaS host is the single strongest
+  // "same operator / cloaking" signal an ad reviewer can collect.
+  const host = getHost();
+  const saas = isSleepoxSaasHost(host);
+  const assets = assetsForHost(host);
+  const fonts = fontsHref(host);
+
   return (
     <html lang="en">
       <head>
-        <meta name="google-site-verification" content="rn4Co7u4RniBHEjW9QBQjctEBAY5I_dicODU2ir9s2w" />
-        <meta name="google-site-verification" content="dBmj6auZVrnDJBXhq6BuCQvyj0EMnH94zmy6Shz2V90" />
+        {saas ? (
+          <>
+            <meta name="google-site-verification" content="rn4Co7u4RniBHEjW9QBQjctEBAY5I_dicODU2ir9s2w" />
+            <meta name="google-site-verification" content="dBmj6auZVrnDJBXhq6BuCQvyj0EMnH94zmy6Shz2V90" />
+          </>
+        ) : null}
+        <meta name="theme-color" content={assets.color} />
+        <link rel="icon" type="image/svg+xml" href={iconPath(host)} />
+        {fonts ? <link rel="stylesheet" href={fonts} /> : null}
         <HeadContent />
+        {assets.ga ? (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${assets.ga}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${assets.ga}');`,
+              }}
+            />
+          </>
+        ) : null}
       </head>
       <body>
         {children}
@@ -124,6 +150,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
+
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
