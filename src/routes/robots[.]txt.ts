@@ -95,23 +95,24 @@ export const Route = createFileRoute("/robots.txt")({
 
         const saas = isSleepoxSaasHost(host);
 
+        const social = socialBlockFor(host);
+
         const body = saas
           ? `User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /dashboard
 Disallow: /control-panel
-${SOCIAL_ALLOW}
+${social}
 Sitemap: ${origin}/sitemap.xml
 `
           : `User-agent: *
 Allow: /
-Disallow: /cart
-Disallow: /checkout
-Disallow: /order-confirmed
-${SOCIAL_ALLOW}
+${storeDisallowFor(host)}
+${social}
 Sitemap: ${origin}/sitemap.xml
 `;
+
 
         return new Response(body, {
           status: 200,
