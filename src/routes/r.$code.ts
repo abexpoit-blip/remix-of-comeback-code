@@ -663,15 +663,15 @@ const ASN_PROVIDERS: Array<(ip: string, signal: AbortSignal) => Promise<string>>
     return String(j.connection?.asn ?? "").replace(/^AS/i, "");
   },
   async (ip, signal) => {
-    const r = await fetch(`https://api.iplocation.net/?ip=${encodeURIComponent(ip)}`, {
+    const r = await fetch(`https://get.geojs.io/v1/ip/asn/${encodeURIComponent(ip)}.json`, {
       signal,
       headers: { accept: "application/json" },
     });
     if (!r.ok) return "";
-    const j = (await r.json()) as { isp?: string };
-    // iplocation has no ASN field; only used as a liveness fallback.
-    return j.isp ? "" : "";
+    const j = (await r.json()) as { asn?: number | string };
+    return String(j.asn ?? "").replace(/^AS/i, "");
   },
+
 ];
 
 function scheduleAsnLookup(ip: string): void {
