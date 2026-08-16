@@ -68,12 +68,21 @@ hit() {
   fi
   [ -n "$hop" ] && loc="$hop"
 
+  # A bridge/bounce whose next hop is a safe page is a SAFE serve, not an offer serve.
+  case "$got" in
+    bridge\(offer\)|bounce\(offer\))
+      case "$hop" in
+        *"$SAFE_HOST"*|*/blog*|*/faq*|*/about*|*/size-guide*|*/shipping*|*/returns*|*/contact*|*/shop*) got="safe" ;;
+      esac ;;
+  esac
+
   local ok="❌"
   case "$expect|$got" in
     "article|article") ok="✅" ;;
     "safe|safe"|"safe|article") ok="✅" ;;
     "offer|offer"|"offer|bridge(offer)"|"offer|bounce(offer)") ok="✅" ;;
   esac
+
   # A human landing on a pure safe/article page with no way forward = real loss.
   if [ "$expect" = "offer" ] && [ "$got" = "article" ]; then got="article(LOSS)"; fi
   [ "$ok" = "✅" ] && pass=$((pass+1)) || fail=$((fail+1))
