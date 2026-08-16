@@ -42,7 +42,7 @@ const TONE: Record<string, { grad: string; ring: string; badge: string; accent: 
   },
 };
 
-const SESSION_FLAG = "sleepox_login_notice_seen_v1";
+const SESSION_FLAG = "app_notice_seen_v1";
 
 export function BroadcastLoginPopup() {
   const list = useServerFn(listActiveBroadcasts);
