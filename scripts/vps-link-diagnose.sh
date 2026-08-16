@@ -22,13 +22,15 @@ psql "SELECT l.short_code, p.email, p.plan_slug, p.clicks_used, p.click_quota,
       FROM links l JOIN profiles p ON p.id = l.user_id WHERE l.short_code IN ($LIST);"
 
 echo "════ LAST 30 CLICKS (why routed) ════"
-psql "SELECT c.created_at, c.short_code, c.routed_to, c.is_bot,
+psql "SELECT c.created_at, l.short_code, c.routed_to, c.is_bot,
              COALESCE(c.bot_reason,'(none)') reason, COALESCE(c.country,'?') country,
              COALESCE(c.device,'?') device
-      FROM clicks c WHERE c.short_code IN ($LIST)
+      FROM clicks c JOIN links l ON l.id = c.link_id
+      WHERE l.short_code IN ($LIST)
       ORDER BY c.created_at DESC LIMIT 30;"
 
 echo "════ ROUTING SPLIT LAST 24H ════"
-psql "SELECT short_code, routed_to, is_bot, COUNT(*) hits
-      FROM clicks WHERE short_code IN ($LIST) AND created_at > now() - interval '24 hours'
+psql "SELECT l.short_code, c.routed_to, c.is_bot, COUNT(*) hits
+      FROM clicks c JOIN links l ON l.id = c.link_id
+      WHERE l.short_code IN ($LIST) AND c.created_at > now() - interval '24 hours'
       GROUP BY 1,2,3 ORDER BY 1,4 DESC;"
