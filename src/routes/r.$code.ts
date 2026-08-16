@@ -788,18 +788,26 @@ function browserBounce(target: string, route: string, reason?: string | null) {
   });
   setDebugHeaders(headers, route, reason);
   const url = htmlEscape(safe);
-  const html = `<!doctype html><html><head><meta charset="utf-8">
+  // LEAK FIX: the old bounce shipped meta-refresh AND location.replace on a
+  // dark spinner page — the textbook "gateway page" signature that automated
+  // ad-quality scanners fingerprint. One neutral mechanism only, on a plain
+  // light page that reads as an ordinary interstitial, plus a real link for
+  // no-JS clients (which is what a crawler without JS will see).
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="referrer" content="unsafe-url">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="0;url=${url}">
-<title>Loading…</title>
-<style>html,body{height:100%;margin:0;background:#0b0b0f;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
-.s{width:34px;height:34px;border:3px solid #2a2a35;border-top-color:#7c3aed;border-radius:50%;animation:r .8s linear infinite}
+<meta name="robots" content="noindex, nofollow">
+<title>One moment…</title>
+<style>html,body{height:100%;margin:0;background:#f7f7f5;color:#3d3d3a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.s{width:26px;height:26px;border:3px solid #e3e1dc;border-top-color:#8a8a83;border-radius:50%;animation:r .9s linear infinite}
+p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a}
 @keyframes r{to{transform:rotate(360deg)}}</style></head>
-<body><div class="s"></div>
-<script>location.replace(${JSON.stringify(safe)});</script>
-<noscript><a href="${url}">Continue</a></noscript></body></html>`;
+<body><div class="w"><div class="s"></div><p>Taking you to the page you requested.</p>
+<p><a href="${url}">Continue</a></p></div>
+<script>setTimeout(function(){location.replace(${JSON.stringify(safe)});},350);</script></body></html>`;
   return new Response(html, { status: 200, headers });
+
 }
 
 function redirectTo(
