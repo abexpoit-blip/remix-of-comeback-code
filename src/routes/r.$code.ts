@@ -1593,14 +1593,24 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const ua = request.headers.get("user-agent") || "";
 
   const referer = request.headers.get("referer") || "";
-  // Some proxies emit "AS16509" instead of "16509" — normalize, otherwise every
-  // ASN rule (Meta allowlist, datacenter block) silently never matches.
-  const asn = (request.headers.get("cf-asn") || "").trim().replace(/^AS/i, "");
   const ip =
     request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     request.headers.get("x-real-ip") ||
     "";
+  // Some proxies emit "AS16509" instead of "16509" — normalize, otherwise every
+  // ASN rule (Meta allowlist, datacenter block) silently never matches.
+  //
+  // 2026-08: `cf-asn` is Enterprise-only. Once a domain sits behind a free
+  // Cloudflare proxy the header disappears and every ASN rule silently dies
+  // (Meta allowlist stops matching → FB crawler gets the offer → rejection).
+  // Fall back to `x-asn` (optional CF Worker) and finally to a cached IP→ASN
+  // lookup so ASN rules keep working with no Cloudflare configuration at all.
+  const asn =
+    (request.headers.get("cf-asn") || request.headers.get("x-asn") || "")
+      .trim()
+      .replace(/^AS/i, "") || (ip ? lookupAsnByIp(ip) : "");
+
 
   // Country resolution, with a CONFIDENCE flag.
   //
