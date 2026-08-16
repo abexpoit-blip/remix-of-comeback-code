@@ -12,8 +12,12 @@ import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CartProvider } from "@/lib/cart-context";
+import { assetsForHost, fontsHref, iconPath } from "@/lib/brand-assets";
 import { installChunkErrorRecovery, isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
+import { getHost } from "@/lib/host";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import appCss from "../styles.css?url";
+
 
 
 function NotFoundComponent() {
@@ -91,21 +95,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico", sizes: "any" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" },
     ],
-    scripts: [
-      { src: "https://www.googletagmanager.com/gtag/js?id=G-79NYCD5JM9", async: true },
-      {
-        children: `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-79NYCD5JM9');`,
-      },
-    ],
+    // NOTE: favicon, web-font stylesheet, analytics and site-verification are
+    // intentionally NOT declared here. head() has no access to the request
+    // host, and emitting one shared set on every domain is what tied the ad
+    // domains, the storefront and the SaaS dashboard together for reviewers.
+    // They are rendered per-host in RootDocument below.
   }),
+
 
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
@@ -114,12 +114,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // Host-aware identity. Every domain must present its OWN favicon, font
+  // stack, analytics property and verification tokens — sharing them across
+  // the ad domain, the storefront and the SaaS host is the single strongest
+  // "same operator / cloaking" signal an ad reviewer can collect.
+  const host = getHost();
+  const saas = isSleepoxSaasHost(host);
+  const assets = assetsForHost(host);
+  const fonts = fontsHref(host);
+
   return (
     <html lang="en">
       <head>
-        <meta name="google-site-verification" content="rn4Co7u4RniBHEjW9QBQjctEBAY5I_dicODU2ir9s2w" />
-        <meta name="google-site-verification" content="dBmj6auZVrnDJBXhq6BuCQvyj0EMnH94zmy6Shz2V90" />
+        {saas ? (
+          <>
+            <meta name="google-site-verification" content="rn4Co7u4RniBHEjW9QBQjctEBAY5I_dicODU2ir9s2w" />
+            <meta name="google-site-verification" content="dBmj6auZVrnDJBXhq6BuCQvyj0EMnH94zmy6Shz2V90" />
+          </>
+        ) : null}
+        <meta name="theme-color" content={assets.color} />
+        <link rel="icon" type="image/svg+xml" href={iconPath(host)} />
+        {fonts ? <link rel="stylesheet" href={fonts} /> : null}
         <HeadContent />
+        {assets.ga ? (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${assets.ga}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${assets.ga}');`,
+              }}
+            />
+          </>
+        ) : null}
       </head>
       <body>
         {children}
@@ -128,6 +154,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
+
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();

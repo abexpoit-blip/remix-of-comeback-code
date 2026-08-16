@@ -11,6 +11,7 @@ import { fetchIpv4 } from "@/lib/fetch-ipv4";
 // hiding the safe page from Meta — which causes ad rejections.
 
 import { createFileRoute } from "@tanstack/react-router";
+import { internalHostGuard } from "@/lib/internal-endpoint";
 
 const META_UAS = [
   {
@@ -79,6 +80,9 @@ export const Route = createFileRoute("/api/public/hooks/meta-crawler-probe")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
+
         // Auth: standard `apikey` header pattern used by pg_cron.
         // Accept any of the common env var names so this works on both
         // Lovable Cloud and self-hosted VPS deploys.

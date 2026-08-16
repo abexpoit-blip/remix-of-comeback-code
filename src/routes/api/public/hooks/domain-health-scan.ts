@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { internalHostGuard } from "@/lib/internal-endpoint";
 
 /**
  * Daily cron entry point that scans every active monitored domain.
@@ -11,6 +12,9 @@ export const Route = createFileRoute("/api/public/hooks/domain-health-scan")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
+
         const provided = request.headers.get("apikey") || "";
         const expected = process.env.SUPABASE_PUBLISHABLE_KEY || "";
         if (!provided || !expected || provided !== expected) {

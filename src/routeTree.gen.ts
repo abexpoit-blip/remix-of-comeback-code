@@ -46,6 +46,7 @@ import { Route as AuthenticatedDomainsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedControlPanelRouteImport } from './routes/_authenticated/control-panel'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as BrandSlugIconDotsvgRouteImport } from './routes/brand.$slug.icon[.]svg'
 import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
@@ -241,6 +242,11 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const BrandSlugIconDotsvgRoute = BrandSlugIconDotsvgRouteImport.update({
+  id: '/brand/$slug/icon.svg',
+  path: '/brand/$slug/icon.svg',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSafePoolRefreshRoute =
   ApiPublicSafePoolRefreshRouteImport.update({
     id: '/api/public/safe-pool-refresh',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
@@ -365,6 +372,7 @@ export interface FileRoutesByTo {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
@@ -412,6 +420,7 @@ export interface FileRoutesById {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
   '/api/public/hooks/meta-crawler-probe': typeof ApiPublicHooksMetaCrawlerProbeRoute
@@ -459,6 +468,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
+    | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
@@ -503,6 +513,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
+    | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
@@ -549,6 +560,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
+    | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
     | '/api/public/hooks/meta-crawler-probe'
@@ -583,6 +595,7 @@ export interface RootRouteChildren {
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
+  BrandSlugIconDotsvgRoute: typeof BrandSlugIconDotsvgRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
   ApiPublicHooksLeakScanRoute: typeof ApiPublicHooksLeakScanRoute
   ApiPublicHooksMetaCrawlerProbeRoute: typeof ApiPublicHooksMetaCrawlerProbeRoute
@@ -850,6 +863,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/brand/$slug/icon.svg': {
+      id: '/brand/$slug/icon.svg'
+      path: '/brand/$slug/icon.svg'
+      fullPath: '/brand/$slug/icon.svg'
+      preLoaderRoute: typeof BrandSlugIconDotsvgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/safe-pool-refresh': {
       id: '/api/public/safe-pool-refresh'
       path: '/api/public/safe-pool-refresh'
@@ -982,6 +1002,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
+  BrandSlugIconDotsvgRoute: BrandSlugIconDotsvgRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,
   ApiPublicHooksLeakScanRoute: ApiPublicHooksLeakScanRoute,
   ApiPublicHooksMetaCrawlerProbeRoute: ApiPublicHooksMetaCrawlerProbeRoute,

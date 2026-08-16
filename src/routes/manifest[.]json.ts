@@ -7,13 +7,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import { brandForOrigin } from "@/lib/brand-registry";
+import { assetsForHost, iconPath } from "@/lib/brand-assets";
 
-const ICONS = [
-  { src: "/icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-  { src: "/icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-  { src: "/maskable-icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
-  { src: "/maskable-icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-];
+// LEAK FIX: the four shared PNG icons were byte-identical on every domain.
+// Each host now advertises its own generated SVG mark instead.
+function iconsFor(host: string) {
+  const src = iconPath(host);
+  return [
+    { src, sizes: "any", type: "image/svg+xml", purpose: "any" },
+    { src, sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+  ];
+}
 
 export const Route = createFileRoute("/manifest.json")({
   server: {
@@ -35,8 +39,8 @@ export const Route = createFileRoute("/manifest.json")({
               start_url: "/",
               display: "standalone",
               background_color: "#ffffff",
-              theme_color: "#0f172a",
-              icons: ICONS,
+              theme_color: assetsForHost(host).color,
+              icons: iconsFor(host),
             }
           : {
               name: brand.name,
@@ -45,8 +49,8 @@ export const Route = createFileRoute("/manifest.json")({
               start_url: "/",
               display: "standalone",
               background_color: "#ffffff",
-              theme_color: "#5A7A55",
-              icons: ICONS,
+              theme_color: assetsForHost(host).color,
+              icons: iconsFor(host),
             };
 
         return new Response(JSON.stringify(body, null, 2), {

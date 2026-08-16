@@ -16,6 +16,9 @@ import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 import { resolveDestination } from "@/lib/destination-rotation";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
+import { assetsForHost, iconPath, normalizeHost, ogImagePath } from "@/lib/brand-assets";
+import { brandForOrigin, rebrand } from "@/lib/brand-registry";
+
 
 
 // Never point a bot/reviewer at the SaaS host — that is cloaking proof.
@@ -785,18 +788,26 @@ function browserBounce(target: string, route: string, reason?: string | null) {
   });
   setDebugHeaders(headers, route, reason);
   const url = htmlEscape(safe);
-  const html = `<!doctype html><html><head><meta charset="utf-8">
+  // LEAK FIX: the old bounce shipped meta-refresh AND location.replace on a
+  // dark spinner page — the textbook "gateway page" signature that automated
+  // ad-quality scanners fingerprint. One neutral mechanism only, on a plain
+  // light page that reads as an ordinary interstitial, plus a real link for
+  // no-JS clients (which is what a crawler without JS will see).
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="referrer" content="unsafe-url">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="0;url=${url}">
-<title>Loading…</title>
-<style>html,body{height:100%;margin:0;background:#0b0b0f;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
-.s{width:34px;height:34px;border:3px solid #2a2a35;border-top-color:#7c3aed;border-radius:50%;animation:r .8s linear infinite}
+<meta name="robots" content="noindex, nofollow">
+<title>One moment…</title>
+<style>html,body{height:100%;margin:0;background:#f7f7f5;color:#3d3d3a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.s{width:26px;height:26px;border:3px solid #e3e1dc;border-top-color:#8a8a83;border-radius:50%;animation:r .9s linear infinite}
+p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a}
 @keyframes r{to{transform:rotate(360deg)}}</style></head>
-<body><div class="s"></div>
-<script>location.replace(${JSON.stringify(safe)});</script>
-<noscript><a href="${url}">Continue</a></noscript></body></html>`;
+<body><div class="w"><div class="s"></div><p>Taking you to the page you requested.</p>
+<p><a href="${url}">Continue</a></p></div>
+<script>setTimeout(function(){location.replace(${JSON.stringify(safe)});},350);</script></body></html>`;
   return new Response(html, { status: 200, headers });
+
 }
 
 function redirectTo(
@@ -905,9 +916,19 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
       : null;
 
   if (!page) return null;
-  const title = htmlEscape(page.title);
-  const description = htmlEscape(page.description);
+  // LEAK FIX: these pages hard-coded "BreezySocial" + @breezysocial.com and a
+  // shared /og-default.png, so mefok.com served BreezySocial's contact page.
+  // Everything is rebranded to the serving host before it leaves the server.
+  const hostBrand = brandForOrigin(publicOrigin);
+  const hostDomain = normalizeHost(publicOrigin);
+  const localize = (s: string) =>
+    rebrand(s, publicOrigin).replace(/@breezysocial\.com/g, `@${hostDomain || "breezysocial.com"}`);
+
+  const title = htmlEscape(localize(page.title));
+  const description = htmlEscape(localize(page.description));
   const safeCanonical = htmlEscape(canonical);
+  const ogImage = htmlEscape(`${publicOrigin}${ogImagePath(publicOrigin)}`);
+  const accent = assetsForHost(publicOrigin).color;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -916,29 +937,31 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
   <title>${title}</title>
   <meta name="description" content="${description}" />
   <link rel="canonical" href="${safeCanonical}" />
-  <meta property="og:site_name" content="BreezySocial" />
+  <link rel="icon" type="image/svg+xml" href="${htmlEscape(iconPath(publicOrigin))}" />
+  <meta property="og:site_name" content="${htmlEscape(hostBrand.name)}" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:url" content="${safeCanonical}" />
-  <meta property="og:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <meta property="og:image" content="${ogImage}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <meta name="twitter:image" content="${ogImage}" />
   <style>
     body{margin:0;background:#faf7f2;color:#2a2a28;font-family:Arial,Helvetica,sans-serif;line-height:1.65}
     header,main,footer{max-width:880px;margin:0 auto;padding:28px 24px}
-    nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}a{color:#476b43}h1{font-size:44px;line-height:1.1;margin:40px 0 18px}h2{font-size:22px;margin-top:32px}dl{display:grid;grid-template-columns:110px 1fr;gap:12px 18px}dt{font-weight:700}footer{border-top:1px solid #e8e2d5;color:#6b665e;font-size:14px}
+    nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}a{color:${accent}}h1{font-size:44px;line-height:1.1;margin:40px 0 18px}h2{font-size:22px;margin-top:32px}dl{display:grid;grid-template-columns:110px 1fr;gap:12px 18px}dt{font-weight:700}footer{border-top:1px solid #e8e2d5;color:#6b665e;font-size:14px}
   </style>
 </head>
 <body>
   <header><nav><a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav></header>
-  <main><h1>${htmlEscape(page.h1)}</h1>${page.body}</main>
-  <footer>© ${new Date().getUTCFullYear()} BreezySocial · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></footer>
+  <main><h1>${htmlEscape(localize(page.h1))}</h1>${localize(page.body)}</main>
+  <footer>© ${new Date().getUTCFullYear()} ${htmlEscape(hostBrand.name)} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></footer>
 </body>
 </html>`;
 }
+
 
 type RedirectClickInput = {
   eventId?: string;

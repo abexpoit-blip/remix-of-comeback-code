@@ -4,6 +4,7 @@ import { SleepoxHome } from "@/components/sleepox-home";
 import { BreezyHome } from "@/components/breezy/BreezyHome";
 import { buildOg } from "@/lib/og-meta";
 import { brandForOrigin } from "@/lib/brand-registry";
+import { iconPath } from "@/lib/brand-assets";
 
 
 /**
@@ -57,7 +58,7 @@ export const Route = createFileRoute("/")({
               "@type": "Organization",
               name: brand.name,
               url: origin,
-              logo: `${origin}/favicon.svg`,
+              logo: `${origin}${iconPath(origin)}`,
               email: brand.email,
               address: {
                 "@type": "PostalAddress",
