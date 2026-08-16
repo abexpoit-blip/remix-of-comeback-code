@@ -905,9 +905,19 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
       : null;
 
   if (!page) return null;
-  const title = htmlEscape(page.title);
-  const description = htmlEscape(page.description);
+  // LEAK FIX: these pages hard-coded "BreezySocial" + @breezysocial.com and a
+  // shared /og-default.png, so mefok.com served BreezySocial's contact page.
+  // Everything is rebranded to the serving host before it leaves the server.
+  const hostBrand = brandForOrigin(publicOrigin);
+  const hostDomain = normalizeHost(publicOrigin);
+  const localize = (s: string) =>
+    rebrand(s, publicOrigin).replace(/@breezysocial\.com/g, `@${hostDomain || "breezysocial.com"}`);
+
+  const title = htmlEscape(localize(page.title));
+  const description = htmlEscape(localize(page.description));
   const safeCanonical = htmlEscape(canonical);
+  const ogImage = htmlEscape(`${publicOrigin}${ogImagePath(publicOrigin)}`);
+  const accent = assetsForHost(publicOrigin).color;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -916,29 +926,31 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
   <title>${title}</title>
   <meta name="description" content="${description}" />
   <link rel="canonical" href="${safeCanonical}" />
-  <meta property="og:site_name" content="BreezySocial" />
+  <link rel="icon" type="image/svg+xml" href="${htmlEscape(iconPath(publicOrigin))}" />
+  <meta property="og:site_name" content="${htmlEscape(hostBrand.name)}" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:url" content="${safeCanonical}" />
-  <meta property="og:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <meta property="og:image" content="${ogImage}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${htmlEscape(publicOrigin)}/og-default.png" />
+  <meta name="twitter:image" content="${ogImage}" />
   <style>
     body{margin:0;background:#faf7f2;color:#2a2a28;font-family:Arial,Helvetica,sans-serif;line-height:1.65}
     header,main,footer{max-width:880px;margin:0 auto;padding:28px 24px}
-    nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}a{color:#476b43}h1{font-size:44px;line-height:1.1;margin:40px 0 18px}h2{font-size:22px;margin-top:32px}dl{display:grid;grid-template-columns:110px 1fr;gap:12px 18px}dt{font-weight:700}footer{border-top:1px solid #e8e2d5;color:#6b665e;font-size:14px}
+    nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}a{color:${accent}}h1{font-size:44px;line-height:1.1;margin:40px 0 18px}h2{font-size:22px;margin-top:32px}dl{display:grid;grid-template-columns:110px 1fr;gap:12px 18px}dt{font-weight:700}footer{border-top:1px solid #e8e2d5;color:#6b665e;font-size:14px}
   </style>
 </head>
 <body>
   <header><nav><a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav></header>
-  <main><h1>${htmlEscape(page.h1)}</h1>${page.body}</main>
-  <footer>© ${new Date().getUTCFullYear()} BreezySocial · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></footer>
+  <main><h1>${htmlEscape(localize(page.h1))}</h1>${localize(page.body)}</main>
+  <footer>© ${new Date().getUTCFullYear()} ${htmlEscape(hostBrand.name)} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></footer>
 </body>
 </html>`;
 }
+
 
 type RedirectClickInput = {
   eventId?: string;
