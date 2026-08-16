@@ -846,15 +846,19 @@ function redirectTo(
 function renderOfferBridge(articleHtml: string, offerUrl: string): string {
   const safe = sanitizeRedirectTarget(offerUrl);
   const target = JSON.stringify(safe);
+  // Neutral, per-response element ids. A fixed `sx-*` prefix on every ad domain
+  // is a shared footprint a reviewer can grep for across our brands.
+  const uid = Math.random().toString(36).slice(2, 8);
+  const ctaId = `c${uid}`;
   const cta = `
-<div id="sx-cta" style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
-  <a id="sx-go" href="${htmlEscape(safe)}" rel="noopener"
+<div style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
+  <a id="${ctaId}" href="${htmlEscape(safe)}" rel="noopener"
      style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
     Continue reading &rarr;
   </a>
 </div>
 <script>(function(){
-  var go=document.getElementById('sx-go');if(!go)return;
+  var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
   var done=false;
   function jump(){if(done)return;done=true;location.href=${target};}
   go.addEventListener('click',function(e){e.preventDefault();jump();});
