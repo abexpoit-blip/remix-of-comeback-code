@@ -62,6 +62,14 @@ server {
 
     location /.well-known/acme-challenge/ { root /var/www/html; }
 
+    # Dashboard/public links are shared as https://domain/abc123, while the
+    # TanStack server route is /r/abc123.  The old monolithic vhost contained
+    # this rewrite; preserve it in every split vhost or every live short link
+    # falls through to TanStack's page-level 404.
+    location ~ ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ {
+        rewrite ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ /r/\$1 last;
+    }
+
     location / {
         proxy_pass http://$UPSTREAM;
         proxy_http_version 1.1;
@@ -80,6 +88,7 @@ done
 
 mkdir -p /var/www/html
 nginx -t
+systemctl daemon-reload
 systemctl reload nginx
 
 # ------------------------------------------------------- one cert per domain
@@ -96,6 +105,7 @@ for d in "${DOMAINS[@]}"; do
 done
 
 nginx -t
+systemctl daemon-reload
 systemctl reload nginx
 
 # ------------------------------------------------------------------- verify
@@ -111,6 +121,20 @@ for d in "${DOMAINS[@]}"; do
     [ "$other" = "$d" ] && continue
     printf '%s' "$san" | grep -q "DNS:$other" && { echo "   ❌ SAN overlap with $other"; failed=1; }
   done
+done
+
+# A split-vhost deployment is not healthy unless clean six-character links
+# actually reach the app's /r/$code handler (an unknown code may redirect or
+# render fallback content, but must never be TanStack's plain 404 page).
+probe_code="a2b3c4"
+for d in "${DOMAINS[@]}"; do
+  probe_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$d/$probe_code" || echo 000)
+  if [ "$probe_status" = "404" ] || [ "$probe_status" = "000" ]; then
+    echo "   ❌ $d/$probe_code -> $probe_status (bare short-link rewrite is broken)"
+    failed=1
+  else
+    echo "   ✅ $d bare short-link rewrite -> $probe_status"
+  fi
 done
 
 if [ "$failed" -eq 0 ]; then
