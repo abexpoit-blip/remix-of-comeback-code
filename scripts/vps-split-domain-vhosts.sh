@@ -23,6 +23,7 @@ BACKUP=/root/nginx-backup-$STAMP
 
 mkdir -p "$BACKUP"
 cp -a /etc/nginx/sites-available "$BACKUP/" 2>/dev/null || true
+cp -a /etc/nginx/sites-enabled "$BACKUP/" 2>/dev/null || true
 echo "🗄  nginx backup: $BACKUP"
 
 # ---------------------------------------------------------------- upstream
@@ -66,8 +67,10 @@ server {
     # TanStack server route is /r/abc123.  The old monolithic vhost contained
     # this rewrite; preserve it in every split vhost or every live short link
     # falls through to TanStack's page-level 404.
-    location ~ ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ {
-        rewrite ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ /r/\$1 last;
+    # NOTE: the regex must stay double-quoted — nginx treats a bare {6} as a
+    # block delimiter and fails with "missing closing parenthesis".
+    location ~ "^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?\$" {
+        rewrite "^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?\$" /r/\$1 last;
     }
 
     location / {
@@ -87,7 +90,14 @@ EOF
 done
 
 mkdir -p /var/www/html
-nginx -t
+if ! nginx -t; then
+  echo "❌ nginx config test failed — restoring backup and aborting (site stays up)"
+  rm -rf /etc/nginx/sites-available /etc/nginx/sites-enabled
+  cp -a "$BACKUP/sites-available" /etc/nginx/sites-available
+  cp -a "$BACKUP/sites-enabled" /etc/nginx/sites-enabled
+  nginx -t && systemctl reload nginx
+  exit 1
+fi
 systemctl daemon-reload
 systemctl reload nginx
 
