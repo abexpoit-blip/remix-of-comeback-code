@@ -91,21 +91,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico", sizes: "any" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" },
     ],
-    scripts: [
-      { src: "https://www.googletagmanager.com/gtag/js?id=G-79NYCD5JM9", async: true },
-      {
-        children: `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-79NYCD5JM9');`,
-      },
-    ],
+    // NOTE: favicon, web-font stylesheet, analytics and site-verification are
+    // intentionally NOT declared here. head() has no access to the request
+    // host, and emitting one shared set on every domain is what tied the ad
+    // domains, the storefront and the SaaS dashboard together for reviewers.
+    // They are rendered per-host in RootDocument below.
   }),
+
 
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
