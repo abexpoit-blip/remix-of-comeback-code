@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { SITE } from "@/lib/breezy-data";
+import { useSite } from "@/lib/site-identity";
 import { useCart } from "@/lib/cart-context";
 import logoUrl from "@/assets/breezy/logo.png";
 
@@ -32,6 +32,7 @@ function AnnouncementBar() {
 }
 
 export function BreezyHeader() {
+  const SITE = useSite();
   const { count } = useCart();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -85,6 +86,7 @@ export function BreezyHeader() {
 }
 
 export function BreezyFooter() {
+  const SITE = useSite();
   const [email, setEmail] = useState("");
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +143,7 @@ export function BreezyFooter() {
             </span>
           </div>
           <p className="text-sm text-[#7A7468] leading-relaxed max-w-xs">{SITE.tagline}</p>
-          <p className="text-xs text-[#9A9488] mt-4">Est. {SITE.founded} · San Francisco, CA</p>
+          <p className="text-xs text-[#9A9488] mt-4">Est. {SITE.founded} · {SITE.city}</p>
           <div className="flex items-center gap-3 mt-6">
             <span className="text-xs text-[#9A9488]">We accept</span>
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5A554C]">

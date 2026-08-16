@@ -17,6 +17,7 @@ import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 import { resolveDestination } from "@/lib/destination-rotation";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import { assetsForHost, iconPath, normalizeHost, ogImagePath } from "@/lib/brand-assets";
+import { siteFor } from "@/lib/site-identity";
 import { brandForOrigin, rebrand } from "@/lib/brand-registry";
 
 
@@ -879,6 +880,7 @@ function htmlEscape(value: string) {
 }
 
 function renderReservedPublicPage(code: string, publicOrigin: string) {
+  const site = siteFor(publicOrigin);
   const path = `/${code}`;
   const canonical = `${publicOrigin}${path}`;
   const page = code === "contact"
@@ -889,10 +891,10 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
         body: `
           <p>Questions about an order, return, or product? Our customer care team reads every message.</p>
           <dl>
-            <dt>Email</dt><dd><a href="mailto:hello@breezysocial.com">hello@breezysocial.com</a></dd>
-            <dt>Support</dt><dd><a href="mailto:support@breezysocial.com">support@breezysocial.com</a></dd>
-            <dt>Phone</dt><dd>+1 (415) 555-0142</dd>
-            <dt>Office</dt><dd>1280 Market Street, Suite 400, San Francisco, CA 94102</dd>
+            <dt>Email</dt><dd><a href="mailto:${site.email}">${site.email}</a></dd>
+            <dt>Support</dt><dd><a href="mailto:${site.supportEmail}">${site.supportEmail}</a></dd>
+            <dt>Phone</dt><dd>${site.phone}</dd>
+            <dt>Office</dt><dd>${site.address}</dd>
           </dl>
         `,
       }
@@ -910,7 +912,7 @@ function renderReservedPublicPage(code: string, publicOrigin: string) {
             <h2>Sharing</h2>
             <p>We do not sell personal information. We share information only with trusted service providers when needed to operate our store and support customers.</p>
             <h2>Contact</h2>
-            <p>For privacy questions, email <a href="mailto:hello@breezysocial.com">hello@breezysocial.com</a>.</p>
+            <p>For privacy questions, email <a href="mailto:${site.email}">${site.email}</a>.</p>
           `,
         }
       : null;
@@ -2423,7 +2425,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         ua_class: isFbBot ? "fb-bot" : "non-fb-bot",
       }));
     } else {
-      const pick = pickSafePage(code, fpHash);
+      const pick = pickSafePage(code, fpHash, publicOrigin);
       target = pick.url;
       console.log(JSON.stringify({
         event: "redirect.safe_pool_pick",

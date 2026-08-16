@@ -1,20 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
 import { buildOg } from "@/lib/og-meta";
-import { brandForOrigin } from "@/lib/brand-registry";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/contact")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
     const origin = loaderData?.origin ?? "https://breezysocial.com";
-    const brand = brandForOrigin(origin);
+    const SITE = siteFor(origin);
     const { meta, links } = buildOg({
       origin,
       path: "/contact",
       title: `Contact — ${SITE.name}`,
-      description: `Reach the ${brand.name} team. Email ${brand.email} or use our contact form. We respond within 24 hours, Mon–Fri.`,
+      description: `Reach the ${SITE.name} team. Email ${SITE.email} or use our contact form. We respond within 24 hours, ${SITE.hours}.`,
       type: "website",
     });
     return { meta, links };
@@ -25,6 +24,7 @@ export const Route = createFileRoute("/contact")({
 
 
 function ContactPage() {
+  const SITE = useSite();
   return (
     <BreezyLayout>
       <section className="max-w-5xl mx-auto px-6 py-20 grid md:grid-cols-2 gap-12">
@@ -49,7 +49,7 @@ function ContactPage() {
             <div>
               <div className="text-xs uppercase tracking-wider text-[#7D9B76] font-semibold mb-1">Phone</div>
               <span className="text-[#2A2A28]">{SITE.phone}</span>
-              <div className="text-xs text-[#9A9488]">Mon–Fri, 9am–5pm PST</div>
+              <div className="text-xs text-[#9A9488]">{SITE.hours}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wider text-[#7D9B76] font-semibold mb-1">Studio</div>

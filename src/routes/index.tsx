@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
     return { host, variant: variantFromHost(host) };
   },
   head: ({ loaderData }) => {
-    if (loaderData?.variant === "breezysocial") {
+    if (loaderData?.variant === "store") {
       // Self-referencing origin + per-host brand. NEVER hard-code
       // breezysocial.com here — every ad domain must look like its own
       // independent store to Meta / Google, not a mirror of one brand.
@@ -107,6 +107,6 @@ export const Route = createFileRoute("/")({
 
 function HomeRouter() {
   const { variant } = Route.useLoaderData();
-  if (variant === "breezysocial") return <BreezyHome />;
+  if (variant === "store") return <BreezyHome />;
   return <SleepoxHome />;
 }

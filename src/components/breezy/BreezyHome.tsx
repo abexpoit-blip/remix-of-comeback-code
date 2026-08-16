@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { BreezyLayout, TrustBar } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
-import { PRODUCTS, ARTICLES, SITE } from "@/lib/breezy-data";
+import { PRODUCTS, ARTICLES } from "@/lib/breezy-data";
+import { useSite } from "@/lib/site-identity";
 import { BLOG_IMAGES } from "@/lib/breezy-content";
 
 /**
@@ -10,6 +11,7 @@ import { BLOG_IMAGES } from "@/lib/breezy-content";
  * Editorial / wellness vibe (warm sand + sage), distinct from Sleepox orange SaaS look.
  */
 export function BreezyHome() {
+  const SITE = useSite();
   const featured = PRODUCTS.slice(0, 4);
   const latestArticles = ARTICLES.slice(0, 3);
 
@@ -22,7 +24,7 @@ export function BreezyHome() {
         <div className="relative max-w-6xl mx-auto px-6 py-24 md:py-32 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div className="inline-block text-xs uppercase tracking-[0.2em] text-[#7D9B76] font-semibold mb-6">
-              Est. {SITE.founded} · San Francisco
+              Est. {SITE.founded} · {SITE.city.split(",")[0]}
             </div>
             <h1
               className="text-5xl md:text-6xl lg:text-7xl text-[#2A2A28] leading-[1.05] mb-6"

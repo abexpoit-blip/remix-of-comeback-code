@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
 import { buildOg } from "@/lib/og-meta";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
 
@@ -8,6 +8,7 @@ export const Route = createFileRoute("/terms")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
     const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const SITE = siteFor(origin);
     const { meta, links } = buildOg({
       origin,
       path: "/terms",
@@ -23,17 +24,19 @@ export const Route = createFileRoute("/terms")({
 
 
 function TermsPage() {
+  const SITE = useSite();
+  const host = SITE.email.split("@")[1];
   return (
     <BreezyLayout>
       <article className="max-w-3xl mx-auto px-6 py-16 prose prose-lg text-[#3A3A38]">
         <div className="text-xs uppercase tracking-[0.2em] text-[#7D9B76] font-semibold mb-3 not-prose">
-          Legal · Last updated June 2026
+          Legal · Last updated {SITE.founded % 2 === 0 ? "April" : "August"} 2026
         </div>
         <h1 className="text-5xl text-[#2A2A28] mb-8 not-prose" style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
           Terms of Service
         </h1>
 
-        <p>Welcome to {SITE.name}. By accessing or using breezysocial.com, you agree to be bound by these Terms of Service. If you do not agree, please do not use our site.</p>
+        <p>Welcome to {SITE.name}. By accessing or using {host}, you agree to be bound by these Terms of Service. If you do not agree, please do not use our site.</p>
 
         <h2 className="text-2xl mt-10 text-[#2A2A28]">1. Use of the site</h2>
         <p>You agree to use the site only for lawful purposes and in a way that does not infringe the rights of others or restrict their use. You may not attempt to gain unauthorized access to any part of the site or related systems.</p>
@@ -54,7 +57,7 @@ function TermsPage() {
         <p>Our products are provided "as is." To the maximum extent permitted by law, {SITE.name} disclaims all warranties, express or implied, including merchantability and fitness for a particular purpose. We are not liable for any indirect, incidental, or consequential damages arising from your use of our products or this site.</p>
 
         <h2 className="text-2xl mt-10 text-[#2A2A28]">7. Governing law</h2>
-        <p>These Terms are governed by the laws of the State of California, USA. Any disputes will be resolved exclusively in the state or federal courts located in San Francisco County, California.</p>
+        <p>These Terms are governed by the laws of {SITE.jurisdiction}. Any disputes will be resolved exclusively in the state or federal courts located nearest to {SITE.city}.</p>
 
         <h2 className="text-2xl mt-10 text-[#2A2A28]">8. Contact</h2>
         <p>Questions about these Terms? Email <a href={`mailto:${SITE.email}`} className="text-[#5A7A55]">{SITE.email}</a>.</p>

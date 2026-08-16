@@ -15,6 +15,7 @@ import { CartProvider } from "@/lib/cart-context";
 import { assetsForHost, fontsHref, iconPath } from "@/lib/brand-assets";
 import { installChunkErrorRecovery, isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
 import { getHost } from "@/lib/host";
+import { siteFor } from "@/lib/site-identity";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import appCss from "../styles.css?url";
 
@@ -82,13 +83,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
+  head: () => {
+    // LEAK FIX: a single hardcoded default title/site_name stamped
+    // "BreezySocial" on every ad domain that didn't override it.
+    const site = siteFor(getHost());
+    return ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "BreezySocial — Smart Gadgets for Calm, Modern Living" },
+      { title: `${site.name} — ${site.tagline}` },
       { name: "description", content: "Thoughtfully designed tools for better sleep, sharper focus, and easier travel. Free shipping over $50. 30-day returns." },
-      { property: "og:site_name", content: "BreezySocial" },
+      { property: "og:site_name", content: site.name },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "robots", content: "index, follow" },
@@ -104,7 +109,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // host, and emitting one shared set on every domain is what tied the ad
     // domains, the storefront and the SaaS dashboard together for reviewers.
     // They are rendered per-host in RootDocument below.
-  }),
+    });
+  },
 
 
   notFoundComponent: NotFoundComponent,

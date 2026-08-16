@@ -1,18 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { buildOg } from "@/lib/og-meta";
+import { siteFor, useSite } from "@/lib/site-identity";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/size-guide")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
     const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const SITE = siteFor(origin);
     const { meta, links } = buildOg({
       origin,
       path: "/size-guide",
-      title: "Size Guide — BreezySocial Wearables",
-      description: "Find your perfect fit. Detailed sizing charts and measurement tips for BreezySocial headphones, blue-light glasses, posture corrector, and travel gear.",
-      imageAlt: "BreezySocial wearable gear size guide",
+      title: `Size Guide — ${SITE.name} Wearables`,
+      description: `Find your perfect fit. Detailed sizing charts and measurement tips for ${SITE.name} headphones, blue-light glasses, posture corrector, and travel gear.`,
+      imageAlt: `${SITE.name} wearable gear size guide`,
       type: "website",
     });
     return { meta, links };
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/size-guide")({
 });
 
 function SizeGuidePage() {
+  const SITE = useSite();
   return (
     <BreezyLayout>
       <section className="bg-[#F2EDE3]">
@@ -95,7 +98,7 @@ function SizeGuidePage() {
             Still unsure?
           </h3>
           <p className="text-sm text-[#5A554C] mb-4">
-            Email <a href="mailto:support@breezysocial.com" className="text-[#5A7A55] underline">support@breezysocial.com</a> with your measurements and we'll recommend a size within a few hours.
+            Email <a href={`mailto:${SITE.supportEmail}`} className="text-[#5A7A55] underline">{SITE.supportEmail}</a> with your measurements and we'll recommend a size within a few hours.
           </p>
           <p className="text-xs text-[#9A9488]">Free exchanges within 30 days if the fit isn't right.</p>
         </div>

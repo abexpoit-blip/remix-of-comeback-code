@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { ARTICLES } from "@/lib/breezy-data";
 import { BLOG_IMAGES } from "@/lib/breezy-content";
+import { useRebrand } from "@/lib/site-identity";
 import { buildOg } from "@/lib/og-meta";
 import { brandForOrigin } from "@/lib/brand-registry";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/blog/")({
 
 
 function BlogIndexPage() {
+  const rb = useRebrand();
   return (
     <BreezyLayout>
       <section className="bg-[#F2EDE3]">
@@ -70,7 +72,7 @@ function BlogIndexPage() {
                   <h2 className="text-2xl text-[#2A2A28] mb-3 leading-snug group-hover:text-[#5A7A55] transition-colors" style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
                     {a.title}
                   </h2>
-                  <p className="text-sm text-[#7A7468] mb-4">{a.excerpt}</p>
+                  <p className="text-sm text-[#7A7468] mb-4">{rb(a.excerpt)}</p>
                   <div className="text-xs text-[#5A554C]">By {a.author}, {a.authorRole}</div>
                 </div>
               </Link>

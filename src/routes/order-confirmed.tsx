@@ -1,3 +1,5 @@
+import { siteFor } from "@/lib/site-identity";
+import { getHost } from "@/lib/host";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -7,7 +9,7 @@ export const Route = createFileRoute("/order-confirmed")({
   validateSearch: z.object({ o: z.string().optional() }),
   head: () => ({
     meta: [
-      { title: "Order Confirmed — BreezySocial" },
+      { title: `Order Confirmed — ${siteFor(getHost()).name}` },
       { name: "robots", content: "noindex,nofollow" },
     ],
   }),

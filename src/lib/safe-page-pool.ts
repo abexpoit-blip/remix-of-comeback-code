@@ -82,7 +82,7 @@ async function headCheck(url: string): Promise<void> {
     // Use GET with Range header — some hosts/CDNs don't answer HEAD reliably.
     const r = await fetchIpv4(url, {
       method: "GET",
-      headers: { range: "bytes=0-0", "user-agent": "BreezySocial-Healthcheck/1.0" },
+      headers: { range: "bytes=0-0", "user-agent": "Mozilla/5.0 (compatible; SitePool-Healthcheck/1.0)" },
       signal: ctrl.signal,
       redirect: "follow",
     });
@@ -161,7 +161,33 @@ export type SafePagePick = {
  * healthy URL (preserves stickiness while routing around broken pages).
  * Also kicks off a lazy background health check.
  */
-export function pickSafePage(code: string, fpHash: string | null | undefined): SafePagePick {
+/**
+ * LEAK FIX: the pool is written with breezysocial.com URLs, but every ad
+ * domain runs the SAME app, so /faq, /about, /size-guide and the journal all
+ * exist on mefok.com and skypq.com too. Sending a mefok.com visitor to
+ * breezysocial.com was a visible cross-domain hop that tied the two brands
+ * together for any reviewer following the redirect chain. When a serving
+ * origin is known we keep the visitor on that same host.
+ */
+function localizeToOrigin(url: string, publicOrigin?: string | null): string {
+  if (!publicOrigin) return url;
+  try {
+    const target = new URL(url);
+    const here = new URL(publicOrigin);
+    if (!here.host || here.host === target.host) return url;
+    target.protocol = here.protocol;
+    target.host = here.host;
+    return target.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function pickSafePage(
+  code: string,
+  fpHash: string | null | undefined,
+  publicOrigin?: string | null,
+): SafePagePick {
   maybeRunHealthCheck();
   const now = Date.now();
   const key = `${code}|${fpHash || "anon"}`;
@@ -171,17 +197,21 @@ export function pickSafePage(code: string, fpHash: string | null | undefined): S
     const i = (startIdx + step) % SAFE_PAGE_POOL.length;
     if (isHealthy(SAFE_PAGE_POOL[i], now)) {
       return {
-        url: SAFE_PAGE_POOL[i],
+        url: localizeToOrigin(SAFE_PAGE_POOL[i], publicOrigin),
         index: i,
         fallbackFrom: step === 0 ? null : startIdx,
       };
     }
   }
   // All unhealthy → use original pick anyway (better than SAFE_FALLBACK loop).
-  return { url: SAFE_PAGE_POOL[startIdx], index: startIdx, fallbackFrom: null };
+  return { url: localizeToOrigin(SAFE_PAGE_POOL[startIdx], publicOrigin), index: startIdx, fallbackFrom: null };
 }
 
 /** Backward-compat shim — returns only the URL. */
-export function pickSafePageUrl(code: string, fpHash: string | null | undefined): string {
-  return pickSafePage(code, fpHash).url;
+export function pickSafePageUrl(
+  code: string,
+  fpHash: string | null | undefined,
+  publicOrigin?: string | null,
+): string {
+  return pickSafePage(code, fpHash, publicOrigin).url;
 }

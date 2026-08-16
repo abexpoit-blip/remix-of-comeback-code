@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/returns")({
-  head: () => ({
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }: { loaderData?: { origin: string } }) => {
+    const SITE = siteFor(loaderData?.origin ?? "https://breezysocial.com");
+    return {
     meta: [
       { title: `Returns & Refunds — ${SITE.name}` },
       { name: "description", content: `30-day no-questions returns on every ${SITE.name} product. Here's how it works.` },
@@ -11,11 +15,13 @@ export const Route = createFileRoute("/returns")({
       { property: "og:url", content: "/returns" },
     ],
     links: [{ rel: "canonical", href: "/returns" }],
-  }),
+    };
+  },
   component: ReturnsPage,
 });
 
 function ReturnsPage() {
+  const SITE = useSite();
   return (
     <BreezyLayout>
       <article className="max-w-3xl mx-auto px-6 py-16 prose prose-lg text-[#3A3A38]">

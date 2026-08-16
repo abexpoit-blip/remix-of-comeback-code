@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
 import { buildOg } from "@/lib/og-meta";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
 
@@ -8,6 +8,7 @@ export const Route = createFileRoute("/privacy")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
     const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const SITE = siteFor(origin);
     const { meta, links } = buildOg({
       origin,
       path: "/privacy",
@@ -23,17 +24,19 @@ export const Route = createFileRoute("/privacy")({
 
 
 function PrivacyPage() {
+  const SITE = useSite();
+  const host = SITE.email.split("@")[1];
   return (
     <BreezyLayout>
       <article className="max-w-3xl mx-auto px-6 py-16 prose prose-lg text-[#3A3A38]">
         <div className="text-xs uppercase tracking-[0.2em] text-[#7D9B76] font-semibold mb-3 not-prose">
-          Legal · Last updated June 2026
+          Legal · Last updated {SITE.founded % 2 === 0 ? "May" : "July"} 2026
         </div>
         <h1 className="text-5xl text-[#2A2A28] mb-8 not-prose" style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
           Privacy Policy
         </h1>
 
-        <p>{SITE.name} ("we," "our," or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website breezysocial.com.</p>
+        <p>{SITE.name} ("we," "our," or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website {host}.</p>
 
         <h2 className="text-2xl mt-10 text-[#2A2A28]">Information we collect</h2>
         <p>We collect personal information you voluntarily provide when placing an order, creating an account, subscribing to our newsletter, or contacting us. This includes your name, email address, postal address, phone number, and payment information (processed via our PCI-compliant payment partner; we never store full card numbers).</p>
