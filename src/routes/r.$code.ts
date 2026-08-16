@@ -637,6 +637,98 @@ async function resolveCountryByIp(ip: string, budgetMs = 400): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// IP -> ASN resolution (Cloudflare-proxy safe).
+//
+// `cf-asn` only exists on Enterprise plans. Behind a free CF proxy it is gone,
+// which would silently disable the Meta/Google ASN allowlist and the datacenter
+// block. This resolver keeps those rules alive with ZERO added latency: the
+// redirect path only ever reads the cache, and a miss warms it in background.
+// ---------------------------------------------------------------------------
+const ASN_TTL_MS = 24 * 60 * 60 * 1000; // ASN of a subnet basically never changes
+const ASN_CACHE_MAX = 20_000;
+const ASN_MAX_INFLIGHT = 4;
+const asnCache = new Map<string, { a: string; exp: number }>();
+const asnInflight = new Map<string, Promise<string>>();
+let asnFailStreak = 0;
+let asnOpenUntil = 0;
+
+const ASN_PROVIDERS: Array<(ip: string, signal: AbortSignal) => Promise<string>> = [
+  async (ip, signal) => {
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=connection`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { connection?: { asn?: number | string } };
+    return String(j.connection?.asn ?? "").replace(/^AS/i, "");
+  },
+  async (ip, signal) => {
+    const r = await fetch(`https://api.iplocation.net/?ip=${encodeURIComponent(ip)}`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { isp?: string };
+    // iplocation has no ASN field; only used as a liveness fallback.
+    return j.isp ? "" : "";
+  },
+];
+
+function scheduleAsnLookup(ip: string): void {
+  const key = subnetKey(ip);
+  const now = Date.now();
+  if (now < asnOpenUntil) return;
+  if (asnInflight.size >= ASN_MAX_INFLIGHT) return;
+  if (asnInflight.has(key)) return;
+
+  const task = (async (): Promise<string> => {
+    for (const provider of ASN_PROVIDERS) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 1500);
+      try {
+        const a = await provider(ip, ctrl.signal);
+        if (a && /^\d+$/.test(a)) {
+          asnFailStreak = 0;
+          if (asnCache.size >= ASN_CACHE_MAX) {
+            const firstKey = asnCache.keys().next().value;
+            if (firstKey) asnCache.delete(firstKey);
+          }
+          asnCache.set(key, { a, exp: Date.now() + ASN_TTL_MS });
+          return a;
+        }
+      } catch {
+        // next provider
+      } finally {
+        clearTimeout(t);
+      }
+    }
+    asnFailStreak++;
+    if (asnFailStreak >= 12) {
+      asnOpenUntil = Date.now() + 60_000;
+      asnFailStreak = 0;
+    }
+    // Negative cache 10 min so we don't hammer on unresolvable IPs.
+    asnCache.set(key, { a: "", exp: Date.now() + 10 * 60 * 1000 });
+    return "";
+  })().finally(() => {
+    asnInflight.delete(key);
+  });
+
+  asnInflight.set(key, task);
+  void task.catch(() => {});
+}
+
+/** Zero-latency read: cache only, warms in background. "" = unknown (never a block). */
+function lookupAsnByIp(ip: string): string {
+  const key = subnetKey(ip);
+  const hit = asnCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.a;
+  scheduleAsnLookup(ip);
+  return "";
+}
+
+
+// ---------------------------------------------------------------------------
 // KNOWN-HUMAN SESSION PASS (2026-08)
 //
 // Bug report: a visitor who already reached the offer gets the SAFE ARTICLE on
