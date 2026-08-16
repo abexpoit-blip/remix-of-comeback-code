@@ -11,7 +11,7 @@ import { fetchIpv4 } from "@/lib/fetch-ipv4";
 // hiding the safe page from Meta — which causes ad rejections.
 
 import { createFileRoute } from "@tanstack/react-router";
-import { internalHostGuard } from "@/lib/internal-endpoint";
+import { internalHostGuard, opsNotFound } from "@/lib/internal-endpoint";
 
 const META_UAS = [
   {
@@ -79,6 +79,7 @@ async function probeOnce(url: string, ua: string) {
 export const Route = createFileRoute("/api/public/hooks/meta-crawler-probe")({
   server: {
     handlers: {
+      GET: async () => opsNotFound(),
       POST: async ({ request }) => {
         const blocked = internalHostGuard(request);
         if (blocked) return blocked;

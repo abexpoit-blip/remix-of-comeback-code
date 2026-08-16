@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { forceHealthCheck, getSafePoolHealth } from "@/lib/safe-page-pool";
+import { internalHostGuard } from "@/lib/internal-endpoint";
 
 /**
  * Force-refresh the in-memory safe-pool health for THIS worker process.
@@ -13,8 +14,14 @@ import { forceHealthCheck, getSafePoolHealth } from "@/lib/safe-page-pool";
 export const Route = createFileRoute("/api/public/safe-pool-refresh")({
   server: {
     handlers: {
-      GET: async () => Response.json({ health: getSafePoolHealth() }),
+      GET: async ({ request }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
+        return Response.json({ health: getSafePoolHealth() });
+      },
       POST: async ({ request }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
         const secret = process.env.SAFE_POOL_ADMIN_SECRET || process.env.CRON_SECRET;
         const provided = request.headers.get("x-admin-secret");
         // Only enforce when a secret is actually configured. The endpoint just
