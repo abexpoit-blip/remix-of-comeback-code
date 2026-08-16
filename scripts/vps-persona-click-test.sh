@@ -49,9 +49,10 @@ hit() {
       # This IS the offer path for ad-click traffic, not traffic loss.
       got="bridge(offer)"
       hop=$(grep -o 'id="sx-go" href="[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*href="//;s/"$//')
-    elif grep -qiE 'location\.href|http-equiv="refresh"' /tmp/pct-body.html; then
+    elif grep -qiE 'location\.(href|replace|assign)|http-equiv="?refresh' /tmp/pct-body.html; then
       got="bounce(offer)"
-      hop=$(grep -oE 'location\.href *= *"[^"]*"' /tmp/pct-body.html | head -1 | sed 's/.*= *"//;s/"$//')
+      hop=$(grep -oE 'location\.(replace|assign)\("[^"]*"\)|location\.href *= *"[^"]*"' /tmp/pct-body.html | head -1 | grep -oE '"[^"]*"' | head -1 | tr -d '"')
+
     elif grep -qiE '<article|<h1' /tmp/pct-body.html; then
       got="article"
     else
