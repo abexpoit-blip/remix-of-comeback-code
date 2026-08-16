@@ -10,11 +10,20 @@
  *  - Structured pick log returned to caller (for redirect audit log)
  */
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
+// Every entry MUST be a real route that renders on EVERY serving host
+// (localizeToOrigin swaps the host at pick time). A wider pool means two
+// links on the same domain rarely resolve to the same safe page, which is
+// what kills the "same landing page across many ads" reviewer pattern.
 export const SAFE_PAGE_POOL: readonly string[] = [
   "https://breezysocial.com/blog/magnesium-sleep-guide-2026",
+  "https://breezysocial.com/blog",
   "https://breezysocial.com/faq",
   "https://breezysocial.com/size-guide",
   "https://breezysocial.com/about",
+  "https://breezysocial.com/shipping",
+  "https://breezysocial.com/returns",
+  "https://breezysocial.com/contact",
+  "https://breezysocial.com/shop",
 ] as const;
 
 // Mark a URL unhealthy for this long after a 4xx/5xx is observed.
