@@ -53,7 +53,7 @@ export const Route = createFileRoute("/blog/$slug")({
               "@type": "Organization",
               name: SITE.name,
               url: absoluteUrl(origin, "/"),
-              logo: { "@type": "ImageObject", url: absoluteUrl(origin, "/og-default.png") },
+              logo: { "@type": "ImageObject", url: absoluteUrl(origin, ogImagePath(origin)) },
             },
             datePublished: a.date,
             dateModified: a.date,

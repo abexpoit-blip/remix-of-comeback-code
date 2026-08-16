@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ogImagePath } from "@/lib/brand-assets";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { SITE } from "@/lib/breezy-data";
 import { buildOg, absoluteUrl } from "@/lib/og-meta";
@@ -34,7 +35,7 @@ export const Route = createFileRoute("/about")({
               email: SITE.email,
               address: SITE.address,
               url: absoluteUrl(origin, "/"),
-              logo: absoluteUrl(origin, "/og-default.png"),
+              logo: absoluteUrl(origin, ogImagePath(origin)),
             },
           }),
         },
