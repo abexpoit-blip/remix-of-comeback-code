@@ -66,8 +66,10 @@ server {
     # TanStack server route is /r/abc123.  The old monolithic vhost contained
     # this rewrite; preserve it in every split vhost or every live short link
     # falls through to TanStack's page-level 404.
-    location ~ ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ {
-        rewrite ^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?$ /r/\$1 last;
+    # NOTE: the regex must stay double-quoted — nginx treats a bare {6} as a
+    # block delimiter and fails with "missing closing parenthesis".
+    location ~ "^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?\$" {
+        rewrite "^/([abcdefghijkmnpqrstuvwxyz23456789]{6})/?\$" /r/\$1 last;
     }
 
     location / {
