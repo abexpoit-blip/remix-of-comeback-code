@@ -97,12 +97,16 @@ export function buildOg(opts: BuildOgOptions): { meta: MetaTag[]; links: LinkTag
   // Rebrand title/description so each host presents a distinct brand to crawlers.
   const title = rebrand(opts.title, origin);
   const description = rebrand(opts.description, origin);
-  // Static default image — dynamic PNG generator removed (native module
-  // could not be bundled for Worker builds). Callers that want per-page
-  // artwork should pass `opts.image` explicitly.
-  const image = absoluteUrl(origin, opts.image ?? OG_DEFAULT_IMAGE_PATH);
-  const imgW = opts.imageWidth ?? OG_DEFAULT_IMAGE_W;
-  const imgH = opts.imageHeight ?? OG_DEFAULT_IMAGE_H;
+  // Per-host default artwork. LEAK FIX: a single shared /og-default.png was
+  // served byte-identical on every domain, so one md5 linked the ad domain to
+  // the storefront and the SaaS host. Each brand now has its own OG image.
+  const hostDefaultImage = ogImagePath(origin);
+  const hostDefaultSize = ogImageSize(origin);
+  const image = absoluteUrl(origin, opts.image ?? hostDefaultImage);
+  const usingDefault = !opts.image;
+  const imgW = opts.imageWidth ?? (usingDefault ? hostDefaultSize.w : OG_DEFAULT_IMAGE_W);
+  const imgH = opts.imageHeight ?? (usingDefault ? hostDefaultSize.h : OG_DEFAULT_IMAGE_H);
+
   const imgAlt = rebrand(opts.imageAlt ?? title, origin);
   const imgType = image.endsWith(".jpg") || image.endsWith(".jpeg")
     ? "image/jpeg"
