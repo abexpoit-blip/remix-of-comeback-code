@@ -86,8 +86,12 @@ if [ -n "$DB" ]; then
   LINK_TABLE=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
     "SELECT quote_ident(table_schema)||'.'||quote_ident(table_name) FROM information_schema.tables WHERE table_name='links' AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY (table_schema='public') DESC LIMIT 1;" 2>/tmp/sx-links-db.err | tr -d '\r')
   if [ -n "$LINK_TABLE" ]; then
+    # column name differs between schema versions (clicks_count vs click_count)
+    ORDER_COL=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
+      "SELECT column_name FROM information_schema.columns WHERE table_name='links' AND column_name IN ('clicks_count','click_count','clicks') ORDER BY 1 LIMIT 1;" 2>/dev/null | tr -d '\r')
+    ORDER_BY="${ORDER_COL:+ORDER BY $ORDER_COL DESC NULLS LAST}"
     CODES=$(docker exec -i "$DB" psql -U postgres -d postgres -tAc \
-      "SELECT short_code FROM $LINK_TABLE WHERE is_active IS TRUE ORDER BY click_count DESC NULLS LAST LIMIT 3;" 2>/tmp/sx-links-db.err | tr -d '\r')
+      "SELECT short_code FROM $LINK_TABLE WHERE is_active IS TRUE $ORDER_BY LIMIT 3;" 2>/tmp/sx-links-db.err | tr -d '\r')
   fi
 fi
 if [ -z "$CODES" ]; then
