@@ -16,6 +16,9 @@ import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
 import { resolveDestination } from "@/lib/destination-rotation";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
+import { assetsForHost, iconPath, normalizeHost, ogImagePath } from "@/lib/brand-assets";
+import { brandForOrigin, rebrand } from "@/lib/brand-registry";
+
 
 
 // Never point a bot/reviewer at the SaaS host — that is cloaking proof.
