@@ -13,7 +13,9 @@
  * pass it into `buildOg({ origin, ... })`.
  */
 
+import { ogImagePath, ogImageSize } from "./brand-assets";
 import { brandForOrigin, rebrand } from "./brand-registry";
+
 
 export const OG_LOCALE = "en_US";
 export const OG_DEFAULT_IMAGE_PATH = "/og-default.png";
