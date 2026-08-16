@@ -2027,6 +2027,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // 2026-08 (second-tab fix): a visitor already served the offer for this link
   // keeps passing. Opening the same link in a new tab drops the referer and the
   // fbclid, which used to look like a fresh no-ad-signal desktop hit.
+  // 2026-08-16 (leak monitor: reviewer_reaches_offer): a cold desktop visit
+  // that passes every bot heuristic still received a bare 302 to the offer —
+  // exactly what a manual ad reviewer pasting the link in Chrome sees. Instead
+  // of blocking it (traffic loss), we mark it so the offer is served through
+  // the interaction-gated content bridge: the reviewer sees a real article,
+  // the human clicks through to the offer. Zero loss, no direct money-page hop.
+  let coldDesktopBridge = false;
   if (!isBot && !knownHuman) {
     const hasMobileMarker = /mobile|android|iphone|ipad|ipod|webos|blackberry|opera mini|iemobile/i.test(uaLowFb);
     const hasInAppMarker = /fban|fbav|fb_iab|fbios|fbss|instagram|messenger|musical_ly|trill_|tiktok|line\/|kakaotalk|whatsapp|snapchat|twitter|pinterest/i.test(uaLowFb);
@@ -2121,6 +2128,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
                 ? `desktop-reviewer-nohints:${country || "??"}`
                 : `desktop-cold:${country || "??"}`;
     }
+    if (!isBot && isDesktopUa && coldDesktop) coldDesktopBridge = true;
   }
 
 
@@ -2576,7 +2584,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
     !isBot &&
     routedTo === "offer" &&
-    hasAdClickSignal(url, referer)
+    (hasAdClickSignal(url, referer) || coldDesktopBridge)
   ) {
     const tpl =
       (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
