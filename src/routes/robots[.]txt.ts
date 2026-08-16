@@ -9,13 +9,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
 
-const SOCIAL_ALLOW = `
-# Social / link preview crawlers must always be allowed, otherwise
-# Facebook cannot read the OG tags of shared pages.
+// LEAK FIX #2: this block used to be byte-identical (same comment wording,
+// same agent order) on every domain, which is itself a cross-domain
+// fingerprint. Each host now gets a deterministic but different variant.
+const SOCIAL_VARIANTS: string[] = [
+  `
+# Allow link-preview crawlers so shared pages render a proper card.
 User-agent: facebookexternalhit
-Allow: /
-
-User-agent: facebookcatalog
 Allow: /
 
 User-agent: meta-externalagent
@@ -23,7 +23,64 @@ Allow: /
 
 User-agent: Twitterbot
 Allow: /
-`;
+`,
+  `
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: facebookcatalog
+Allow: /
+`,
+  `
+# Preview bots
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+`,
+  `
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: Slackbot-LinkExpanding
+Allow: /
+`,
+];
+
+function socialBlockFor(host: string): string {
+  let n = 0;
+  for (const ch of host) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  return SOCIAL_VARIANTS[n % SOCIAL_VARIANTS.length];
+}
+
+const STORE_DISALLOW_VARIANTS: string[][] = [
+  ["/cart", "/checkout", "/order-confirmed"],
+  ["/checkout", "/cart"],
+  ["/cart", "/order-confirmed"],
+  ["/checkout", "/order-confirmed", "/cart"],
+];
+
+function storeDisallowFor(host: string): string {
+  let n = 0;
+  for (const ch of host) n = (n * 17 + ch.charCodeAt(0)) >>> 0;
+  return STORE_DISALLOW_VARIANTS[n % STORE_DISALLOW_VARIANTS.length]
+    .map((p) => `Disallow: ${p}`)
+    .join("\n");
+}
+
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
