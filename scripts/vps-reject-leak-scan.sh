@@ -24,12 +24,12 @@ ok(){ echo "   ✅ $*"; }
 hdr(){ echo; echo "════════ $* ════════"; }
 code(){ curl -sS -o /dev/null -w '%{http_code}' -m 15 -A "${2:-$UA_DESK}" "$1" 2>/dev/null || true; }
 expect_404(){
-  local label="$1" actual="$2"
+  local label="$1" actual="$2" suffix="${3:-}"
   if [ "$actual" = "404" ]; then return 0; fi
   if [ "$actual" = "000" ] || [ -z "$actual" ]; then
     infra "$label = ${actual:-000} (TLS/DNS/connectivity failure — not a content leak)"
   else
-    bad "$label = $actual"
+    bad "$label = $actual${suffix:+ ($suffix)}"
   fi
 }
 
@@ -38,15 +38,15 @@ hdr "1) SaaS SURFACE ON AD DOMAINS (expect 404)"
 for d in "${AD_DOMAINS[@]}" "$STORE_DOMAIN"; do
   for p in /dashboard /login /signup /control-panel /analytics /upgrade /pricing /domains /live /support; do
     c=$(code "https://$d$p")
-    expect_404 "$d$p" "$c (SaaS leak to reviewer)"
+    expect_404 "$d$p" "$c" "SaaS leak to reviewer"
   done
   # internal/ops endpoints — probe BOTH verbs; a cron route that only takes
   # POST still leaks if a GET falls through to the app shell with 200.
   for p in /api/public/health /api/public/hooks/leak-scan /api/public/hooks/meta-crawler-probe /api/public/hooks/domain-health-scan /api/public/safe-pool-refresh; do
     g=$(code "https://$d$p")
     o=$(curl -s -o /dev/null -w '%{http_code}' -m 15 -X POST -A "$UA_DESK" "https://$d$p")
-    expect_404 "$d$p GET" "$g (ops endpoint exposed)"
-    expect_404 "$d$p POST" "$o (ops endpoint exposed)"
+    expect_404 "$d$p GET" "$g" "ops endpoint exposed"
+    expect_404 "$d$p POST" "$o" "ops endpoint exposed"
   done
 done
 [ "$F" -eq 0 ] && ok "no SaaS/ops paths reachable on ad domains"

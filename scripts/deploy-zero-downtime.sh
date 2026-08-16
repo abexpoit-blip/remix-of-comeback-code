@@ -27,6 +27,7 @@ PORTS=(4000 4001 4002 4003 4004 4005 4006 4007)
 BRANCH="${DEPLOY_BRANCH:-main}"
 PREV="$APP_DIR/.output.previous"
 LIVE="$APP_DIR/.output"
+STAGING="$APP_DIR/.zero-downtime-build"
 ENV_BACKUP="/root/sleepox-production.env"
 DO_PULL=1
 DIVERGE_MODE="ask"   # ask | reset | merge
@@ -99,6 +100,38 @@ snapshot_live() {
   [ -d "$LIVE" ] || return 0
   rm -rf "$PREV"
   cp -al "$LIVE" "$PREV" 2>/dev/null || cp -a "$LIVE" "$PREV"
+}
+
+# Verify every relative static import in the generated server graph before it
+# is allowed anywhere near a worker. This catches incomplete Nitro output such
+# as `_ssr/foo-HASH.mjs` being referenced but absent.
+validate_server_graph() {
+  local root="$1"
+  python3 - "$root" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1]).resolve()
+server = root / "server"
+missing = []
+patterns = [
+    re.compile(r'''(?:from\s*|import\s*\(|import\s*)["'](\.{1,2}/[^"']+)["']'''),
+    re.compile(r'''new\s+URL\s*\(\s*["'](\.{1,2}/[^"']+)["']\s*,\s*import\.meta\.url'''),
+]
+for source in server.rglob("*.mjs"):
+    text = source.read_text("utf-8", errors="ignore")
+    for pattern in patterns:
+        for spec in pattern.findall(text):
+            target = (source.parent / spec.split("?", 1)[0].split("#", 1)[0]).resolve()
+            if not target.exists():
+                missing.append(f"{source.relative_to(root)} -> {spec}")
+if missing:
+    print("\n".join(missing[:100]), file=sys.stderr)
+    sys.exit(1)
+entry = server / "index.mjs"
+if not entry.is_file() or entry.stat().st_size == 0:
+    print("server/index.mjs missing or empty", file=sys.stderr)
+    sys.exit(1)
+print(f"validated {sum(1 for _ in server.rglob('*.mjs'))} server modules")
+PY
 }
 
 restore_prev() {
@@ -228,57 +261,80 @@ bun install --frozen-lockfile || bun install || fail "bun install failed"
 log "[4/8] snapshot current live build"
 snapshot_live
 [ -d "$PREV" ] && echo "  snapshot: $(du -sh "$PREV" | cut -f1)" || echo "  (no previous build to snapshot)"
-# The snapshot is a hardlink copy, so wiping the live tree is free and keeps the
-# rollback point intact. Building on top of an old .output is what leaves stale
-# server/_ssr chunks behind → ERR_MODULE_NOT_FOUND at runtime.
-[ -d "$PREV" ] && rm -rf "$LIVE"
+# Never remove or build over LIVE: existing workers can lazy-import server
+# chunks at any time. Build in an isolated checkout and swap only after the
+# complete generated module graph has passed validation.
+rm -rf "$STAGING"
 
 # --- 5. build ----------------------------------------------------------------
 log "[5/8] build"
 
-# Ignore stale Supabase variables exported in the deploy shell. Vite must read
-# the canonical values from the verified production .env above.
-if ! env \
-  -u SUPABASE_URL \
-  -u SUPABASE_PROJECT_ID \
-  -u SUPABASE_PUBLISHABLE_KEY \
-  -u SUPABASE_ANON_KEY \
-  -u SUPABASE_SERVICE_ROLE_KEY \
-  -u SUPABASE_SECRET_KEY \
-  -u VITE_SUPABASE_URL \
-  -u VITE_SUPABASE_PROJECT_ID \
-  -u VITE_SUPABASE_PUBLISHABLE_KEY \
-  -u VITE_SUPABASE_ANON_KEY \
-  bun run build; then
+mkdir -p "$STAGING"
+tar --exclude='./.git' --exclude='./node_modules' --exclude='./.output' \
+  --exclude='./.output.previous' --exclude='./.zero-downtime-build' \
+  --exclude='./.asset-attic' -cf - . | tar -xf - -C "$STAGING"
+
+# Ignore stale backend variables exported in the deploy shell. Vite reads the
+# canonical production values from the staged copy of the verified .env.
+if ! (
+  cd "$STAGING" &&
+  bun install --frozen-lockfile &&
+  env -u SUPABASE_URL -u SUPABASE_PROJECT_ID -u SUPABASE_PUBLISHABLE_KEY \
+    -u SUPABASE_ANON_KEY -u SUPABASE_SERVICE_ROLE_KEY -u SUPABASE_SECRET_KEY \
+    -u VITE_SUPABASE_URL -u VITE_SUPABASE_PROJECT_ID \
+    -u VITE_SUPABASE_PUBLISHABLE_KEY -u VITE_SUPABASE_ANON_KEY bun run build
+); then
   echo "  build failed — restoring previous build"
-  restore_prev && echo "  ✅ previous build restored (workers untouched, site still live)"
+  rm -rf "$STAGING"
+  echo "  ✅ live build was never touched (workers still online)"
   fail "build failed — nothing deployed"
 fi
-if [ ! -f "$LIVE/server/index.mjs" ]; then
-  echo "  incomplete build (no server/index.mjs) — restoring previous build"
-  restore_prev && echo "  ✅ previous build restored"
+FRESH="$STAGING/.output"
+if [ ! -f "$FRESH/server/index.mjs" ]; then
+  rm -rf "$STAGING"
   fail "incomplete build — nothing deployed"
 fi
+
+# Old workers remain alive during rolling restart and can still request modules
+# from their old graph. Preserve old hash-named server chunks without replacing
+# any fresh file, then validate both graphs' references before the atomic swap.
+if [ -d "$PREV/server" ]; then
+  cp -an "$PREV/server/." "$FRESH/server/" 2>/dev/null || true
+fi
+validate_server_graph "$FRESH" || {
+  rm -rf "$STAGING"
+  fail "generated server graph has missing imports — live build untouched"
+}
 
 # Hard guard BEFORE any worker restart. The SDK ships inert documentation
 # examples such as example/project-id/xyzcompany/realtime.supabase.co, which
 # bundlers may preserve in comments and source maps. Real hosted project refs
 # are 20 lowercase alphanumeric characters; reject those while ignoring docs.
-leaked_host="$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' "$LIVE" 2>/dev/null \
+leaked_host="$(grep -rhaoE 'https://[a-z0-9]{20}\.supabase\.co' "$FRESH" 2>/dev/null \
   | sort -u \
   | head -1 \
   || true)"
 if [ -n "$leaked_host" ]; then
   echo "  ❌ built bundle points at $leaked_host instead of the self-hosted backend"
-  restore_prev && echo "  ✅ previous build restored (site untouched)"
+  rm -rf "$STAGING"
   fail "wrong .env at build time — run: bash scripts/vps-fix-selfhost-env.sh && bash scripts/deploy-zero-downtime.sh --auto-reset"
 fi
-self_hosted_refs="$(grep -rla 'https://supabase\.sleepox\.com' "$LIVE" 2>/dev/null | wc -l)"
+self_hosted_refs="$(grep -rla 'https://supabase\.sleepox\.com' "$FRESH" 2>/dev/null | wc -l)"
 [ "$self_hosted_refs" -gt 0 ] || {
-  restore_prev && echo "  ✅ previous build restored (workers untouched)"
+  rm -rf "$STAGING"
   fail "fresh build does not contain the required self-hosted backend URL"
 }
 echo "  ✅ fresh output contains only the self-hosted backend URL"
+
+# Atomic publish: no request can observe a partially-written output tree.
+OLD_LIVE="$APP_DIR/.output.old.$$.tmp"
+mv "$LIVE" "$OLD_LIVE" || fail "could not move live build for atomic swap"
+if ! mv "$FRESH" "$LIVE"; then
+  mv "$OLD_LIVE" "$LIVE" || true
+  fail "atomic publish failed; previous live build restored"
+fi
+rm -rf "$OLD_LIVE" "$STAGING"
+validate_server_graph "$LIVE" || rollback
 
 
 # --- 6. keep old hashed chunks resolvable for draining tabs -------------------
