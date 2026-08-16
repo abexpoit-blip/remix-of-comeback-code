@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ogImagePath } from "@/lib/brand-assets";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
 import { buildOg, absoluteUrl } from "@/lib/og-meta";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
 
@@ -9,11 +9,12 @@ export const Route = createFileRoute("/about")({
   loader: async () => await getRequestOrigin(),
   head: ({ loaderData }) => {
     const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const SITE = siteFor(origin);
     const { meta, links } = buildOg({
       origin,
       path: "/about",
       title: `About — ${SITE.name}`,
-      description: `Founded in San Francisco in ${SITE.founded}, ${SITE.name} designs smart gadgets for calm, modern living. Meet our team and our mission.`,
+      description: `Founded in ${SITE.city.split(",")[0]} in ${SITE.founded}, ${SITE.name} designs everyday gear for calm, modern living. Meet our team and our mission.`,
       imageAlt: `${SITE.name} — About our team and mission`,
       type: "website",
     });
@@ -46,6 +47,7 @@ export const Route = createFileRoute("/about")({
 });
 
 function AboutPage() {
+  const SITE = useSite();
   return (
     <BreezyLayout>
       <section className="max-w-3xl mx-auto px-6 py-20">
@@ -57,10 +59,10 @@ function AboutPage() {
         </h1>
         <div className="prose prose-lg max-w-none text-[#5A554C] leading-relaxed space-y-5">
           <p>
-            BreezySocial started in {SITE.founded} when our founder, Mira Ostrowski, couldn't find a single sleep headphone that worked for a side sleeper. After a year of prototypes in her San Francisco apartment, the first BreezySocial product shipped to 312 backers — and the company was born.
+            {SITE.name} started in {SITE.founded} when our founder, {SITE.founder}, couldn't find a single sleep headphone that worked for a side sleeper. After a year of prototypes in a {SITE.city.split(",")[0]} apartment, the first {SITE.name} product shipped to 312 backers — and the company was born.
           </p>
           <p>
-            Today we're a team of 14 — designers, sleep researchers, hardware engineers, and editors — operating out of a small studio in the Mission District. We design and ship eight core products, each one obsessively iterated until it solves a real, daily problem. We don't do "smart" for its own sake. Every feature has to earn its place.
+            Today we're a team of {SITE.teamSize} — designers, sleep researchers, hardware engineers, and editors — operating out of a small studio in {SITE.district}. We design and ship eight core products, each one obsessively iterated until it solves a real, daily problem. We don't do "smart" for its own sake. Every feature has to earn its place.
           </p>
           <p>
             We believe technology should feel like a quiet companion, not a constant interruption. Our products are built to support better sleep, sharper focus, calmer travel, and steadier daily rhythms. That's it. That's the whole mission.
@@ -82,7 +84,7 @@ function AboutPage() {
             We love hearing from customers — product questions, feedback, even tough criticism. Email us at <a href={`mailto:${SITE.email}`} className="text-[#5A7A55] underline">{SITE.email}</a> or reach out through our <a href="/contact" className="text-[#5A7A55] underline">contact page</a>.
           </p>
           <p className="text-sm text-[#9A9488] pt-8 border-t border-[#E8E2D5]">
-            BreezySocial Inc. · {SITE.address} · Founded {SITE.founded}
+            {SITE.name} {SITE.legalSuffix} · {SITE.address} · Founded {SITE.founded}
           </p>
         </div>
       </section>

@@ -1,7 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
-import { getArticle, getProduct, SITE, type Article, type Product } from "@/lib/breezy-data";
+import { getArticle, getProduct, type Article, type Product } from "@/lib/breezy-data";
+import { siteFor, useRebrand, rebrandText as rebrandTitle } from "@/lib/site-identity";
 import { ARTICLE_BODIES, BLOG_IMAGES } from "@/lib/breezy-content";
 import { buildOg, absoluteUrl } from "@/lib/og-meta";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
@@ -19,13 +20,14 @@ export const Route = createFileRoute("/blog/$slug")({
     const a = loaderData?.article;
     const origin = loaderData?.origin ?? "https://breezysocial.com";
     if (!a) return { meta: [{ title: "Article not found" }] };
+    const SITE = siteFor(origin);
     const imgPath = BLOG_IMAGES[a.slug];
     const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;
     const { meta, links } = buildOg({
       origin,
       path: `/blog/${params.slug}`,
-      title: `${a.title} — ${SITE.name} Journal`,
-      description: a.excerpt,
+      title: `${rebrandTitle(a.title, origin)} — ${SITE.name} Journal`,
+      description: rebrandTitle(a.excerpt, origin),
       image: imgUrl,
       imageAlt: `${a.title} — illustration`,
       type: "article",
@@ -47,8 +49,8 @@ export const Route = createFileRoute("/blog/$slug")({
           children: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Article",
-            headline: a.title,
-            description: a.excerpt,
+            headline: rebrandTitle(a.title, origin),
+            description: rebrandTitle(a.excerpt, origin),
             image: imgUrl,
             author: { "@type": "Person", name: a.author, jobTitle: a.authorRole },
             publisher: {
@@ -116,9 +118,10 @@ function renderMarkdown(body: string) {
 
 function ArticlePage() {
   const { article } = Route.useLoaderData();
+  const rb = useRebrand();
   const a = article as Article;
   const related: Product[] = a.relatedProducts.map(getProduct).filter((x): x is Product => Boolean(x));
-  const body = ARTICLE_BODIES[a.slug] || a.body;
+  const body = rb(ARTICLE_BODIES[a.slug] || a.body);
   const img = BLOG_IMAGES[a.slug];
 
   return (
@@ -133,7 +136,7 @@ function ArticlePage() {
           {a.category} · {a.readTime} min read
         </div>
         <h1 className="text-4xl md:text-5xl text-[#2A2A28] mb-6 leading-tight" style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
-          {a.title}
+          {rb(a.title)}
         </h1>
         <div className="flex items-center gap-3 mb-10 text-sm text-[#7A7468] border-b border-[#E8E2D5] pb-6">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7D9B76] to-[#5A7A55] flex items-center justify-center text-white text-sm font-semibold">
@@ -152,7 +155,7 @@ function ArticlePage() {
           )}
         </div>
         <div className="text-lg max-w-none">
-          <p className="text-xl text-[#5A554C] italic mb-8">{a.excerpt}</p>
+          <p className="text-xl text-[#5A554C] italic mb-8">{rb(a.excerpt)}</p>
           {body ? (
             renderMarkdown(body)
           ) : (

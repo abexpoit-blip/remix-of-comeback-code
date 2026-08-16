@@ -2,7 +2,8 @@ import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-ro
 import { toast } from "sonner";
 import { BreezyLayout, TrustBar } from "@/components/breezy/BreezyLayout";
 import { ProductCard } from "@/components/breezy/ProductCard";
-import { getProduct, PRODUCTS, SITE, type Product } from "@/lib/breezy-data";
+import { getProduct, PRODUCTS, type Product } from "@/lib/breezy-data";
+import { siteFor, rebrandText, useRebrand } from "@/lib/site-identity";
 import { PRODUCT_IMAGES } from "@/lib/breezy-content";
 import { getReviews } from "@/lib/breezy-reviews";
 import { useCart } from "@/lib/cart-context";
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/shop/$slug")({
   head: ({ loaderData, params }) => {
     const p = loaderData?.product;
     const origin = loaderData?.origin ?? "https://breezysocial.com";
+    const SITE = siteFor(origin);
     if (!p) return { meta: [{ title: "Product not found" }] };
     const imgPath = PRODUCT_IMAGES[p.slug];
     const imgUrl = imgPath ? absoluteUrl(origin, imgPath) : undefined;
@@ -26,7 +28,7 @@ export const Route = createFileRoute("/shop/$slug")({
       origin,
       path: `/shop/${params.slug}`,
       title: `${p.name} — $${p.price} · ${SITE.name}`,
-      description: p.shortDesc,
+      description: rebrandText(p.shortDesc, origin),
       image: imgUrl,
       imageAlt: `${p.name} — product photo`,
       type: "product",
@@ -48,7 +50,7 @@ export const Route = createFileRoute("/shop/$slug")({
             "@context": "https://schema.org",
             "@type": "Product",
             name: p.name,
-            description: p.longDesc,
+            description: rebrandText(p.longDesc, origin),
             image: imgUrl,
             brand: { "@type": "Brand", name: SITE.name },
             sku: p.slug,
@@ -82,6 +84,7 @@ export const Route = createFileRoute("/shop/$slug")({
 });
 
 function ProductPage() {
+  const rb = useRebrand();
   const { product } = Route.useLoaderData();
   const p = product as Product;
   const related: Product[] = PRODUCTS.filter((x) => x.slug !== p.slug && x.category === p.category).slice(0, 3);
@@ -148,7 +151,7 @@ function ProductPage() {
                 </>
               )}
             </div>
-            <p className="text-[#5A554C] leading-relaxed mb-8">{p.longDesc}</p>
+            <p className="text-[#5A554C] leading-relaxed mb-8">{rb(p.longDesc)}</p>
 
             <div className="flex gap-3 mb-4">
               <button

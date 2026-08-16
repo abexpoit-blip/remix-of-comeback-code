@@ -35,7 +35,7 @@ export const PRODUCTS: Product[] = [
     category: "Sleep & Wellness",
     shortDesc: "Ultra-thin bluetooth headband headphones engineered for side sleepers.",
     longDesc:
-      "Drift off faster with the BreezySocial Smart Sleep Headphones — a memory-foam headband with ultra-flat 6mm speakers you can't feel through the fabric. Stream calming audio, white noise, or your favorite podcast for up to 14 hours per charge. Machine-washable inner sleeve, USB-C fast charging, and a built-in mic for hands-free calls.",
+      "Drift off faster with the Smart Sleep Headphones — a memory-foam headband with ultra-flat 6mm speakers you can't feel through the fabric. Stream calming audio, white noise, or your favorite podcast for up to 14 hours per charge. Machine-washable inner sleeve, USB-C fast charging, and a built-in mic for hands-free calls.",
     features: [
       "Ultra-thin 6mm flat speakers (under-pillow safe)",
       "14-hour battery, USB-C charging",
@@ -119,7 +119,7 @@ export const PRODUCTS: Product[] = [
     category: "Tech Accessories",
     shortDesc: "Charge phone, watch, and earbuds simultaneously — no cable mess.",
     longDesc:
-      "Reclaim your nightstand. The BreezySocial 3-in-1 pad delivers 15W fast charging to your phone, 5W to your Apple Watch or Galaxy Watch, and 5W to your earbuds case — all at the same time. Foldable into a triangle stand for FaceTime/desk use. MFi-certified, MagSafe-compatible.",
+      "Reclaim your nightstand. The 3-in-1 pad delivers 15W fast charging to your phone, 5W to your Apple Watch or Galaxy Watch, and 5W to your earbuds case — all at the same time. Foldable into a triangle stand for FaceTime/desk use. MFi-certified, MagSafe-compatible.",
     features: [
       "15W fast wireless to phone (MagSafe-compatible)",
       "5W to Apple Watch / Galaxy Watch",
@@ -375,12 +375,6 @@ export function getArticle(slug: string): Article | undefined {
   return ARTICLES.find((a) => a.slug === slug);
 }
 
-export const SITE = {
-  name: "BreezySocial",
-  tagline: "Smart gadgets for calm, modern living.",
-  email: "hello@breezysocial.com",
-  supportEmail: "support@breezysocial.com",
-  address: "1280 Market Street, Suite 400, San Francisco, CA 94102",
-  phone: "+1 (415) 555-0142",
-  founded: 2019,
-};
+// SITE moved to src/lib/site-identity.ts — a single shared contact block was
+// rendered identically on every ad domain and proved common ownership.
+// Use siteFor(host) / useSite() instead.

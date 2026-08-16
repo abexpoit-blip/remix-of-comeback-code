@@ -1,3 +1,5 @@
+import { siteFor } from "@/lib/site-identity";
+import { getHost } from "@/lib/host";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
@@ -6,7 +8,7 @@ import { useCart } from "@/lib/cart-context";
 export const Route = createFileRoute("/checkout")({
   head: () => ({
     meta: [
-      { title: "Secure Checkout — BreezySocial" },
+      { title: `Secure Checkout — ${siteFor(getHost()).name}` },
       { name: "description", content: "Complete your order securely." },
       { name: "robots", content: "noindex,nofollow" },
     ],
@@ -87,15 +89,15 @@ function CheckoutPage() {
                 <Field label="First name" name="fname" required />
                 <Field label="Last name" name="lname" required />
               </div>
-              <Field label="Address" name="address" required placeholder="1280 Market Street" />
+              <Field label="Address" name="address" required placeholder="Street address" />
               <Field label="Apartment, suite, etc. (optional)" name="apt" />
               <div className="grid sm:grid-cols-3 gap-4">
                 <Field label="City" name="city" required />
-                <Field label="State" name="state" required placeholder="CA" />
-                <Field label="ZIP" name="zip" required placeholder="94102" />
+                <Field label="State" name="state" required placeholder="State" />
+                <Field label="ZIP" name="zip" required placeholder="ZIP code" />
               </div>
               <Field label="Country" name="country" required defaultValue="United States" />
-              <Field label="Phone" name="phone" type="tel" placeholder="+1 (415) 555-0142" />
+              <Field label="Phone" name="phone" type="tel" placeholder="Phone number" />
             </Section>
 
             <Section title="Payment">

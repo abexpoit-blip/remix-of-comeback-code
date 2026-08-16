@@ -1,3 +1,5 @@
+import { siteFor } from "@/lib/site-identity";
+import { getHost } from "@/lib/host";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
 import { useCart } from "@/lib/cart-context";
@@ -6,7 +8,7 @@ import { PRODUCT_IMAGES } from "@/lib/breezy-content";
 export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
-      { title: "Your Cart — BreezySocial" },
+      { title: `Your Cart — ${siteFor(getHost()).name}` },
       { name: "description", content: "Review your selected items and proceed to secure checkout." },
       { name: "robots", content: "noindex,follow" },
     ],

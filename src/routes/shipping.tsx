@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BreezyLayout } from "@/components/breezy/BreezyLayout";
-import { SITE } from "@/lib/breezy-data";
+import { siteFor, useSite } from "@/lib/site-identity";
+import { getRequestOrigin } from "@/lib/request-origin.functions";
 
 export const Route = createFileRoute("/shipping")({
-  head: () => ({
+  loader: async () => await getRequestOrigin(),
+  head: ({ loaderData }: { loaderData?: { origin: string } }) => {
+    const SITE = siteFor(loaderData?.origin ?? "https://breezysocial.com");
+    return {
     meta: [
       { title: `Shipping Policy — ${SITE.name}` },
       { name: "description", content: `Shipping rates, delivery times, and international info for ${SITE.name} orders. Free shipping over $50.` },
@@ -11,11 +15,13 @@ export const Route = createFileRoute("/shipping")({
       { property: "og:url", content: "/shipping" },
     ],
     links: [{ rel: "canonical", href: "/shipping" }],
-  }),
+    };
+  },
   component: ShippingPage,
 });
 
 function ShippingPage() {
+  const SITE = useSite();
   return (
     <BreezyLayout>
       <article className="max-w-3xl mx-auto px-6 py-16 prose prose-lg text-[#3A3A38]">
@@ -26,7 +32,7 @@ function ShippingPage() {
           Shipping Policy
         </h1>
 
-        <p>We ship from our warehouse in Oakland, California, Monday through Friday (excluding US holidays). Orders placed before 1pm PST typically ship the same day.</p>
+        <p>We ship from our warehouse near {SITE.city}, Monday through Friday (excluding US holidays). Orders placed before 1pm local time typically ship the same day.</p>
 
         <h2 className="text-2xl mt-10 text-[#2A2A28]">United States</h2>
         <ul>

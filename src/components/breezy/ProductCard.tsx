@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import type { Product } from "@/lib/breezy-data";
 import { PRODUCT_IMAGES } from "@/lib/breezy-content";
+import { useRebrand } from "@/lib/site-identity";
 
 export function ProductCard({ product }: { product: Product }) {
+  const rb = useRebrand();
   const img = PRODUCT_IMAGES[product.slug];
   return (
     <Link
@@ -34,7 +36,7 @@ export function ProductCard({ product }: { product: Product }) {
         >
           {product.name}
         </h3>
-        <p className="text-xs text-[#7A7468] mb-3 line-clamp-2">{product.shortDesc}</p>
+        <p className="text-xs text-[#7A7468] mb-3 line-clamp-2">{rb(product.shortDesc)}</p>
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-semibold text-[#2A2A28]">${product.price}</span>
