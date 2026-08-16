@@ -83,9 +83,16 @@ hit() {
     "offer|offer"|"offer|bridge(offer)"|"offer|bounce(offer)") ok="✅" ;;
   esac
 
+  # The link owner blocked this VPS's own country in Country Shield:
+  # an article here is the CORRECT result, not traffic loss.
+  if [ "${SHIELDED:-0}" = "1" ] && [ "$expect" = "offer" ] && [ "$got" = "article" ]; then
+    ok="✅"; got="article(shield:$VPS_CC)"
+  fi
+
   # A human landing on a pure safe/article page with no way forward = real loss.
   if [ "$expect" = "offer" ] && [ "$got" = "article" ]; then got="article(LOSS)"; fi
   [ "$ok" = "✅" ] && pass=$((pass+1)) || fail=$((fail+1))
+
 
   printf '   %s %-22s want=%-7s got=%-14s http=%s route=%s\n' \
     "$ok" "$label" "$expect" "$got" "$status" "${routed:-–}"
