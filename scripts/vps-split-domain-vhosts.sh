@@ -89,7 +89,14 @@ EOF
 done
 
 mkdir -p /var/www/html
-nginx -t
+if ! nginx -t; then
+  echo "❌ nginx config test failed — restoring backup and aborting (site stays up)"
+  rm -rf /etc/nginx/sites-available /etc/nginx/sites-enabled
+  cp -a "$BACKUP/sites-available" /etc/nginx/sites-available
+  cp -a "$BACKUP/sites-enabled" /etc/nginx/sites-enabled
+  nginx -t && systemctl reload nginx
+  exit 1
+fi
 systemctl daemon-reload
 systemctl reload nginx
 
