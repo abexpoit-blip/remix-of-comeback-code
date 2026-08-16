@@ -5,6 +5,8 @@ import { getArticle, getProduct, SITE, type Article, type Product } from "@/lib/
 import { ARTICLE_BODIES, BLOG_IMAGES } from "@/lib/breezy-content";
 import { buildOg, absoluteUrl } from "@/lib/og-meta";
 import { getRequestOrigin } from "@/lib/request-origin.functions";
+import { ogImagePath } from "@/lib/brand-assets";
+
 
 export const Route = createFileRoute("/blog/$slug")({
   loader: async ({ params }) => {
