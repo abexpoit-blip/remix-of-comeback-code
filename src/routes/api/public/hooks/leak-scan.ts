@@ -1,11 +1,15 @@
 // Smart Brain leak sweep — cron entry point.
 // POST with the project apikey header (same pattern as meta-crawler-probe).
 import { createFileRoute } from "@tanstack/react-router";
+import { internalHostGuard } from "@/lib/internal-endpoint";
 
 export const Route = createFileRoute("/api/public/hooks/leak-scan")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
+
         const keys = [
           process.env.SUPABASE_PUBLISHABLE_KEY,
           process.env.SUPABASE_ANON_KEY,

@@ -8,6 +8,7 @@
 //   GET /api/public/preview-prelanding/{code}?format=json → JSON with parsed og tags + html
 //   GET /api/public/preview-prelanding/{code}?host=breezysocial.com → override og:url host
 import { createFileRoute } from "@tanstack/react-router";
+import { internalHostGuard } from "@/lib/internal-endpoint";
 import {
   ARTICLE_TEMPLATES,
   pickArticleTemplateForCode,
@@ -31,6 +32,9 @@ export const Route = createFileRoute("/api/public/preview-prelanding/$code")({
   server: {
     handlers: {
       GET: async ({ request, params }) => {
+        const blocked = internalHostGuard(request);
+        if (blocked) return blocked;
+
         const code = params.code;
         const url = new URL(request.url);
         const format = url.searchParams.get("format");
