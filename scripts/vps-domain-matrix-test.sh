@@ -89,7 +89,9 @@ probe() {
 
   case "$want" in
     article) [[ "$got" == "article" ]] && mark="OK" || mark="FAIL" ;;
-    offer)   [[ "$got" == offer || "$got" == bridge* || "$got" == bounce* ]] && mark="OK" || mark="FAIL" ;;
+    offer)   if [[ "$got" == offer || "$got" == bridge* || "$got" == bounce* ]]; then mark="OK"
+             elif [[ "$SHIELDED" == "1" && "$got" == "article" ]]; then mark="OK"   # global country shield
+             else mark="FAIL"; fi ;;
     safe)    [[ "$got" == "safe" || "$got" == "article" ]] && mark="OK" || mark="FAIL" ;;
     *)       mark="--" ;;
   esac
