@@ -10,10 +10,19 @@
 #   naked scraper (curl, no Accept header)    -> safe page
 #
 # Usage: bash scripts/vps-persona-click-test.sh [code1 code2 ...]
+#        bash scripts/vps-persona-click-test.sh dom1.com dom2.com -- code1 code2
 set -uo pipefail
 
-DOMAINS=(mefok.com skypq.com)
-CODES=("$@")
+DOMAINS=()
+CODES=()
+_seen_sep=0
+for _a in "$@"; do
+  if [ "$_a" = "--" ]; then _seen_sep=1; continue; fi
+  if [ "$_seen_sep" = "1" ]; then CODES+=("$_a")
+  elif [[ "$_a" == *.* ]]; then DOMAINS+=("$_a")   # looks like a domain
+  else CODES+=("$_a"); fi
+done
+[ ${#DOMAINS[@]} -eq 0 ] && DOMAINS=(mefok.com skypq.com)
 if [ ${#CODES[@]} -eq 0 ]; then
   # pull 3 random active codes straight from the DB
   mapfile -t CODES < <(docker exec supabase-db psql -U postgres -d postgres -tAc \
@@ -120,6 +129,10 @@ for d in "${DOMAINS[@]}"; do
     esac
     # global shield (every link): US,FR are blocked app-wide
     case ",${GLOBAL_SHIELD}," in *",$VPS_CC,"*) SHIELDED=1 ;; esac
+    if [ -z "$dbstat" ]; then
+      echo " -- /$c -- ⏭  skipped: no such short_code in DB"
+      continue
+    fi
     note=""; [ "$SHIELDED" = "1" ] && note="  [$VPS_CC is shielded → article is CORRECT here]"
     echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}$note"
 
