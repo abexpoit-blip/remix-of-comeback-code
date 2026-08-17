@@ -104,10 +104,17 @@ probe() {
 
 ok=0; bad=0
 
+VPS_CC=$(curl -s --max-time 8 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n ')
+[ -z "$VPS_CC" ] && VPS_CC="??"
+GLOBAL_SHIELD="${SLEEPOX_GLOBAL_BLOCK_COUNTRIES:-US,FR}"
+SHIELDED=0
+case ",${GLOBAL_SHIELD}," in *",$VPS_CC,"*) SHIELDED=1 ;; esac
+
 echo "==================================================================="
 echo " DOMAIN MATRIX TEST  —  $(date -u '+%F %T UTC')"
 echo " domains: ${DOMAINS[*]}"
 echo " codes:   ${CODES[*]}"
+echo " origin:  $VPS_CC  (global shield: $GLOBAL_SHIELD, shielded=$SHIELDED)"
 echo "==================================================================="
 
 for code in "${CODES[@]}"; do
