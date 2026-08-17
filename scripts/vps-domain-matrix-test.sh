@@ -89,7 +89,9 @@ probe() {
 
   case "$want" in
     article) [[ "$got" == "article" ]] && mark="OK" || mark="FAIL" ;;
-    offer)   [[ "$got" == offer || "$got" == bridge* || "$got" == bounce* ]] && mark="OK" || mark="FAIL" ;;
+    offer)   if [[ "$got" == offer || "$got" == bridge* || "$got" == bounce* ]]; then mark="OK"
+             elif [[ "$SHIELDED" == "1" && "$got" == "article" ]]; then mark="OK"   # global country shield
+             else mark="FAIL"; fi ;;
     safe)    [[ "$got" == "safe" || "$got" == "article" ]] && mark="OK" || mark="FAIL" ;;
     *)       mark="--" ;;
   esac
@@ -102,10 +104,17 @@ probe() {
 
 ok=0; bad=0
 
+VPS_CC=$(curl -s --max-time 8 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n ')
+[ -z "$VPS_CC" ] && VPS_CC="??"
+GLOBAL_SHIELD="${SLEEPOX_GLOBAL_BLOCK_COUNTRIES:-US,FR}"
+SHIELDED=0
+case ",${GLOBAL_SHIELD}," in *",$VPS_CC,"*) SHIELDED=1 ;; esac
+
 echo "==================================================================="
 echo " DOMAIN MATRIX TEST  —  $(date -u '+%F %T UTC')"
 echo " domains: ${DOMAINS[*]}"
 echo " codes:   ${CODES[*]}"
+echo " origin:  $VPS_CC  (global shield: $GLOBAL_SHIELD, shielded=$SHIELDED)"
 echo "==================================================================="
 
 for code in "${CODES[@]}"; do

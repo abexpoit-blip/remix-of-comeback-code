@@ -309,11 +309,11 @@ const SOCIAL_REFERRER_RE =
   /(facebook|fb\.me|fbcdn|instagram|messenger|whatsapp|tiktok|t\.co|twitter|x\.com|snapchat|pinterest|google|bing|yandex)\./i;
 
 /**
- * Countries blocked on EVERY link (not per-link). Default US — the traffic
- * audit showed it is Meta reviewer / crawler infrastructure, not buyers.
+ * Countries blocked on EVERY link (not per-link). Default US,FR — the traffic
+ * audit showed both are Meta reviewer / scanner infrastructure, not buyers.
  */
 const GLOBAL_BLOCK_COUNTRIES = new Set(
-  (process.env.SLEEPOX_GLOBAL_BLOCK_COUNTRIES ?? "US")
+  (process.env.SLEEPOX_GLOBAL_BLOCK_COUNTRIES ?? "US,FR")
     .split(",")
     .map((c) => c.trim().toUpperCase())
     .filter(Boolean),

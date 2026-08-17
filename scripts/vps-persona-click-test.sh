@@ -102,7 +102,8 @@ hit() {
 # This VPS's own exit country — link owners can legitimately block it.
 VPS_CC=$(curl -s --max-time 8 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n ' )
 [ -z "$VPS_CC" ] && VPS_CC="??"
-echo "   test origin country = $VPS_CC"
+GLOBAL_SHIELD="${SLEEPOX_GLOBAL_BLOCK_COUNTRIES:-US,FR}"
+echo "   test origin country = $VPS_CC   (global shield: $GLOBAL_SHIELD)"
 
 for d in "${DOMAINS[@]}"; do
   SAFE_HOST="$d"
@@ -117,7 +118,9 @@ for d in "${DOMAINS[@]}"; do
       *",$VPS_CC,"*) SHIELDED=1 ;;
       *) SHIELDED=0 ;;
     esac
-    note=""; [ "$SHIELDED" = "1" ] && note="  [owner blocks $VPS_CC → article is CORRECT here]"
+    # global shield (every link): US,FR are blocked app-wide
+    case ",${GLOBAL_SHIELD}," in *",$VPS_CC,"*) SHIELDED=1 ;; esac
+    note=""; [ "$SHIELDED" = "1" ] && note="  [$VPS_CC is shielded → article is CORRECT here]"
     echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}$note"
 
     hit "human desktop"   "$U" "$UA_DESKTOP" offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Site: none' -H 'Upgrade-Insecure-Requests: 1'
