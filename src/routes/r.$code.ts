@@ -366,13 +366,39 @@ const FP_L1_TTL_MS = 60 * 1000;
 
 const REDIRECT_CACHE_MAX = 50_000;
 const linkCache = new Map<string, CacheHit<RedirectLink>>();
-const profileQuotaCache = new Map<string, CacheHit<{ click_quota: number | null; clicks_used: number | null } | null>>();
+type ProfileQuota = {
+  click_quota: number | null;
+  clicks_used: number | null;
+  plan_slug?: string | null;
+  plan_expires_at?: string | null;
+};
+
+// Free-tier click quota (1M/month). Expired paid plans fall back to this.
+const FREE_CLICK_QUOTA = 1_000_000;
+const LIFETIME_PLANS = new Set(["lifetime", "unlimited"]);
+
+/**
+ * Expired paid plan → treat the account as free tier (1M quota) instead of
+ * keeping the paid 10M allowance forever. Lifetime plans never expire.
+ */
+function effectiveQuota(profile: ProfileQuota | null): number | null {
+  if (!profile) return null;
+  const slug = String(profile.plan_slug ?? "free").toLowerCase();
+  if (LIFETIME_PLANS.has(slug)) return profile.click_quota;
+  const exp = profile.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
+  const expired = Number.isFinite(exp) && exp < Date.now();
+  if (!expired) return profile.click_quota;
+  const stored = profile.click_quota;
+  return stored === null ? FREE_CLICK_QUOTA : Math.min(stored, FREE_CLICK_QUOTA);
+}
+
+const profileQuotaCache = new Map<string, CacheHit<ProfileQuota | null>>();
 const offerCache = new Map<string, CacheHit<{ abRows: any[]; geoRows: any[] }>>();
 const fpBlockedCache = new Map<string, CacheHit<boolean>>();
 
 // In-flight de-duplication: collapses N concurrent requests for same key into 1 DB query.
 const linkInflight = new Map<string, Promise<{ link: RedirectLink | null; error: Error | null }>>();
-const profileInflight = new Map<string, Promise<{ click_quota: number | null; clicks_used: number | null } | null>>();
+const profileInflight = new Map<string, Promise<ProfileQuota | null>>();
 const offerInflight = new Map<string, Promise<{ abRows: any[]; geoRows: any[] }>>();
 
 // L2 Redis cache (shared across all 8 PM2 workers). Best-effort: never throws.
@@ -1528,7 +1554,7 @@ async function getFingerprintAutoBlocked(fpHash: string): Promise<boolean> {
   }
 }
 
-async function getProfileQuota(userId: string): Promise<{ click_quota: number | null; clicks_used: number | null } | null> {
+async function getProfileQuota(userId: string): Promise<ProfileQuota | null> {
   const cached = cacheGet(profileQuotaCache, userId);
   if (cached !== null) return cached;
   const existing = profileInflight.get(userId);
@@ -1536,7 +1562,7 @@ async function getProfileQuota(userId: string): Promise<{ click_quota: number | 
 
   const promise = (async () => {
     // L2 Redis shared lookup.
-    const l2 = await redisGet<{ click_quota: number | null; clicks_used: number | null } | null>(L2_PROFILE_PREFIX + userId);
+    const l2 = await redisGet<ProfileQuota | null>(L2_PROFILE_PREFIX + userId);
     if (l2 !== null) {
       cacheSet(profileQuotaCache, userId, l2, PROFILE_L1_TTL_MS);
       return l2;
@@ -1555,7 +1581,7 @@ async function getProfileQuota(userId: string): Promise<{ click_quota: number | 
       try {
         const query = supabaseAdmin
           .from("profiles")
-          .select("click_quota, clicks_used")
+          .select("click_quota, clicks_used, plan_slug, plan_expires_at")
           .eq("id", userId)
           .maybeSingle();
         const { data, error } = await (query as any).abortSignal(ctrl.signal);
@@ -2557,7 +2583,9 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         ua_class: isFbBot ? "fb-bot" : "non-fb-bot",
       }));
     } else {
-      const pick = pickSafePage(code, fpHash, publicOrigin);
+      // Sticky per LINK (not per visitor): one short code always shows the same
+      // safe article, so its fingerprint stays consistent across crawls.
+      const pick = pickSafePage(code, null, publicOrigin);
       target = pick.url;
       console.log(JSON.stringify({
         event: "redirect.safe_pool_pick",
@@ -2575,8 +2603,8 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   } else {
     const profile = await getProfileQuota(link.user_id);
 
-    const overQuota =
-      profile && profile.click_quota !== null && (profile.clicks_used || 0) >= profile.click_quota;
+    const quota = effectiveQuota(profile);
+    const overQuota = profile && quota !== null && (profile.clicks_used || 0) >= quota;
 
     if (overQuota) {
       // Quota exceeded → would normally route to ours, but respect 1-ad-per-24h cap
