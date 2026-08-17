@@ -64,33 +64,25 @@ q "SELECT COALESCE(NULLIF(country,''),'(unknown)') country, COUNT(*) total,
    GROUP BY 1 ORDER BY 2 DESC LIMIT 20;"
 
 echo "════ 7) FINGERPRINT FORENSICS ════"
-# column names differ between schema versions — detect them
-col() { docker exec -i "$DB" psql -U postgres -d postgres -tAc \
-  "SELECT column_name FROM information_schema.columns WHERE table_name='bot_fingerprints' AND column_name IN ($1) LIMIT 1;"; }
-BOTC=$(col "'is_bot_count','bot_count','bot_hits'")
-HUMC=$(col "'is_human_count','human_count','human_hits'")
-if [ -z "$BOTC" ] || [ -z "$HUMC" ]; then
-  echo "(bot_fingerprints counters not found — available columns:)"
-  docker exec -i "$DB" psql -U postgres -d postgres -tAc \
-    "SELECT string_agg(column_name,', ') FROM information_schema.columns WHERE table_name='bot_fingerprints';"
-else
-  echo "-- 7a) auto-blocked fingerprints (learned) --"
-  q "SELECT COUNT(*) FILTER (WHERE auto_blocked) auto_blocked,
-       COUNT(*) total_fp,
-       COUNT(*) FILTER (WHERE auto_blocked AND $HUMC > 0) blocked_but_seen_human
-     FROM bot_fingerprints;"
-  echo "-- 7b) DANGEROUS: blocked fps that also had human hits (false positives) --"
-  q "SELECT LEFT(fingerprint_hash,12) fp, $BOTC bots, $HUMC humans, last_country,
-       LEFT(COALESCE(last_ua,''),60) ua, updated_at
-     FROM bot_fingerprints
-     WHERE auto_blocked AND $HUMC > 0
-     ORDER BY $HUMC DESC LIMIT 15;"
-  echo "-- 7c) fps updated in window, top bot counters --"
-  q "SELECT LEFT(fingerprint_hash,12) fp, $BOTC bots, $HUMC humans, last_country,
-       LEFT(COALESCE(last_ua,''),50) ua
-     FROM bot_fingerprints WHERE updated_at > now() - interval '$W'
-     ORDER BY $BOTC DESC LIMIT 15;"
-fi
+# schema: fingerprint_hash, hit_count, bot_hits, auto_blocked, sample_ip/ua/country, first_seen, last_seen
+echo "-- 7a) auto-blocked fingerprints (learned) --"
+q "SELECT COUNT(*) FILTER (WHERE auto_blocked) auto_blocked,
+     COUNT(*) total_fp,
+     COUNT(*) FILTER (WHERE auto_blocked AND hit_count > bot_hits) blocked_but_seen_human
+   FROM bot_fingerprints;"
+echo "-- 7b) DANGEROUS: blocked fps that also had human hits (false positives) --"
+q "SELECT LEFT(fingerprint_hash,12) fp, hit_count hits, bot_hits bots,
+     (hit_count - bot_hits) humans, sample_country country,
+     LEFT(COALESCE(sample_ua,''),60) ua, last_seen
+   FROM bot_fingerprints
+   WHERE auto_blocked AND hit_count > bot_hits
+   ORDER BY (hit_count - bot_hits) DESC LIMIT 15;"
+echo "-- 7c) fps seen in window, top bot counters --"
+q "SELECT LEFT(fingerprint_hash,12) fp, hit_count hits, bot_hits bots,
+     (hit_count - bot_hits) humans, auto_blocked, sample_country country,
+     LEFT(COALESCE(sample_ua,''),50) ua
+   FROM bot_fingerprints WHERE last_seen > now() - interval '$W'
+   ORDER BY bot_hits DESC LIMIT 15;"
 echo "-- 7d) repeat IPs in window (NAT vs scanner) --"
 q "SELECT ip, COUNT(*) hits, COUNT(DISTINCT link_id) links,
      COUNT(*) FILTER (WHERE is_bot) bots
