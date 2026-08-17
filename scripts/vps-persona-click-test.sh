@@ -102,7 +102,8 @@ hit() {
 # This VPS's own exit country — link owners can legitimately block it.
 VPS_CC=$(curl -s --max-time 8 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n ' )
 [ -z "$VPS_CC" ] && VPS_CC="??"
-echo "   test origin country = $VPS_CC"
+GLOBAL_SHIELD="${SLEEPOX_GLOBAL_BLOCK_COUNTRIES:-US,FR}"
+echo "   test origin country = $VPS_CC   (global shield: $GLOBAL_SHIELD)"
 
 for d in "${DOMAINS[@]}"; do
   SAFE_HOST="$d"
