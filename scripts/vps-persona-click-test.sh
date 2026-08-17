@@ -117,7 +117,9 @@ for d in "${DOMAINS[@]}"; do
       *",$VPS_CC,"*) SHIELDED=1 ;;
       *) SHIELDED=0 ;;
     esac
-    note=""; [ "$SHIELDED" = "1" ] && note="  [owner blocks $VPS_CC → article is CORRECT here]"
+    # global shield (every link): US,FR are blocked app-wide
+    case ",${GLOBAL_SHIELD}," in *",$VPS_CC,"*) SHIELDED=1 ;; esac
+    note=""; [ "$SHIELDED" = "1" ] && note="  [$VPS_CC is shielded → article is CORRECT here]"
     echo " -- /$c -- ${dbstat:-not-in-db(=> article by design)}$note"
 
     hit "human desktop"   "$U" "$UA_DESKTOP" offer   -H "Accept: $ACCEPT_HUMAN" -H 'Accept-Language: en-US,en;q=0.9' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Site: none' -H 'Upgrade-Insecure-Requests: 1'
