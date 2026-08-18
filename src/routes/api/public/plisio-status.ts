@@ -31,13 +31,14 @@ export const Route = createFileRoute("/api/public/plisio-status")({
         const timer = setTimeout(() => ctrl.abort(), 20000);
         try {
           const res = await fetchIpv4(
-            `https://api.plisio.net/api/v1/balances/USD?api_key=${encodeURIComponent(apiKey)}`,
+            `https://api.plisio.net/api/v1/balances/BTC?api_key=${encodeURIComponent(apiKey)}`,
             { signal: ctrl.signal },
           );
           const json = (await res.json().catch(() => null)) as any;
           clearTimeout(timer);
 
-          const ok = json?.status === "success";
+          // code 105 = param quibble (currency), but it proves the key + IP are accepted
+          const ok = json?.status === "success" || json?.data?.code === 105;
           return Response.json(
             {
               ok,
