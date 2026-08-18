@@ -10,6 +10,7 @@
  *  - Structured pick log returned to caller (for redirect audit log)
  */
 import { fetchIpv4 } from "@/lib/fetch-ipv4";
+import { isSleepoxSaasHost } from "@/lib/site-hosts";
 // Every entry MUST be a real route that renders on EVERY serving host
 // (localizeToOrigin swaps the host at pick time). A wider pool means two
 // links on the same domain rarely resolve to the same safe page, which is
@@ -184,6 +185,9 @@ function localizeToOrigin(url: string, publicOrigin?: string | null): string {
     const target = new URL(url);
     const here = new URL(publicOrigin);
     if (!here.host || here.host === target.host) return url;
+    // NEVER localize a safe page onto the SaaS host — that hands a crawler a
+    // sleepox.com landing page and links the ad domains back to the platform.
+    if (isSleepoxSaasHost(here.host)) return url;
     target.protocol = here.protocol;
     target.host = here.host;
     return target.toString();
