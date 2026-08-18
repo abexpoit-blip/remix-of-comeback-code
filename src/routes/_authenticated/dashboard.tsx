@@ -161,7 +161,6 @@ function DashboardPage() {
   }, [customDomains.join(","), primaryDomain]);
   const effectiveDomain = !selectedDomain || isFlaggedShortDomain(selectedDomain) ? primaryDomain : selectedDomain;
 
-  const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
   // Every link keeps the domain it was created on. Only links without a stored
   // domain (created before this feature) follow the current picker value.
