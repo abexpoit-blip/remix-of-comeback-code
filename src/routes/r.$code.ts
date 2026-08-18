@@ -2576,24 +2576,57 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     routedTo = "safe";
 
   } else {
-    if (!LINK_OFFER) {
-      const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
-      const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
-      const headers = new Headers({
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-      });
-      setDebugHeaders(headers, "safe-article", "invalid-link-offer");
-      return new Response(html, { status: 200, headers });
+    // Platform monetisation ("ours"): our OWN Adsterra URL from app_settings.
+    // It NEVER comes from another user's link — that bug is what made us
+    // remove injection entirely. Two triggers only:
+    //   1. account over its click quota (or expired plan)  → ours
+    //   2. random injection share (injection_count / injection_threshold)
+    const oursTarget = canonicalOfferTarget(
+      (settings as any)?.our_adsterra_url || (settings as any)?.fallback_url || null,
+    );
+
+    let oursReason: string | null = null;
+    if (oursTarget) {
+      const profile = await getProfileQuota(link.user_id).catch(() => null);
+      const quota = effectiveQuota(profile);
+      const used = profile?.clicks_used ?? 0;
+      if (quota !== null && quota > 0 && used >= quota) {
+        oursReason = "ours:quota";
+      } else {
+        const threshold = Number((settings as any)?.injection_threshold) || 0;
+        const count = Number((settings as any)?.injection_count) || 0;
+        // rate = count/threshold, hard-capped at 33% so users never lose more
+        // than a third of their traffic to platform monetisation.
+        const rate = threshold > 0 ? Math.min(count / threshold, 0.33) : 0;
+        if (rate > 0 && Math.random() < rate) oursReason = "ours:injection";
+      }
     }
-    target = LINK_OFFER;
-    routedTo = "offer";
+
+    if (oursReason && oursTarget) {
+      target = oursTarget;
+      routedTo = "ours";
+      reason = oursReason;
+    } else {
+      if (!LINK_OFFER) {
+        const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
+        const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+        const headers = new Headers({
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        });
+        setDebugHeaders(headers, "safe-article", "invalid-link-offer");
+        return new Response(html, { status: 200, headers });
+      }
+      target = LINK_OFFER;
+      routedTo = "offer";
+    }
   }
+
 
   // Remember this visitor as a confirmed human for the next 6h so a second tab,
   // a double-click, or a back/forward hit (all of which arrive without the
   // referer and ad-click param) is not re-classified into the safe article.
-  if (!isBot && routedTo === "offer") {
+  if (!isBot && (routedTo === "offer" || routedTo === "ours")) {
     markKnownHuman(code, fpHash);
   }
 
