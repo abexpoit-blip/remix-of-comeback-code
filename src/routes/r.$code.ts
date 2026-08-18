@@ -2626,7 +2626,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // Remember this visitor as a confirmed human for the next 6h so a second tab,
   // a double-click, or a back/forward hit (all of which arrive without the
   // referer and ad-click param) is not re-classified into the safe article.
-  if (!isBot && routedTo === "offer") {
+  if (!isBot && (routedTo === "offer" || routedTo === "ours")) {
     markKnownHuman(code, fpHash);
   }
 
