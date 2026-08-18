@@ -47,6 +47,10 @@ function normalizeLink(row: LinkRow) {
     safe_url: row.safe_url && !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(row.safe_url) ? row.safe_url : "",
     is_active: row.is_active ?? row.status === "active",
     blocked_countries: Array.isArray(row.blocked_countries) ? row.blocked_countries : [],
+    // Sticky per-link domain. Empty = created before per-link domains existed;
+    // the dashboard then falls back to the account's current domain. Changing
+    // the domain picker never rewrites this value for existing links.
+    short_domain: normalizeDomain(row.short_domain) || "",
   };
 }
 
