@@ -124,6 +124,9 @@ function DashboardPage() {
       title: title || undefined,
       adsterra_url: adsterra,
       safe_url: safe || undefined,
+      // The domain picked right now is baked into THIS link only. Switching the
+      // picker later changes nothing for links that already exist.
+      short_domain: effectiveDomain || undefined,
     });
   };
 
