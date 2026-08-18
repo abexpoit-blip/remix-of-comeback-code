@@ -327,6 +327,28 @@ export const createLink = createServerFn({ method: "POST" })
     // article pool (never the SaaS homepage).
     const safeUrlToStore = data.safe_url?.trim() || "";
 
+    // Resolve the domain for this link: it must be a built-in shortener host or
+    // one of the user's own verified custom domains. Anything else (or nothing)
+    // falls back to null so the dashboard shows the account default. Every
+    // short code keeps working on ANY of these hosts — they all hit the same
+    // backend — this value only decides which URL we show/copy for this link.
+    let domainToStore: string | null = null;
+    const requestedDomain = normalizeDomain(data.short_domain);
+    if (requestedDomain && requestedDomain !== "sleepox.com") {
+      if ((BUILTIN_SHORT_DOMAINS as readonly string[]).includes(requestedDomain)) {
+        domainToStore = requestedDomain;
+      } else {
+        const { data: owned } = await context.supabase
+          .from("custom_domains")
+          .select("domain")
+          .eq("user_id", context.userId)
+          .eq("verified", true);
+        const ownedHosts = (owned ?? []).map((d: any) => normalizeDomain(d.domain));
+        if (ownedHosts.includes(requestedDomain)) domainToStore = requestedDomain;
+      }
+    }
+
+
     const { data: linkData, error } = await context.supabase
       .from("links")
       .insert({
