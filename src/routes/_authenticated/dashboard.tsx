@@ -500,7 +500,7 @@ function DashboardPage() {
                               </p>
                               <button onClick={() => { navigator.clipboard.writeText(shortUrl); toast.success("Copied"); }}
                                 className="text-[11px] text-[#FF7E5F] hover:text-[#E66D50] flex items-center gap-1 mt-0.5 font-mono truncate max-w-full">
-                                <span className="truncate">{effectiveDomain}/{l.short_code}</span> <Copy className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{rowDomain}/{l.short_code}</span> <Copy className="w-3 h-3 shrink-0" />
                               </button>
                             </td>
                             <td className="hidden md:table-cell px-3 py-4"><MiniSpark up={sparkUp} /></td>
