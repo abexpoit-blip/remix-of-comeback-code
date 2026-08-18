@@ -719,8 +719,9 @@ function DashboardPage() {
             {selectedIds.size} selected
           </span>
 
-          {/* Domain picker inside bulk bar — copied URLs ALWAYS match this */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 border border-white/15">
+          {/* Domain picker — applies to NEW links only. Existing links keep the
+              domain they were created on, so copied URLs never change. */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 border border-white/15" title="Domain used for links you create from now on">
             <Globe className="w-3 h-3 text-[#FEB47B]" />
             <select
               value={effectiveDomain}
@@ -741,10 +742,10 @@ function DashboardPage() {
             onClick={() => {
               const urls = links
                 .filter((l) => selectedIds.has(l.id))
-                .map((l) => `https://${effectiveDomain}/${l.short_code}`)
+                .map((l) => `https://${linkDomain(l as any)}/${l.short_code}`)
                 .join("\n");
               navigator.clipboard.writeText(urls);
-              toast.success(`Copied ${selectedIds.size} short URL${selectedIds.size === 1 ? "" : "s"} on ${effectiveDomain}`);
+              toast.success(`Copied ${selectedIds.size} short URL${selectedIds.size === 1 ? "" : "s"}`);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white font-bold text-xs shadow-lg hover:opacity-90"
           >
