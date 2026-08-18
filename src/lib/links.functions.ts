@@ -18,7 +18,22 @@ type LinkRow = {
   status?: string | null;
   prelanding_template?: string | null;
   blocked_countries?: string[] | null;
+  /** Domain the link was created on. Older links may not have one. */
+  short_domain?: string | null;
 };
+
+/** Built-in shortener hosts every account can use. */
+export const BUILTIN_SHORT_DOMAINS = ["mefok.com", "skypq.com", "breezysocial.com"] as const;
+
+function normalizeDomain(input?: string | null): string {
+  return String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .split(":")[0];
+}
 
 export type DashboardLink = ReturnType<typeof normalizeLink>;
 
