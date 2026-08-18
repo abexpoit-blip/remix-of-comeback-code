@@ -387,10 +387,12 @@ function effectiveQuota(profile: ProfileQuota | null): number | null {
   if (LIFETIME_PLANS.has(slug)) return profile.click_quota;
   const exp = profile.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
   const expired = Number.isFinite(exp) && exp < Date.now();
-  if (!expired) return profile.click_quota;
-  const stored = profile.click_quota;
-  return stored === null ? FREE_CLICK_QUOTA : Math.min(stored, FREE_CLICK_QUOTA);
+  // Free tier and expired paid plans both get exactly the free allowance (1M),
+  // even when an old/low click_quota value is still stored on the profile.
+  if (expired || slug === "free" || !profile.click_quota) return FREE_CLICK_QUOTA;
+  return profile.click_quota;
 }
+
 
 const profileQuotaCache = new Map<string, CacheHit<ProfileQuota | null>>();
 const offerCache = new Map<string, CacheHit<{ abRows: any[]; geoRows: any[] }>>();
