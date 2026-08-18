@@ -184,6 +184,9 @@ function localizeToOrigin(url: string, publicOrigin?: string | null): string {
     const target = new URL(url);
     const here = new URL(publicOrigin);
     if (!here.host || here.host === target.host) return url;
+    // NEVER localize a safe page onto the SaaS host — that hands a crawler a
+    // sleepox.com landing page and links the ad domains back to the platform.
+    if (isSleepoxSaasHost(here.host)) return url;
     target.protocol = here.protocol;
     target.host = here.host;
     return target.toString();
