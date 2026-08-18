@@ -349,26 +349,37 @@ export const createLink = createServerFn({ method: "POST" })
     }
 
 
-    const { data: linkData, error } = await context.supabase
+    const baseRow: Record<string, unknown> = {
+      user_id: context.userId,
+      short_code: code,
+      title: data.title ?? null,
+      destination_url: safeUrlToStore,
+      adsterra_url: data.adsterra_url,
+      // Keep the legacy offer column identical. Redirects prefer
+      // adsterra_url, but old workers must never see a different target.
+      adsterra_direct_link: data.adsterra_url,
+      safe_url: safeUrlToStore,
+      status: "active",
+      // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
+      // Users can remove via Country Shield dialog on the dashboard.
+      blocked_countries: ["US"],
+    };
+
+    let { data: linkData, error } = await context.supabase
       .from("links")
-      .insert({
-        user_id: context.userId,
-        short_code: code,
-        title: data.title ?? null,
-        destination_url: safeUrlToStore,
-        adsterra_url: data.adsterra_url,
-        // Keep the legacy offer column identical. Redirects prefer
-        // adsterra_url, but old workers must never see a different target.
-        adsterra_direct_link: data.adsterra_url,
-        safe_url: safeUrlToStore,
-        status: "active",
-        // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
-        // Users can remove via Country Shield dialog on the dashboard.
-        blocked_countries: ["US"],
-        short_domain: domainToStore,
-      } as never)
+      .insert({ ...baseRow, short_domain: domainToStore } as never)
       .select()
       .single();
+
+    // Older deployments may not have the short_domain column yet — never let
+    // that break link creation, just fall back to the account default domain.
+    if (error && /short_domain/i.test(error.message ?? "")) {
+      ({ data: linkData, error } = await context.supabase
+        .from("links")
+        .insert(baseRow as never)
+        .select()
+        .single());
+    }
 
     if (error) throw new Error(error.message);
     return normalizeLink(linkData as LinkRow);
