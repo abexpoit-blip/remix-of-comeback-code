@@ -8,7 +8,6 @@ import {
   fingerprint,
   matchCloaking,
   matchReferrer,
-  weightedPick,
   type CloakingRule,
   type ReferrerRule,
 } from "@/lib/bot-detect";
@@ -1902,7 +1901,6 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
 
 
   // Use cached data
-  const settings = globalCache.settings;
   const cloakingRules = globalCache.cloaking as CloakingRule[];
   const referrerRules = globalCache.referrer as ReferrerRule[];
   const countryTier = globalCache.tiers.get(country) ?? 3;
@@ -1911,14 +1909,6 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // Global pools, platform injection, A/B rows and geo rows must never override
   // this value, otherwise one user's traffic can reach an unrelated offer.
   const LINK_OFFER = canonicalOfferTarget(link.adsterra_url);
-  // Daily 1-ad-per-visitor cap is currently disabled at the schema level (no
-  // visitor-state table). Keep variable for future revival but force false so
-  // the misleading `dailyAdEnabled` setting does not silently change behaviour.
-  const visitorAlreadySawAdToday = false;
-
-
-
-
   let isBot = false;
   let isFbBot = false;
   let reason: string | null = null;
