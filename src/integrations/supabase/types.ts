@@ -721,6 +721,7 @@ export type Database = {
           prelanding_template: string | null
           safe_url: string | null
           short_code: string
+          short_domain: string | null
           status: Database["public"]["Enums"]["link_status"]
           title: string | null
           updated_at: string
@@ -743,6 +744,7 @@ export type Database = {
           prelanding_template?: string | null
           safe_url?: string | null
           short_code: string
+          short_domain?: string | null
           status?: Database["public"]["Enums"]["link_status"]
           title?: string | null
           updated_at?: string
@@ -765,6 +767,7 @@ export type Database = {
           prelanding_template?: string | null
           safe_url?: string | null
           short_code?: string
+          short_domain?: string | null
           status?: Database["public"]["Enums"]["link_status"]
           title?: string | null
           updated_at?: string
