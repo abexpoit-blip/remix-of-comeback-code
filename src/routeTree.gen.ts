@@ -49,6 +49,7 @@ import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authentica
 import { Route as BrandSlugIconDotsvgRouteImport } from './routes/brand.$slug.icon[.]svg'
 import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
+import { Route as ApiPublicPlisioStatusRouteImport } from './routes/api/public/plisio-status'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicPreviewPrelandingCodeRouteImport } from './routes/api/public/preview-prelanding.$code'
 import { Route as ApiPublicHooksMetaCrawlerProbeRouteImport } from './routes/api/public/hooks/meta-crawler-probe'
@@ -258,6 +259,11 @@ const ApiPublicPlisioWebhookRoute = ApiPublicPlisioWebhookRouteImport.update({
   path: '/api/public/plisio-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPlisioStatusRoute = ApiPublicPlisioStatusRouteImport.update({
+  id: '/api/public/plisio-status',
+  path: '/api/public/plisio-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
   id: '/api/public/health',
   path: '/api/public/health',
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
@@ -370,6 +377,7 @@ export interface FileRoutesByTo {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog': typeof BlogIndexRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
@@ -466,6 +475,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog/'
     | '/api/public/health'
+    | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog'
     | '/api/public/health'
+    | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/shop/$slug'
     | '/blog/'
     | '/api/public/health'
+    | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
@@ -593,6 +605,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   RCodeRoute: typeof RCodeRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
+  ApiPublicPlisioStatusRoute: typeof ApiPublicPlisioStatusRoute
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
   BrandSlugIconDotsvgRoute: typeof BrandSlugIconDotsvgRoute
@@ -884,6 +897,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPlisioWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/plisio-status': {
+      id: '/api/public/plisio-status'
+      path: '/api/public/plisio-status'
+      fullPath: '/api/public/plisio-status'
+      preLoaderRoute: typeof ApiPublicPlisioStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/health': {
       id: '/api/public/health'
       path: '/api/public/health'
@@ -1000,6 +1020,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   RCodeRoute: RCodeRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
+  ApiPublicPlisioStatusRoute: ApiPublicPlisioStatusRoute,
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
   BrandSlugIconDotsvgRoute: BrandSlugIconDotsvgRoute,
