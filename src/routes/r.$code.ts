@@ -14,7 +14,6 @@ import {
 } from "@/lib/bot-detect";
 import { redisSAddWithTTL, redisSet } from "@/lib/redis-cache.server";
 import { pickSafePage, pickSafePageUrl } from "@/lib/safe-page-pool";
-import { resolveDestination } from "@/lib/destination-rotation";
 import { isSleepoxSaasHost } from "@/lib/site-hosts";
 import { assetsForHost, iconPath, normalizeHost, ogImagePath } from "@/lib/brand-assets";
 import { siteFor } from "@/lib/site-identity";
@@ -883,6 +882,22 @@ function sanitizeRedirectTarget(target: string | null | undefined): string {
   }
 }
 
+/**
+ * A live link may only monetize through the exact offer URL saved on that row.
+ * Platform/SaaS URLs and invalid values are never acceptable offer targets.
+ */
+function canonicalOfferTarget(target: string | null | undefined): string | null {
+  try {
+    if (!target) return null;
+    const parsed = new URL(target.trim());
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    if (isSleepoxSaasHost(parsed.hostname)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 // Ad networks (Adsterra direct link) only register a visit when a real browser
 // with JS loads the destination and sends a Referer. A bare 302 from the edge is
 // frequently dropped by their anti-fraud filter (no referrer, no JS, no window).
@@ -1475,7 +1490,7 @@ export async function lookupRedirectLink(
 function processLinkRow(code: string, row: Record<string, unknown> | null): { link: RedirectLink | null; error: null } {
   if (!row) return { link: null, error: null };
 
-  const adsterraDirect = (row.adsterra_direct_link as string | null) ?? null;
+  const adsterraDirect = canonicalOfferTarget((row.adsterra_direct_link as string | null) ?? null);
   const rawDestination = (row.destination_url as string | null) ?? null;
   // destination_url is the legacy "safe page" column. Historically it defaulted
   // to the SaaS host — never let a bot/reviewer land there (cloaking proof).
@@ -1483,7 +1498,10 @@ function processLinkRow(code: string, row: Record<string, unknown> | null): { li
     rawDestination && !/(^|\/\/|\.)(www\.)?sleepox\.com/i.test(rawDestination)
       ? rawDestination
       : null;
-  const adsterra = (row.adsterra_url as string | null) ?? adsterraDirect ?? destination ?? null;
+  // adsterra_url is the canonical per-link offer. The legacy direct-link field
+  // is only a compatibility fallback for old rows. destination_url is a safe
+  // page field and must never become a human offer target.
+  const adsterra = canonicalOfferTarget((row.adsterra_url as string | null) ?? null) ?? adsterraDirect;
   // Blank ("" or null) = no custom safe page → legacy behaviour, then pool.
   const storedSafe = ((row.safe_url as string | null) ?? "").trim();
   const safe = storedSafe || (adsterraDirect ? destination : null) || SAFE_FALLBACK;
@@ -1850,9 +1868,8 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     //   (1) FB crawler / Meta network → ALWAYS serve fb-article HTML 200 OK.
     //       Even on a dead link, FB reviewer must never see a redirect to an
     //       Adsterra offer — that gets the ad / domain banned.
-    //   (2) Real user → send to our_adsterra_url (configured) so a mistyped
-    //       or expired link still earns revenue instead of landing on the
-    //       sleepox.com homepage.
+    //   (2) Everyone else → article. A missing code has no owner-saved offer,
+    //       so routing it to a platform/global offer would mix destinations.
     const uaLowMiss = ua.toLowerCase();
     const crawlerMissMatch = uaLowMiss.length >= 5 ? CRAWLER_UA_RE.exec(uaLowMiss) : null;
     const fromMetaNetworkMiss =
@@ -1873,35 +1890,14 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       return new Response(html, { status: 200, headers });
     }
 
-
-    // (3) Unknown code WITHOUT any ad-click signal → article page, never the
-    //     offer. Anyone can type https://<ad-domain>/anything; before this
-    //     guard every such probe (e.g. /control, /admin1234) 302'd straight to
-    //     the Adsterra offer, which is a one-request proof of cloaking for a
-    //     reviewer. Real mistyped/expired ad clicks still carry fbclid or a
-    //     social referrer, so monetised traffic is unaffected.
-    if (!hasAdClickSignal(url, referer)) {
-      const tpl = pickArticleTemplateForCode(code);
-      const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
-      const headers = new Headers({
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "public, max-age=300, s-maxage=600",
-      });
-      setDebugHeaders(headers, "safe-article", "unknown-code-no-adsignal");
-      return new Response(html, { status: 200, headers });
-    }
-
-    // Rotated per short code: an unknown/expired code must not funnel the
-    // whole platform into one URL either.
-    const missTarget = resolveDestination({
-      code,
-      poolRaw: globalCache.settings?.destination_pool,
-      fallback:
-        globalCache.settings?.our_adsterra_url ||
-        globalCache.settings?.fallback_url ||
-        SAFE_FALLBACK,
+    const tpl = pickArticleTemplateForCode(code);
+    const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+    const headers = new Headers({
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300, s-maxage=600",
     });
-    return redirectTo(missTarget, "offer", !link ? "link-not-found" : "link-inactive");
+    setDebugHeaders(headers, "safe-article", !link ? "link-not-found" : "link-inactive");
+    return new Response(html, { status: 200, headers });
   }
 
 
@@ -1911,32 +1907,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   const referrerRules = globalCache.referrer as ReferrerRule[];
   const countryTier = globalCache.tiers.get(country) ?? 3;
 
-  // PER-LINK DESTINATION ROTATION.
-  // Same system for every user: the global pool in app_settings.destination_pool
-  // is hashed by short code, so each link owns its own destination and stays on
-  // it forever (a link that changes target between two reviewer visits is itself
-  // a cloaking signal). Empty pool → previous single-URL behaviour.
-  const OUR_URL = resolveDestination({
-    code,
-    poolRaw: settings?.destination_pool,
-    fallback: settings?.our_adsterra_url || SAFE_FALLBACK,
-  });
-  // Offer-side rotation: used wherever a link has no destination of its own.
-  const ROTATED_OFFER = resolveDestination({
-    code,
-    linkUrl: link.adsterra_url,
-    poolRaw: settings?.destination_pool,
-    fallback: SAFE_FALLBACK,
-  });
-  // SAFETY CLAMP: never allow misconfigured settings to push 100% of traffic
-  // to OUR_URL. THRESHOLD floor = 100 → max injection probability = 33%.
-  // Default 900 / 100 → 100/(900+100) = 10% ours, 90% offer.
-  const THRESHOLD = Math.max(100, settings?.injection_threshold ?? 900);
-  // Clamp to THRESHOLD/2 so probability = C/(T+C) can never exceed 33%.
-  const INJECT_COUNT = Math.max(
-    0,
-    Math.min(1000, Math.floor(THRESHOLD / 2), settings?.injection_count ?? 100),
-  );
+  // The offer is immutable per link: use only the URL the owner saved.
+  // Global pools, platform injection, A/B rows and geo rows must never override
+  // this value, otherwise one user's traffic can reach an unrelated offer.
+  const LINK_OFFER = canonicalOfferTarget(link.adsterra_url);
   // Daily 1-ad-per-visitor cap is currently disabled at the schema level (no
   // visitor-state table). Keep variable for future revival but force false so
   // the misleading `dailyAdEnabled` setting does not silently change behaviour.
@@ -2525,7 +2499,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // (with proper OG tags) is what Meta's ad reviewer expects.
     // Owner-supplied safe page wins for this one link, including for Meta's
     // crawler: preview and reviewer must see the SAME page a bot lands on.
-    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url, ROTATED_OFFER, OUR_URL]);
+    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url]);
 
     if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
@@ -2610,78 +2584,18 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     routedTo = "safe";
 
   } else {
-    const profile = await getProfileQuota(link.user_id);
-
-    const quota = effectiveQuota(profile);
-    const overQuota = profile && quota !== null && (profile.clicks_used || 0) >= quota;
-
-    if (overQuota) {
-      // Quota exceeded → would normally route to ours, but respect 1-ad-per-24h cap
-      if (visitorAlreadySawAdToday) {
-        target = ROTATED_OFFER;
-        routedTo = "offer";
-      } else {
-        target = OUR_URL;
-        routedTo = "ours";
-      }
-    } else {
-      // Probabilistic injection: each click has an independent chance
-      // of routing to ours based on the configured threshold + inject count.
-      // Example: THRESHOLD=900, INJECT_COUNT=100 → 10% ours, 90% offer.
-      // Most traffic goes to offer (adsterra) — the 10% ours keeps users
-      // engaged with our own service.
-      const probability = INJECT_COUNT / (THRESHOLD + INJECT_COUNT);
-      if (
-        !visitorAlreadySawAdToday &&
-        Math.random() < probability
-      ) {
-        target = OUR_URL;
-        routedTo = "ours";
-
-      } else {
-        // Smart offer selection: A/B variants > geo offers > default link offer
-        const { abRows, geoRows } = await getOfferRows(link.id);
-
-        // 1. A/B variants take precedence
-        if (abRows && abRows.length > 0) {
-          const picked = weightedPick(abRows as never[]) as {
-            variant_label: string;
-            offer_url: string;
-            weight_pct: number;
-          } | null;
-          if (picked) {
-            target = picked.offer_url;
-            abVariantLabel = picked.variant_label;
-            routedTo = "offer";
-          } else {
-            target = ROTATED_OFFER;
-            routedTo = "offer";
-          }
-        } else if (geoRows && geoRows.length > 0) {
-          // 2. Geo targeting — match exact country first, then tier.
-          // Skip exact match entirely when country is unknown so we don't
-          // silently match links configured for "" (empty) country codes.
-          const ccUpper = (country || "").toUpperCase();
-          const exact = ccUpper
-            ? geoRows.filter(
-                (g) =>
-                  Array.isArray(g.country_codes) &&
-                  g.country_codes.map((c: string) => c.toUpperCase()).includes(ccUpper),
-              )
-            : [];
-          const tierMatch = geoRows.filter(
-            (g) => g.tier === countryTier && (!g.country_codes || g.country_codes.length === 0),
-          );
-          const pool = exact.length > 0 ? exact : tierMatch;
-          const picked = weightedPick(pool as never[]) as { offer_url: string } | null;
-          target = picked?.offer_url || ROTATED_OFFER;
-          routedTo = "offer";
-        } else {
-          target = ROTATED_OFFER;
-          routedTo = "offer";
-        }
-      }
+    if (!LINK_OFFER) {
+      const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
+      const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
+      const headers = new Headers({
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      setDebugHeaders(headers, "safe-article", "invalid-link-offer");
+      return new Response(html, { status: 200, headers });
     }
+    target = LINK_OFFER;
+    routedTo = "offer";
   }
 
   // Remember this visitor as a confirmed human for the next 6h so a second tab,

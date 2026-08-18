@@ -313,6 +313,9 @@ export const createLink = createServerFn({ method: "POST" })
         title: data.title ?? null,
         destination_url: safeUrlToStore,
         adsterra_url: data.adsterra_url,
+        // Keep the legacy offer column identical. Redirects prefer
+        // adsterra_url, but old workers must never see a different target.
+        adsterra_direct_link: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",
         // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
@@ -374,7 +377,10 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       id: z.string().uuid(),
-      safe_url: z.union([z.string().url(), z.literal("")]),
+      safe_url: z.union([z.string().url(), z.literal("")]).refine(
+        (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+        "Sleepox links cannot be used as safe pages.",
+      ),
     }).parse(d),
   )
   .handler(async ({ data }) => {
