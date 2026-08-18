@@ -29,7 +29,7 @@ function normalizeLink(row: LinkRow) {
     // Empty string = "no custom safe page" → the platform's own rotating
     // article pool is used. A real URL here is the user's OWN landing/safe
     // page and wins for that single link.
-    safe_url: row.safe_url && row.safe_url !== "https://sleepox.com/" ? row.safe_url : "",
+    safe_url: row.safe_url && !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(row.safe_url) ? row.safe_url : "",
     is_active: row.is_active ?? row.status === "active",
     blocked_countries: Array.isArray(row.blocked_countries) ? row.blocked_countries : [],
   };
@@ -267,8 +267,14 @@ export const createLink = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       title: z.string().max(200).optional(),
-      adsterra_url: z.string().url(),
-      safe_url: z.string().url().optional(),
+      adsterra_url: z.string().url().refine(
+        (value) => !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+        "Sleepox links cannot be used as offer URLs.",
+      ),
+      safe_url: z.string().url().optional().refine(
+        (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+        "Sleepox links cannot be used as safe pages.",
+      ),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -305,7 +311,7 @@ export const createLink = createServerFn({ method: "POST" })
         user_id: context.userId,
         short_code: code,
         title: data.title ?? null,
-        destination_url: safeUrlToStore || "https://sleepox.com/",
+        destination_url: safeUrlToStore,
         adsterra_url: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",

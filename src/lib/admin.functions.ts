@@ -616,8 +616,14 @@ export const adminUpdateLink = createServerFn({ method: "POST" })
       .object({
         id: z.string().uuid(),
         title: z.string().nullable().optional(),
-        adsterra_url: z.string().url().optional(),
-        safe_url: z.string().url().optional(),
+        adsterra_url: z.string().url().optional().refine(
+          (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+          "Sleepox links cannot be used as offer URLs.",
+        ),
+        safe_url: z.string().url().optional().refine(
+          (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+          "Sleepox links cannot be used as safe pages.",
+        ),
       })
       .parse,
   )
