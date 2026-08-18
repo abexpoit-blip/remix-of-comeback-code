@@ -100,7 +100,8 @@ function DashboardPage() {
   const [range, setRange] = useState<"7D" | "30D">("7D");
 
   const createMut = useMutation({
-    mutationFn: (vars: { title?: string; adsterra_url: string; safe_url?: string }) => create({ data: vars }),
+    mutationFn: (vars: { title?: string; adsterra_url: string; safe_url?: string; short_domain?: string }) =>
+      create({ data: vars }),
     onSuccess: () => {
       toast.success("Link created");
       setAdsterra(""); setSafe(""); setTitle(""); setShowCreate(false);
