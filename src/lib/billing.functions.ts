@@ -118,6 +118,15 @@ export const createInvoice = createServerFn({ method: "POST" })
     console.log("[plisio] http", res.status, "body", raw.slice(0, 500));
 
     if (!json || json.status !== "success" || !json.data?.invoice_url) {
+      const code = json?.data?.code;
+      if (code === 104) {
+        console.error("[plisio] server IP not whitelisted in Plisio account settings");
+        throw new Error("Payment gateway is not configured for this server yet. Please contact support.");
+      }
+      if (code === 101 || code === 102) {
+        console.error("[plisio] invalid API key / merchant disabled");
+        throw new Error("Payment gateway credentials are invalid. Please contact support.");
+      }
       const msg =
         json?.data?.message ||
         json?.message ||
@@ -125,6 +134,7 @@ export const createInvoice = createServerFn({ method: "POST" })
         `HTTP ${res.status}: ${raw.slice(0, 200)}`;
       throw new Error(`Plisio error: ${msg}`);
     }
+
 
     // Plisio retired the `payplisio.net` invoice subdomain — it now returns
     // ERR_CONNECTION_TIMED_OUT in browsers. Their API still hands back the old
