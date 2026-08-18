@@ -1901,6 +1901,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
 
 
   // Use cached data
+  const settings = globalCache.settings;
   const cloakingRules = globalCache.cloaking as CloakingRule[];
   const referrerRules = globalCache.referrer as ReferrerRule[];
   const countryTier = globalCache.tiers.get(country) ?? 3;
