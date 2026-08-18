@@ -336,7 +336,7 @@ export const deleteLink = createServerFn({ method: "POST" })
     await assertNotBanned(context.supabase, context.userId);
     const { data: link, error: lookupError } = await context.supabase
       .from("links")
-      .select("id")
+      .select("id, short_code")
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -345,6 +345,8 @@ export const deleteLink = createServerFn({ method: "POST" })
 
     const { error } = await context.supabase.from("links").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache((link as { short_code?: string }).short_code);
     return { ok: true };
   });
 
@@ -390,7 +392,7 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
     const value = data.safe_url.trim();
     const { data: row, error } = await (context.supabase as any)
       .from("links")
-      .update({ safe_url: value })
+      .update({ safe_url: value, destination_url: value })
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .select("short_code")

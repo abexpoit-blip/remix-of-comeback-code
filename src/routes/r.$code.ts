@@ -875,6 +875,7 @@ function sanitizeRedirectTarget(target: string | null | undefined): string {
     if (!target) return SAFE_FALLBACK;
     const parsed = new URL(target);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return SAFE_FALLBACK;
+    if (isSleepoxSaasHost(parsed.hostname)) return SAFE_FALLBACK;
     return parsed.toString();
   } catch {
     return SAFE_FALLBACK;
