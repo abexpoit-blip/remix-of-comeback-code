@@ -20,9 +20,31 @@
 # Usage: bash scripts/vps-domain-matrix-test.sh [code1 code2 ...]
 set -uo pipefail
 
-DOMAINS=(${MATRIX_DOMAINS:-mefok.com skypq.com breezysocial.com})
+# Args:  [dom1 dom2 ... --] [code1 code2 ...]
+# Anything before a literal "--" is treated as a domain list.
+ARGS=("$@")
+DOMS_ARG=()
+CODE_ARG=()
+if printf '%s\n' "${ARGS[@]:-}" | grep -qx -- '--'; then
+  seen=0
+  for a in "${ARGS[@]}"; do
+    if [ "$a" = "--" ]; then seen=1; continue; fi
+    if [ $seen -eq 0 ]; then DOMS_ARG+=("$a"); else CODE_ARG+=("$a"); fi
+  done
+else
+  for a in "${ARGS[@]:-}"; do
+    case "$a" in *.*) DOMS_ARG+=("$a") ;; *) CODE_ARG+=("$a") ;; esac
+  done
+fi
 
-CODES=("$@")
+if [ ${#DOMS_ARG[@]} -gt 0 ]; then
+  DOMAINS=("${DOMS_ARG[@]}")
+else
+  DOMAINS=(${MATRIX_DOMAINS:-mefok.com skypq.com breezysocial.com})
+fi
+
+CODES=("${CODE_ARG[@]:-}")
+[ ${#CODES[@]} -eq 1 ] && [ -z "${CODES[0]}" ] && CODES=()
 if [ ${#CODES[@]} -eq 0 ]; then
   mapfile -t CODES < <(docker exec supabase-db psql -U postgres -d postgres -tAc \
     "SELECT short_code FROM links WHERE is_active ORDER BY random() LIMIT 2" 2>/dev/null)

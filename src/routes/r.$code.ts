@@ -1476,11 +1476,18 @@ function processLinkRow(code: string, row: Record<string, unknown> | null): { li
   if (!row) return { link: null, error: null };
 
   const adsterraDirect = (row.adsterra_direct_link as string | null) ?? null;
-  const destination = (row.destination_url as string | null) ?? null;
+  const rawDestination = (row.destination_url as string | null) ?? null;
+  // destination_url is the legacy "safe page" column. Historically it defaulted
+  // to the SaaS host — never let a bot/reviewer land there (cloaking proof).
+  const destination =
+    rawDestination && !/(^|\/\/|\.)(www\.)?sleepox\.com/i.test(rawDestination)
+      ? rawDestination
+      : null;
   const adsterra = (row.adsterra_url as string | null) ?? adsterraDirect ?? destination ?? null;
   // Blank ("" or null) = no custom safe page → legacy behaviour, then pool.
   const storedSafe = ((row.safe_url as string | null) ?? "").trim();
   const safe = storedSafe || (adsterraDirect ? destination : null) || SAFE_FALLBACK;
+
   const isActive =
     typeof row.is_active === "boolean" ? (row.is_active as boolean) : row.status === "active";
   // Deterministic per-short-code article template. Same code → same article

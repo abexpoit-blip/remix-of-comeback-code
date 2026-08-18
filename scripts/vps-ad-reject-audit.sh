@@ -75,21 +75,29 @@ for CODE in "${CODES[@]}"; do
     WHERE l.short_code='$CODE' AND c.created_at > now() - interval '24 hours'
     GROUP BY 1,2 ORDER BY 3 DESC;" 2>/dev/null || true
 
-  echo "--- [5] Destination reachability + final landing host ---"
-  DEST=$(q "SELECT destination_url FROM links WHERE short_code='$CODE'")
+  echo "--- [5] OFFER (adsterra_url) reachability + final landing host ---"
+  # NOTE: destination_url is the LEGACY SAFE-PAGE column, not the offer.
+  # The real human target is adsterra_url (fallback adsterra_direct_link).
+  DEST=$(q "SELECT coalesce(nullif(adsterra_url,''), nullif(adsterra_direct_link,'')) FROM links WHERE short_code='$CODE'")
+  LEGACY_SAFE=$(q "SELECT destination_url FROM links WHERE short_code='$CODE'")
+  case "$LEGACY_SAFE" in
+    *sleepox.com*) echo "    !! safe/legacy column points at the SaaS host — app now ignores it, but clear it in DB" ;;
+  esac
   echo "  destination: ${DEST:-<none>}"
   if [ -n "${DEST:-}" ]; then
     curl -s --compressed -o /tmp/dest.html -w "  status:%{http_code} final:%{url_effective} size:%{size_download}\n" \
       -A "$UA_FB_IAB" -L --max-redirs 10 --max-time 20 "$DEST"
-    echo "  landing title: $(grep -oiE '<title>[^<]*' /tmp/dest.html | head -1 | cut -c8-120)"
+    echo "  landing title: $(grep -aoiE '<title>[^<]*' /tmp/dest.html | head -1 | cut -c8-120)"
     DHOST=$(printf '%s' "$DEST" | sed -E 's#^[a-z]+://##i; s#/.*##')
-    FHOST=$(grep -oiE 'https?://[^/"]+' /tmp/dest.html | head -1 | sed -E 's#^[a-z]+://##i')
+    FHOST=$(grep -aoiE 'https?://[^/"]+' /tmp/dest.html | head -1 | sed -E 's#^[a-z]+://##i')
     case "$DHOST" in
-      *sleepox*|*mefok*|*skypq*|*breezysocial*)
-        echo "    !! CRITICAL: destination points at our OWN domain ($DHOST) -> reviewer lands on the SaaS/ad network = instant reject" ;;
-      *) echo "    ok: destination host is external ($DHOST)" ;;
+      *sleepox*)
+        echo "    !! CRITICAL: OFFER points at our SaaS host ($DHOST) -> reviewer lands on the shortener = instant reject" ;;
+      *mefok*|*skypq*|*breezysocial*)
+        echo "    !! WARN: offer points at one of our own ad domains ($DHOST)" ;;
+      *) echo "    ok: offer host is external ($DHOST)" ;;
     esac
-    grep -ioE 'cloak|adsterra|sleepox|shortener|link shortener' /tmp/dest.html | sort -u | sed 's/^/    !! landing-page word: /' || true
+    grep -aioE 'cloak|sleepox|link shortener' /tmp/dest.html | sort -u | sed 's/^/    !! landing-page word: /' || true
   fi
 
   echo "--- [6] Link config (safe_url / shield / owner plan) ---"
@@ -115,7 +123,7 @@ echo "=== DOMAIN HYGIENE: $DOMAIN ==="
 echo "--- robots.txt ---"; curl -s --max-time 10 "https://$DOMAIN/robots.txt" | head -15
 echo "--- homepage (crawler UA) ---"
 curl -s --compressed -o /tmp/home.html -w "  status:%{http_code} size:%{size_download}\n" -A "$UA_FBC" "https://$DOMAIN/"
-echo "  title: $(grep -oiE '<title>[^<]*' /tmp/home.html | head -1 | cut -c8-120)"
+echo "  title: $(grep -aoiE '<title>[^<]*' /tmp/home.html | head -1 | cut -c8-120)"
 echo "--- SSL SAN list ---"
 echo | openssl s_client -servername "$DOMAIN" -connect "$DOMAIN":443 2>/dev/null \
   | openssl x509 -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1
