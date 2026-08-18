@@ -757,7 +757,7 @@ function DashboardPage() {
               const chosen = links.filter((l) => selectedIds.has(l.id));
               if (chosen.length > 5 && !confirm(`Open ${chosen.length} tabs to verify each link redirects correctly?`)) return;
               chosen.forEach((l) => {
-                window.open(`https://${effectiveDomain}/${l.short_code}`, "_blank", "noopener,noreferrer");
+                window.open(`https://${linkDomain(l as any)}/${l.short_code}`, "_blank", "noopener,noreferrer");
               });
               toast.success(`Verifying ${chosen.length} link${chosen.length === 1 ? "" : "s"} — check each tab lands on your offer`);
             }}
