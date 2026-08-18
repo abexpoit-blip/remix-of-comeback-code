@@ -294,6 +294,9 @@ export const createLink = createServerFn({ method: "POST" })
         (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
         "Sleepox links cannot be used as safe pages.",
       ),
+      // Domain the user has selected in the dashboard when creating THIS link.
+      // Stored on the row so a later domain change never rewrites old links.
+      short_domain: z.string().max(255).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
