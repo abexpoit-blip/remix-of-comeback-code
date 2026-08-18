@@ -2595,10 +2595,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       } else {
         const threshold = Number((settings as any)?.injection_threshold) || 0;
         const count = Number((settings as any)?.injection_count) || 0;
-        // rate = count/threshold, hard-capped at 33% so users never lose more
-        // than a third of their traffic to platform monetisation.
-        const rate = threshold > 0 ? Math.min(count / threshold, 0.33) : 0;
+        // Settings semantics: threshold = offer share, count = ours share.
+        // 900 / 100  →  100/(900+100) = exactly 10% ours per 1k clicks.
+        // Hard-capped at 33% so users never lose more than a third.
+        const total = threshold + count;
+        const rate = total > 0 ? Math.min(count / total, 0.33) : 0;
         if (rate > 0 && Math.random() < rate) oursReason = "ours:injection";
+
       }
     }
 
