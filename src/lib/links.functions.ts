@@ -313,6 +313,9 @@ export const createLink = createServerFn({ method: "POST" })
         title: data.title ?? null,
         destination_url: safeUrlToStore,
         adsterra_url: data.adsterra_url,
+        // Keep the legacy offer column identical. Redirects prefer
+        // adsterra_url, but old workers must never see a different target.
+        adsterra_direct_link: data.adsterra_url,
         safe_url: safeUrlToStore,
         status: "active",
         // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
@@ -333,7 +336,7 @@ export const deleteLink = createServerFn({ method: "POST" })
     await assertNotBanned(context.supabase, context.userId);
     const { data: link, error: lookupError } = await context.supabase
       .from("links")
-      .select("id")
+      .select("id, short_code")
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -342,6 +345,8 @@ export const deleteLink = createServerFn({ method: "POST" })
 
     const { error } = await context.supabase.from("links").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    const { invalidateLinkCache } = await import("@/lib/link-cache.server");
+    await invalidateLinkCache((link as { short_code?: string }).short_code);
     return { ok: true };
   });
 
@@ -374,7 +379,10 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       id: z.string().uuid(),
-      safe_url: z.union([z.string().url(), z.literal("")]),
+      safe_url: z.union([z.string().url(), z.literal("")]).refine(
+        (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
+        "Sleepox links cannot be used as safe pages.",
+      ),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -384,7 +392,7 @@ export const updateSafeUrl = createServerFn({ method: "POST" })
     const value = data.safe_url.trim();
     const { data: row, error } = await (context.supabase as any)
       .from("links")
-      .update({ safe_url: value })
+      .update({ safe_url: value, destination_url: value })
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .select("short_code")
