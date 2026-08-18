@@ -163,6 +163,12 @@ function DashboardPage() {
 
   const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
+  // Every link keeps the domain it was created on. Only links without a stored
+  // domain (created before this feature) follow the current picker value.
+  const linkDomain = (l: { short_domain?: string | null }) => {
+    const d = (l.short_domain ?? "").toLowerCase().trim();
+    return d && !isFlaggedShortDomain(d) ? d : effectiveDomain;
+  };
   const [shieldFor, setShieldFor] = useState<null | { id: string; title: string; initial: string[] }>(null);
   // Per-link custom safe page editor
   const [safeFor, setSafeFor] = useState<null | { id: string; title: string; value: string }>(null);
