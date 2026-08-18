@@ -2678,8 +2678,6 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     ? reason
     : whitelistHit
     ? `wl:${whitelistHit.label}`
-    : routedTo === "ours"
-    ? "quota-or-injection"
     : "ok";
   return redirectTo(
     target,
