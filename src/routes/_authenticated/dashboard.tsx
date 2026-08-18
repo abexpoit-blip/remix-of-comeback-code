@@ -478,7 +478,8 @@ function DashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-[#FFEDD5]">
                       {filtered.map((l) => {
-                        const shortUrl = `${origin}/${l.short_code}`;
+                        const rowDomain = linkDomain(l as any);
+                        const shortUrl = `https://${rowDomain}/${l.short_code}`;
                         const spark = stats?.perLinkDaily?.[l.id] ?? [];
                         const sparkUp = spark.length >= 2 ? spark[spark.length - 1] >= spark[0] : true;
                         const isSelected = selectedIds.has(l.id);
