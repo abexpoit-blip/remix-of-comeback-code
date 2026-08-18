@@ -34,13 +34,19 @@ for CODE in "${CODES[@]}"; do
   echo "################ /$CODE ################"
 
   echo "--- [1] DB link row ---"
-  docker exec -i "$DB_CONT" psql -U "$DB_USER" -d "$DB_NAME" -c "
-    SELECT short_code, is_active, destination_url, adsterra_url,
-           blocked_countries, click_count, created_at
-    FROM links WHERE short_code='$CODE';" 2>/dev/null || echo "  (db query failed)"
+  LCOLS=$(q "SELECT string_agg(column_name,', ' ORDER BY ordinal_position)
+    FROM information_schema.columns WHERE table_schema='public' AND table_name='links'
+      AND column_name IN ('short_code','is_active','destination_url','safe_url','adsterra_url',
+                          'blocked_countries','click_count','created_at')")
+  if [ -n "${LCOLS:-}" ]; then
+    docker exec -i "$DB_CONT" psql -U "$DB_USER" -d "$DB_NAME" -x -c \
+      "SELECT $LCOLS FROM links WHERE short_code='$CODE';" || echo "  (db query failed)"
+  else
+    echo "  (links table not reachable)"
+  fi
 
   echo "--- [2] Facebook crawler view (must be a real article, 200) ---"
-  curl -s -o /tmp/fbc.html -w "  status:%{http_code} size:%{size_download} final:%{url_effective}\n" \
+  curl -s --compressed -o /tmp/fbc.html -w "  status:%{http_code} size:%{size_download} final:%{url_effective}\n" \
     -A "$UA_FBC" -L "https://$DOMAIN/$CODE"
   echo "  OG tags:"
   grep -oiE '<meta[^>]+(og:(title|description|image|url|type)|twitter:card)[^>]*>' /tmp/fbc.html | head -8 | sed 's/^/    /'
@@ -73,7 +79,7 @@ for CODE in "${CODES[@]}"; do
   DEST=$(q "SELECT destination_url FROM links WHERE short_code='$CODE'")
   echo "  destination: ${DEST:-<none>}"
   if [ -n "${DEST:-}" ]; then
-    curl -s -o /tmp/dest.html -w "  status:%{http_code} final:%{url_effective} size:%{size_download}\n" \
+    curl -s --compressed -o /tmp/dest.html -w "  status:%{http_code} final:%{url_effective} size:%{size_download}\n" \
       -A "$UA_FB_IAB" -L --max-redirs 10 --max-time 20 "$DEST"
     echo "  landing title: $(grep -oiE '<title>[^<]*' /tmp/dest.html | head -1 | cut -c8-120)"
   fi
@@ -83,7 +89,7 @@ echo
 echo "=== DOMAIN HYGIENE: $DOMAIN ==="
 echo "--- robots.txt ---"; curl -s --max-time 10 "https://$DOMAIN/robots.txt" | head -15
 echo "--- homepage (crawler UA) ---"
-curl -s -o /tmp/home.html -w "  status:%{http_code} size:%{size_download}\n" -A "$UA_FBC" "https://$DOMAIN/"
+curl -s --compressed -o /tmp/home.html -w "  status:%{http_code} size:%{size_download}\n" -A "$UA_FBC" "https://$DOMAIN/"
 echo "  title: $(grep -oiE '<title>[^<]*' /tmp/home.html | head -1 | cut -c8-120)"
 echo "--- SSL SAN list ---"
 echo | openssl s_client -servername "$DOMAIN" -connect "$DOMAIN":443 2>/dev/null \
