@@ -1,6 +1,10 @@
 -- Every active short link must route only to its own saved offer URL.
 -- Keep the legacy offer column synchronized and pause invalid historical rows.
 
+-- Re-applying this migration must allow historical invalid rows to be cleaned
+-- before the strict validation trigger is installed again.
+DROP TRIGGER IF EXISTS trg_enforce_per_link_offer ON public.links;
+
 UPDATE public.links
 SET
   adsterra_url = CASE
@@ -19,7 +23,7 @@ SET
     WHEN COALESCE(adsterra_direct_link, '') ~* '^https?://'
       AND COALESCE(adsterra_direct_link, '') !~* '^https?://(www\.)?sleepox\.com([/:?#]|$)'
       THEN adsterra_direct_link
-    ELSE NULL
+    ELSE ''
   END,
   is_active = CASE
     WHEN (
@@ -66,7 +70,6 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_enforce_per_link_offer ON public.links;
 CREATE TRIGGER trg_enforce_per_link_offer
 BEFORE INSERT OR UPDATE OF adsterra_url, adsterra_direct_link ON public.links
 FOR EACH ROW EXECUTE FUNCTION public.enforce_per_link_offer();
