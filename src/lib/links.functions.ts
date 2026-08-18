@@ -18,7 +18,22 @@ type LinkRow = {
   status?: string | null;
   prelanding_template?: string | null;
   blocked_countries?: string[] | null;
+  /** Domain the link was created on. Older links may not have one. */
+  short_domain?: string | null;
 };
+
+/** Built-in shortener hosts every account can use. */
+export const BUILTIN_SHORT_DOMAINS = ["mefok.com", "skypq.com", "breezysocial.com"] as const;
+
+function normalizeDomain(input?: string | null): string {
+  return String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .split(":")[0];
+}
 
 export type DashboardLink = ReturnType<typeof normalizeLink>;
 
@@ -32,6 +47,10 @@ function normalizeLink(row: LinkRow) {
     safe_url: row.safe_url && !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(row.safe_url) ? row.safe_url : "",
     is_active: row.is_active ?? row.status === "active",
     blocked_countries: Array.isArray(row.blocked_countries) ? row.blocked_countries : [],
+    // Sticky per-link domain. Empty = created before per-link domains existed;
+    // the dashboard then falls back to the account's current domain. Changing
+    // the domain picker never rewrites this value for existing links.
+    short_domain: normalizeDomain(row.short_domain) || "",
   };
 }
 
@@ -275,6 +294,9 @@ export const createLink = createServerFn({ method: "POST" })
         (value) => !value || !/^https?:\/\/(?:www\.)?sleepox\.com(?:[/:?#]|$)/i.test(value),
         "Sleepox links cannot be used as safe pages.",
       ),
+      // Domain the user has selected in the dashboard when creating THIS link.
+      // Stored on the row so a later domain change never rewrites old links.
+      short_domain: z.string().max(255).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -305,25 +327,59 @@ export const createLink = createServerFn({ method: "POST" })
     // article pool (never the SaaS homepage).
     const safeUrlToStore = data.safe_url?.trim() || "";
 
-    const { data: linkData, error } = await context.supabase
+    // Resolve the domain for this link: it must be a built-in shortener host or
+    // one of the user's own verified custom domains. Anything else (or nothing)
+    // falls back to null so the dashboard shows the account default. Every
+    // short code keeps working on ANY of these hosts — they all hit the same
+    // backend — this value only decides which URL we show/copy for this link.
+    let domainToStore: string | null = null;
+    const requestedDomain = normalizeDomain(data.short_domain);
+    if (requestedDomain && requestedDomain !== "sleepox.com") {
+      if ((BUILTIN_SHORT_DOMAINS as readonly string[]).includes(requestedDomain)) {
+        domainToStore = requestedDomain;
+      } else {
+        const { data: owned } = await context.supabase
+          .from("custom_domains")
+          .select("domain")
+          .eq("user_id", context.userId)
+          .eq("verified", true);
+        const ownedHosts = (owned ?? []).map((d: any) => normalizeDomain(d.domain));
+        if (ownedHosts.includes(requestedDomain)) domainToStore = requestedDomain;
+      }
+    }
+
+
+    const baseRow: Record<string, unknown> = {
+      user_id: context.userId,
+      short_code: code,
+      title: data.title ?? null,
+      destination_url: safeUrlToStore,
+      adsterra_url: data.adsterra_url,
+      // Keep the legacy offer column identical. Redirects prefer
+      // adsterra_url, but old workers must never see a different target.
+      adsterra_direct_link: data.adsterra_url,
+      safe_url: safeUrlToStore,
+      status: "active",
+      // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
+      // Users can remove via Country Shield dialog on the dashboard.
+      blocked_countries: ["US"],
+    };
+
+    let { data: linkData, error } = await context.supabase
       .from("links")
-      .insert({
-        user_id: context.userId,
-        short_code: code,
-        title: data.title ?? null,
-        destination_url: safeUrlToStore,
-        adsterra_url: data.adsterra_url,
-        // Keep the legacy offer column identical. Redirects prefer
-        // adsterra_url, but old workers must never see a different target.
-        adsterra_direct_link: data.adsterra_url,
-        safe_url: safeUrlToStore,
-        status: "active",
-        // Auto-shield US by default — FB ad reviewers concentrate in US datacenters.
-        // Users can remove via Country Shield dialog on the dashboard.
-        blocked_countries: ["US"],
-      } as never)
+      .insert({ ...baseRow, short_domain: domainToStore } as never)
       .select()
       .single();
+
+    // Older deployments may not have the short_domain column yet — never let
+    // that break link creation, just fall back to the account default domain.
+    if (error && /short_domain/i.test(error.message ?? "")) {
+      ({ data: linkData, error } = await context.supabase
+        .from("links")
+        .insert(baseRow as never)
+        .select()
+        .single());
+    }
 
     if (error) throw new Error(error.message);
     return normalizeLink(linkData as LinkRow);

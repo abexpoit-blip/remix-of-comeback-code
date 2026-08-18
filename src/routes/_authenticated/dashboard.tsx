@@ -100,7 +100,8 @@ function DashboardPage() {
   const [range, setRange] = useState<"7D" | "30D">("7D");
 
   const createMut = useMutation({
-    mutationFn: (vars: { title?: string; adsterra_url: string; safe_url?: string }) => create({ data: vars }),
+    mutationFn: (vars: { title?: string; adsterra_url: string; safe_url?: string; short_domain?: string }) =>
+      create({ data: vars }),
     onSuccess: () => {
       toast.success("Link created");
       setAdsterra(""); setSafe(""); setTitle(""); setShowCreate(false);
@@ -123,6 +124,9 @@ function DashboardPage() {
       title: title || undefined,
       adsterra_url: adsterra,
       safe_url: safe || undefined,
+      // The domain picked right now is baked into THIS link only. Switching the
+      // picker later changes nothing for links that already exist.
+      short_domain: effectiveDomain || undefined,
     });
   };
 
@@ -157,8 +161,13 @@ function DashboardPage() {
   }, [customDomains.join(","), primaryDomain]);
   const effectiveDomain = !selectedDomain || isFlaggedShortDomain(selectedDomain) ? primaryDomain : selectedDomain;
 
-  const origin = typeof window !== "undefined" ? `${window.location.protocol}//${effectiveDomain}` : `https://${effectiveDomain}`;
   const links = dashQ.data?.links ?? [];
+  // Every link keeps the domain it was created on. Only links without a stored
+  // domain (created before this feature) follow the current picker value.
+  const linkDomain = (l: { short_domain?: string | null }) => {
+    const d = (l.short_domain ?? "").toLowerCase().trim();
+    return d && !isFlaggedShortDomain(d) ? d : effectiveDomain;
+  };
   const [shieldFor, setShieldFor] = useState<null | { id: string; title: string; initial: string[] }>(null);
   // Per-link custom safe page editor
   const [safeFor, setSafeFor] = useState<null | { id: string; title: string; value: string }>(null);
@@ -468,7 +477,8 @@ function DashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-[#FFEDD5]">
                       {filtered.map((l) => {
-                        const shortUrl = `${origin}/${l.short_code}`;
+                        const rowDomain = linkDomain(l as any);
+                        const shortUrl = `https://${rowDomain}/${l.short_code}`;
                         const spark = stats?.perLinkDaily?.[l.id] ?? [];
                         const sparkUp = spark.length >= 2 ? spark[spark.length - 1] >= spark[0] : true;
                         const isSelected = selectedIds.has(l.id);
@@ -489,7 +499,7 @@ function DashboardPage() {
                               </p>
                               <button onClick={() => { navigator.clipboard.writeText(shortUrl); toast.success("Copied"); }}
                                 className="text-[11px] text-[#FF7E5F] hover:text-[#E66D50] flex items-center gap-1 mt-0.5 font-mono truncate max-w-full">
-                                <span className="truncate">{effectiveDomain}/{l.short_code}</span> <Copy className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{rowDomain}/{l.short_code}</span> <Copy className="w-3 h-3 shrink-0" />
                               </button>
                             </td>
                             <td className="hidden md:table-cell px-3 py-4"><MiniSpark up={sparkUp} /></td>
@@ -708,8 +718,9 @@ function DashboardPage() {
             {selectedIds.size} selected
           </span>
 
-          {/* Domain picker inside bulk bar — copied URLs ALWAYS match this */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 border border-white/15">
+          {/* Domain picker — applies to NEW links only. Existing links keep the
+              domain they were created on, so copied URLs never change. */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 border border-white/15" title="Domain used for links you create from now on">
             <Globe className="w-3 h-3 text-[#FEB47B]" />
             <select
               value={effectiveDomain}
@@ -730,10 +741,10 @@ function DashboardPage() {
             onClick={() => {
               const urls = links
                 .filter((l) => selectedIds.has(l.id))
-                .map((l) => `https://${effectiveDomain}/${l.short_code}`)
+                .map((l) => `https://${linkDomain(l as any)}/${l.short_code}`)
                 .join("\n");
               navigator.clipboard.writeText(urls);
-              toast.success(`Copied ${selectedIds.size} short URL${selectedIds.size === 1 ? "" : "s"} on ${effectiveDomain}`);
+              toast.success(`Copied ${selectedIds.size} short URL${selectedIds.size === 1 ? "" : "s"}`);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] text-white font-bold text-xs shadow-lg hover:opacity-90"
           >
@@ -745,7 +756,7 @@ function DashboardPage() {
               const chosen = links.filter((l) => selectedIds.has(l.id));
               if (chosen.length > 5 && !confirm(`Open ${chosen.length} tabs to verify each link redirects correctly?`)) return;
               chosen.forEach((l) => {
-                window.open(`https://${effectiveDomain}/${l.short_code}`, "_blank", "noopener,noreferrer");
+                window.open(`https://${linkDomain(l as any)}/${l.short_code}`, "_blank", "noopener,noreferrer");
               });
               toast.success(`Verifying ${chosen.length} link${chosen.length === 1 ? "" : "s"} — check each tab lands on your offer`);
             }}
