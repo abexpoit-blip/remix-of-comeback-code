@@ -82,7 +82,32 @@ for CODE in "${CODES[@]}"; do
     curl -s --compressed -o /tmp/dest.html -w "  status:%{http_code} final:%{url_effective} size:%{size_download}\n" \
       -A "$UA_FB_IAB" -L --max-redirs 10 --max-time 20 "$DEST"
     echo "  landing title: $(grep -oiE '<title>[^<]*' /tmp/dest.html | head -1 | cut -c8-120)"
+    DHOST=$(printf '%s' "$DEST" | sed -E 's#^[a-z]+://##i; s#/.*##')
+    FHOST=$(grep -oiE 'https?://[^/"]+' /tmp/dest.html | head -1 | sed -E 's#^[a-z]+://##i')
+    case "$DHOST" in
+      *sleepox*|*mefok*|*skypq*|*breezysocial*)
+        echo "    !! CRITICAL: destination points at our OWN domain ($DHOST) -> reviewer lands on the SaaS/ad network = instant reject" ;;
+      *) echo "    ok: destination host is external ($DHOST)" ;;
+    esac
+    grep -ioE 'cloak|adsterra|sleepox|shortener|link shortener' /tmp/dest.html | sort -u | sed 's/^/    !! landing-page word: /' || true
   fi
+
+  echo "--- [6] Link config (safe_url / shield / owner plan) ---"
+  docker exec -i "$DB_CONT" psql -U "$DB_USER" -d "$DB_NAME" -x -c "
+    SELECT l.short_code, l.is_active,
+           coalesce(l.safe_url,'(auto article)') AS safe_url,
+           p.email AS owner, p.plan_slug, p.plan_expires_at,
+           p.clicks_used, p.click_quota, p.is_banned
+    FROM links l LEFT JOIN profiles p ON p.id = l.user_id
+    WHERE l.short_code='$CODE';" 2>/dev/null || echo "  (config query unavailable)"
+
+  echo "--- [7] Human-loss check for this link (24h) ---"
+  docker exec -i "$DB_CONT" psql -U "$DB_USER" -d "$DB_NAME" -c "
+    SELECT coalesce(c.country,'??') country, c.routed_to, count(*) lost
+    FROM clicks c JOIN links l ON l.id=c.link_id
+    WHERE l.short_code='$CODE' AND c.created_at > now() - interval '24 hours'
+      AND c.is_bot = false AND c.routed_to IN ('safe','fb-article')
+    GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10;" 2>/dev/null || true
 done
 
 echo
