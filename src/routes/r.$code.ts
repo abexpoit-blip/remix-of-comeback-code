@@ -1047,7 +1047,9 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
     Continue reading &rarr;
   </a>
 </div>
-<noscript><meta http-equiv="refresh" content="0;url=${htmlEscape(safe)}"></noscript>
+<!-- AD-REJECT FIX: no <noscript> meta-refresh here. A JS-less reviewer/scanner
+     reading raw HTML would see an instant 0-second hop to the ad host, which is
+     the textbook gateway/cloaking signature. No-JS clients get the CTA link. -->
 <script>(function(){
   var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
   var done=false;
