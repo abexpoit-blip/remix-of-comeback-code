@@ -2608,23 +2608,10 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
 
     }
 
-    // Non-FB crawlers (Google, Bing, generic scrapers) → sticky pool pick.
-    // Phase A: rotate across 5 fixed real Breezy URLs (sitemap-indexed, real
-    // content) instead of random safe_url. Same visitor+code → same URL.
-    // Pool auto-skips unhealthy URLs (4xx/5xx) until next health check.
-    // Owner-supplied safe page (set on the link) always wins — for this link
-    // only. Everyone else keeps the rotating pool.
-    if (ownSafe) {
-      target = ownSafe;
-      console.log(JSON.stringify({
-        event: "redirect.custom_safe_page",
-        code,
-        fp: fpHash,
-        target: ownSafe,
-        reason,
-        ua_class: isFbBot ? "fb-bot" : "non-fb-bot",
-      }));
-    } else {
+    // Non-FB crawlers (Google, Bing, generic scrapers) → sticky same-origin
+    // pool pick. Owner safe_url is intentionally NOT used for crawlers: an
+    // off-domain 302 answer to a crawler is the classic doorway signal.
+    {
       // Sticky per LINK (not per visitor): one short code always shows the same
       // safe article, so its fingerprint stays consistent across crawls.
       const pick = pickSafePage(code, null, publicOrigin);
@@ -2640,6 +2627,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         ua_class: "non-fb-bot",
       }));
     }
+
     routedTo = "safe";
 
   } else {
