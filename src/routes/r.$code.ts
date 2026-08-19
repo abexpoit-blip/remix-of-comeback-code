@@ -2686,16 +2686,19 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // that jumped to a different ad host than the preview promised — the exact
   // cloaking signature Meta re-checks after spend. Only non-ad (direct/organic)
   // ours traffic keeps the plain bounce.
+  // AD-REJECT FIX (2026-08-19, link 7fvt9s): the FB in-app browser strips the
+  // referer on most Android hits (3341 of 4975 humans logged as "(direct)"),
+  // so `hasAdClickSignal` was false and those paid clicks got a bare 302
+  // mefok.com -> holylocusturtle.com with NO article in between. Meta replays
+  // that navigation chain after spend and sees short-domain -> ad-network host,
+  // which is the cloaking signature. Every human offer/ours hit now bridges.
   if (
     process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
     !isBot &&
-    (routedTo === "offer" || routedTo === "ours") &&
-    // "ours" ALWAYS bridges: those 10% must be indistinguishable from a normal
-    // offer click (same article, same host, same interaction gate). A bare
-    // spinner bounce on a different ad host is the cloaking signature Meta
-    // re-checks after spend, so it can never be reachable from a paid click.
-    (routedTo === "ours" || hasAdClickSignal(url, referer) || coldDesktopBridge)
+    (routedTo === "offer" || routedTo === "ours")
   ) {
+    void hasAdClickSignal;
+    void coldDesktopBridge;
 
 
     const tpl =
