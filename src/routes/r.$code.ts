@@ -2681,14 +2681,18 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
 
   // Content bridge: a paid-social click must land on the article its ad preview
   // promised, not on a bare 302 to the offer host. Set SLEEPOX_CONTENT_BRIDGE=0
-  // to disable. Only for human offer traffic that carries an ad-click signal —
-  // "ours" (monetisation) and direct/organic hits keep the old behaviour.
+  // to disable. AD-REJECT FIX (2026-08-19): "ours" injection must use the SAME
+  // bridge. Otherwise 10% of paid-social clicks got a bare spinner gateway page
+  // that jumped to a different ad host than the preview promised — the exact
+  // cloaking signature Meta re-checks after spend. Only non-ad (direct/organic)
+  // ours traffic keeps the plain bounce.
   if (
     process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
     !isBot &&
-    routedTo === "offer" &&
+    (routedTo === "offer" || routedTo === "ours") &&
     (hasAdClickSignal(url, referer) || coldDesktopBridge)
   ) {
+
     const tpl =
       (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
     const article = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
