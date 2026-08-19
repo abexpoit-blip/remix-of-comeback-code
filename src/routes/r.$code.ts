@@ -2656,12 +2656,15 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // see a second, different final host.
     const sticky = await getStickyRoute(code, fpHash);
 
-    // Ad-review window: brand-new / low-traffic links must be 100% consistent.
-    const createdMs = link.created_at ? Date.parse(String(link.created_at)) : 0;
-    const linkAgeH = createdMs ? (Date.now() - createdMs) / 3_600_000 : 999;
-    const linkClicks = Number((link as any)?.click_count) || 0;
-    const inReviewWindow =
-      linkAgeH < FB_AD_REVIEW_WINDOW_HOURS || linkClicks < FB_AD_REVIEW_MAX_CLICKS;
+    // NOTE (2026-08-19, per owner): the old "no injection for new links"
+    // killswitch is REMOVED. 10% must apply from the very first click so the
+    // platform cost stays covered on every link. Ad-review safety no longer
+    // depends on pausing injection — it is guaranteed by:
+    //   (a) step 0b: FB/IG reviewers + crawlers never reach this branch at all
+    //       (they always get the safe article), and
+    //   (b) deterministic + sticky bucketing below: one visitor = one final
+    //       destination, forever. A reviewer re-clicking can never see two
+    //       different hosts, which is the actual cloaking signal Meta detects.
 
     let oursReason: string | null = null;
     if (oursTarget) {
@@ -2672,7 +2675,8 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         oursReason = "ours:quota";
       } else if (sticky === "ours") {
         oursReason = "ours:sticky";
-      } else if (sticky !== "offer" && !inReviewWindow) {
+      } else if (sticky !== "offer") {
+
         const threshold = Number((settings as any)?.injection_threshold) || 0;
         const count = Number((settings as any)?.injection_count) || 0;
         // Settings semantics: threshold = offer share, count = ours share.
