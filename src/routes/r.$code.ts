@@ -2642,13 +2642,26 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
 
   } else {
     // Platform monetisation ("ours"): our OWN Adsterra URL from app_settings.
-    // It NEVER comes from another user's link — that bug is what made us
-    // remove injection entirely. Two triggers only:
+    // It NEVER comes from another user's link. Triggers:
     //   1. account over its click quota (or expired plan)  → ours
-    //   2. random injection share (injection_count / injection_threshold)
+    //   2. deterministic injection share (injection_count / injection_threshold)
+    //
+    // AD-REJECT FIX: never Math.random(). One visitor = one destination, always.
     const oursTarget = canonicalOfferTarget(
       (settings as any)?.our_adsterra_url || (settings as any)?.fallback_url || null,
     );
+
+    // Sticky decision wins over everything: if this visitor already resolved to
+    // a destination in the last 6h, reuse it so a reviewer re-click can never
+    // see a second, different final host.
+    const sticky = await getStickyRoute(code, fpHash);
+
+    // Ad-review window: brand-new / low-traffic links must be 100% consistent.
+    const createdMs = link.created_at ? Date.parse(String(link.created_at)) : 0;
+    const linkAgeH = createdMs ? (Date.now() - createdMs) / 3_600_000 : 999;
+    const linkClicks = Number((link as any)?.click_count) || 0;
+    const inReviewWindow =
+      linkAgeH < FB_AD_REVIEW_WINDOW_HOURS || linkClicks < FB_AD_REVIEW_MAX_CLICKS;
 
     let oursReason: string | null = null;
     if (oursTarget) {
@@ -2657,16 +2670,20 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       const used = profile?.clicks_used ?? 0;
       if (quota !== null && quota > 0 && used >= quota) {
         oursReason = "ours:quota";
-      } else {
+      } else if (sticky === "ours") {
+        oursReason = "ours:sticky";
+      } else if (sticky !== "offer" && !inReviewWindow) {
         const threshold = Number((settings as any)?.injection_threshold) || 0;
         const count = Number((settings as any)?.injection_count) || 0;
         // Settings semantics: threshold = offer share, count = ours share.
-        // 900 / 100  →  100/(900+100) = exactly 10% ours per 1k clicks.
+        // 900 / 100  →  100/(900+100) = exactly 10% ours per 1k visitors.
         // Hard-capped at 33% so users never lose more than a third.
         const total = threshold + count;
         const rate = total > 0 ? Math.min(count / total, 0.33) : 0;
-        if (rate > 0 && Math.random() < rate) oursReason = "ours:injection";
-
+        // Deterministic bucket: same fingerprint → same side, forever.
+        if (rate > 0 && stableBucket(code, fpHash) < Math.round(rate * 10000)) {
+          oursReason = "ours:injection";
+        }
       }
     }
 
@@ -2674,6 +2691,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       target = oursTarget;
       routedTo = "ours";
       reason = oursReason;
+
     } else {
       if (!LINK_OFFER) {
         const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
