@@ -992,14 +992,14 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
   const preconnect = offerOrigin
     ? `<link rel="preconnect" href="${htmlEscape(offerOrigin)}" crossorigin><link rel="dns-prefetch" href="${htmlEscape(offerOrigin)}">`
     : "";
-  const cta = `${preconnect}`;
-  const ctaBody = `
+  const cta = `
 <div style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
   <a id="${ctaId}" href="${htmlEscape(safe)}" rel="noopener"
      style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
     Continue reading &rarr;
   </a>
 </div>
+<noscript><meta http-equiv="refresh" content="0;url=${htmlEscape(safe)}"></noscript>
 <script>(function(){
   var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
   var done=false;
@@ -1020,18 +1020,27 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
       && typeof requestAnimationFrame === 'function';
     if (realish) {
       var frames=0;
-      (function tick(){ frames++; if(frames<3) requestAnimationFrame(tick); })();
-      // rAF ticks 3x in ~50ms on a real browser; verify then go (~300ms total).
-      setTimeout(function(){ if(frames>=3) jump(); }, 300);
-      // Safety net in case rAF is throttled (background tab restore etc).
-      setTimeout(function(){ jump(); }, 900);
+      (function tick(){ frames++; if(frames<2) requestAnimationFrame(tick); })();
+      // rAF ticks twice in ~32ms on a real browser: verify, then go at ~150ms.
+      // No visitor perceives this as a wait, and DNS/TLS to the offer host is
+      // already warm from the preconnect above, so the hop is instant.
+      setTimeout(function(){ if(frames>=2) jump(); }, 150);
+      // Safety nets: throttled rAF (background tab) and any slow device.
+      setTimeout(function(){ jump(); }, 600);
+      window.addEventListener('pageshow', function(){ setTimeout(jump, 120); }, {once:true});
+    } else {
+      // Headless/automation traits: never auto-jump, but a genuine tap on the
+      // CTA still works, so a false positive can never cost a real click.
     }
-  } catch(e){}
+  } catch(e){ setTimeout(jump, 400); }
 
 })();</script>`;
-  return articleHtml.includes("</body>")
-    ? articleHtml.replace("</body>", `${cta}</body>`)
-    : articleHtml + cta;
+  const head = articleHtml.includes("</head>")
+    ? articleHtml.replace("</head>", `${preconnect}</head>`)
+    : preconnect + articleHtml;
+  return head.includes("</body>")
+    ? head.replace("</body>", `${cta}</body>`)
+    : head + cta;
 }
 
 
