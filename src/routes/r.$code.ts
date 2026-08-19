@@ -777,7 +777,9 @@ const HUMAN_PASS_TTL_SEC = 6 * 60 * 60; // 6h — covers a browsing session
 const HUMAN_PASS_PREFIX = "hum:";
 // Browser-side pass. A cookie survives everything a fingerprint does not:
 // new tab / duplicated tab / back-forward / a different link code / Redis down.
-const HUMAN_COOKIE = "_sxh";
+// Neutral name: an unusual shared cookie key (`_sxh`) on every ad domain is a
+// cross-brand footprint a reviewer can grep for. `_ss` reads like any session flag.
+const HUMAN_COOKIE = "_ss";
 
 function humanPassKey(code: string, fpHash: string): string {
   return `${HUMAN_PASS_PREFIX}${code}:${fpHash}`;
