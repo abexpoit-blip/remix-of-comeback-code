@@ -818,6 +818,54 @@ function markKnownHuman(code: string, fpHash: string): void {
   void redisSet(humanPassGlobalKey(fpHash), 1, HUMAN_PASS_TTL_SEC * 1000).catch(() => {});
 }
 
+// ============================================================================
+// AD-REJECT FIX (2026-08-19): DESTINATION CONSISTENCY
+// ----------------------------------------------------------------------------
+// Root cause of the "$0.44 spend → reject" pattern: injection used
+// Math.random() per request. A Meta reviewer clicking the SAME link twice could
+// get destination A (user offer) on the first hit and destination B (our
+// Adsterra) on the second. Two different final hosts for one ad URL is the
+// textbook cloaking / inconsistent-destination signal — it fires no matter how
+// clean the article bridge is. Before injection existed this never happened,
+// which is exactly what the user observed.
+//
+// Fix = injection becomes DETERMINISTIC + STICKY:
+//   1. bucket = stable hash(fingerprint) → the same visitor always lands in the
+//      same bucket, so the same person always sees the same destination.
+//   2. sticky route cache (6h) → even across fingerprint drift, a visitor that
+//      already got "offer" can never be flipped to "ours" later.
+//   3. no injection at all inside the ad-review window (young link / low click
+//      count) — that is when reviewers click, and they must see ONE destination.
+// ============================================================================
+
+const ROUTE_STICKY_TTL_SEC = 6 * 60 * 60;
+const routeStickyKey = (code: string, fp: string) => `rt:${code}:${fp}`;
+
+/** Stable 0..9999 bucket from the visitor fingerprint (never random). */
+function stableBucket(code: string, fpHash: string): number {
+  const s = `${code}:${fpHash}`;
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h % 10000;
+}
+
+async function getStickyRoute(code: string, fpHash: string): Promise<"offer" | "ours" | null> {
+  if (!fpHash) return null;
+  try {
+    const v = await redisGet<string>(routeStickyKey(code, fpHash));
+    return v === "offer" || v === "ours" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function markStickyRoute(code: string, fpHash: string, route: "offer" | "ours"): void {
+  if (!fpHash) return;
+  void redisSet(routeStickyKey(code, fpHash), route, ROUTE_STICKY_TTL_SEC * 1000).catch(() => {});
+}
+
+
+
 
 
 
