@@ -2554,11 +2554,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // actively blocks facebookexternalhit with 403, which causes FB to mark
     // the ad as "broken link" and reject it. Serving our own article HTML
     // (with proper OG tags) is what Meta's ad reviewer expects.
-    // Owner-supplied safe page wins for this one link, including for Meta's
-    // crawler: preview and reviewer must see the SAME page a bot lands on.
-    const ownSafe = customSafePage(link.safe_url, [link.adsterra_url]);
+    //
+    // AD-REJECT FIX (2026-08-19): an owner-supplied safe_url used to win here,
+    // which answered the crawler with a 302 to an off-domain page. A reviewer
+    // that sees "crawler → redirect" treats it as a doorway/cloaking page and
+    // rejects the ad. Crawlers now ALWAYS get same-origin article HTML 200.
+    if (isFbBot) {
 
-    if (isFbBot && !ownSafe) {
       const tpl = (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
       const html = renderPrelanding(tpl, code, "", "fbbot", publicOrigin);
       routedTo = "fb-article";
