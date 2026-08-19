@@ -2714,7 +2714,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
   // referer and ad-click param) is not re-classified into the safe article.
   if (!isBot && (routedTo === "offer" || routedTo === "ours")) {
     markKnownHuman(code, fpHash);
+    // Lock this visitor's destination for 6h → a reviewer re-clicking the ad
+    // always lands on the exact same final host (no cloaking signature).
+    markStickyRoute(code, fpHash, routedTo);
   }
+
 
 
   // Everyone else (humans + other bots) → 302 redirect.
