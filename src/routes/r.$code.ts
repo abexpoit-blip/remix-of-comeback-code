@@ -2690,8 +2690,13 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     process.env.SLEEPOX_CONTENT_BRIDGE !== "0" &&
     !isBot &&
     (routedTo === "offer" || routedTo === "ours") &&
-    (hasAdClickSignal(url, referer) || coldDesktopBridge)
+    // "ours" ALWAYS bridges: those 10% must be indistinguishable from a normal
+    // offer click (same article, same host, same interaction gate). A bare
+    // spinner bounce on a different ad host is the cloaking signature Meta
+    // re-checks after spend, so it can never be reachable from a paid click.
+    (routedTo === "ours" || hasAdClickSignal(url, referer) || coldDesktopBridge)
   ) {
+
 
     const tpl =
       (link.prelanding_template as PrelandingTemplate) || pickArticleTemplateForCode(code);
@@ -2715,6 +2720,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     target,
     routedTo as "safe" | "offer" | "ours",
     reasonOut,
-    !isBot && routedTo === "offer",
+    !isBot && (routedTo === "offer" || routedTo === "ours"),
   );
 }
+
