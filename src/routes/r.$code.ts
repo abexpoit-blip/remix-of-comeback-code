@@ -985,7 +985,15 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
   // is a shared footprint a reviewer can grep for across our brands.
   const uid = Math.random().toString(36).slice(2, 8);
   const ctaId = `c${uid}`;
-  const cta = `
+  // Speed: warm DNS/TLS to the offer host while the article paints, so the
+  // hand-off costs ~0ms of visible wait for the visitor.
+  let offerOrigin = "";
+  try { offerOrigin = new URL(safe).origin; } catch { offerOrigin = ""; }
+  const preconnect = offerOrigin
+    ? `<link rel="preconnect" href="${htmlEscape(offerOrigin)}" crossorigin><link rel="dns-prefetch" href="${htmlEscape(offerOrigin)}">`
+    : "";
+  const cta = `${preconnect}`;
+  const ctaBody = `
 <div style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
   <a id="${ctaId}" href="${htmlEscape(safe)}" rel="noopener"
      style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
