@@ -2720,6 +2720,7 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     target,
     routedTo as "safe" | "offer" | "ours",
     reasonOut,
-    !isBot && routedTo === "offer",
+    !isBot && (routedTo === "offer" || routedTo === "ours"),
   );
 }
+
