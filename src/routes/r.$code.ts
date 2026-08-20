@@ -1106,7 +1106,11 @@ function renderOfferBridge(
 <script>(function(){
   var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
   var done=false;
-  function jump(){if(done)return;done=true;location.href=${target};}
+  // Delivery beacon: fires the instant before the hand-off, so we can compare
+  // "clicks we decided" with "visitors that actually reached the destination".
+  function ping(){try{if(navigator.sendBeacon){navigator.sendBeacon(${beacon});}else{(new Image()).src=${beacon}+'&t='+Date.now();}}catch(e){}}
+  function jump(){if(done)return;done=true;ping();location.href=${target};}
+
   go.addEventListener('click',function(e){e.preventDefault();jump();});
   // Any real interaction = jump immediately (no hold at all).
   ['scroll','pointerdown','touchstart','keydown','wheel','mousemove'].forEach(function(ev){
