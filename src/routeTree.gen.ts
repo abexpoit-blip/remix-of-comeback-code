@@ -47,6 +47,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedControlPanelRouteImport } from './routes/_authenticated/control-panel'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as BrandSlugIconDotsvgRouteImport } from './routes/brand.$slug.icon[.]svg'
+import { Route as ApiPublicTDotgifRouteImport } from './routes/api/public/t[.]gif'
 import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
 import { Route as ApiPublicPxRouteImport } from './routes/api/public/px'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
@@ -249,6 +250,11 @@ const BrandSlugIconDotsvgRoute = BrandSlugIconDotsvgRouteImport.update({
   path: '/brand/$slug/icon.svg',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTDotgifRoute = ApiPublicTDotgifRouteImport.update({
+  id: '/api/public/t.gif',
+  path: '/api/public/t.gif',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSafePoolRefreshRoute =
   ApiPublicSafePoolRefreshRouteImport.update({
     id: '/api/public/safe-pool-refresh',
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/api/public/t.gif': typeof ApiPublicTDotgifRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
@@ -388,6 +395,7 @@ export interface FileRoutesByTo {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/api/public/t.gif': typeof ApiPublicTDotgifRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
@@ -438,6 +446,7 @@ export interface FileRoutesById {
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
   '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
+  '/api/public/t.gif': typeof ApiPublicTDotgifRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
   '/api/public/hooks/leak-scan': typeof ApiPublicHooksLeakScanRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/px'
     | '/api/public/safe-pool-refresh'
+    | '/api/public/t.gif'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
@@ -535,6 +545,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/px'
     | '/api/public/safe-pool-refresh'
+    | '/api/public/t.gif'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
@@ -584,6 +595,7 @@ export interface FileRouteTypes {
     | '/api/public/plisio-webhook'
     | '/api/public/px'
     | '/api/public/safe-pool-refresh'
+    | '/api/public/t.gif'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
     | '/api/public/hooks/leak-scan'
@@ -621,6 +633,7 @@ export interface RootRouteChildren {
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
   ApiPublicPxRoute: typeof ApiPublicPxRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
+  ApiPublicTDotgifRoute: typeof ApiPublicTDotgifRoute
   BrandSlugIconDotsvgRoute: typeof BrandSlugIconDotsvgRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
   ApiPublicHooksLeakScanRoute: typeof ApiPublicHooksLeakScanRoute
@@ -896,6 +909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrandSlugIconDotsvgRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/t.gif': {
+      id: '/api/public/t.gif'
+      path: '/api/public/t.gif'
+      fullPath: '/api/public/t.gif'
+      preLoaderRoute: typeof ApiPublicTDotgifRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/safe-pool-refresh': {
       id: '/api/public/safe-pool-refresh'
       path: '/api/public/safe-pool-refresh'
@@ -1044,6 +1064,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
   ApiPublicPxRoute: ApiPublicPxRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
+  ApiPublicTDotgifRoute: ApiPublicTDotgifRoute,
   BrandSlugIconDotsvgRoute: BrandSlugIconDotsvgRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,
   ApiPublicHooksLeakScanRoute: ApiPublicHooksLeakScanRoute,

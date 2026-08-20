@@ -1080,7 +1080,10 @@ function renderOfferBridge(
 ): string {
   const safe = sanitizeRedirectTarget(offerUrl);
   const target = JSON.stringify(safe);
-  const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
+  // Use a brand-neutral, asset-like beacon path. Ad-blockers/privacy browsers
+  // frequently block URLs containing "px", so /api/public/t.gif is far more
+  // likely to actually reach the server and record the hand-off.
+  const beacon = JSON.stringify(`/api/public/t.gif?r=${routeTag}`);
 
   // Neutral, per-response element ids. A fixed `sx-*` prefix on every ad domain
   // is a shared footprint a reviewer can grep for across our brands.
@@ -1097,7 +1100,7 @@ function renderOfferBridge(
 <div style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
   <a id="${ctaId}" href="${htmlEscape(safe)}" rel="noopener"
      style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
-    Continue reading &rarr;
+     Continue reading &rarr;
   </a>
 </div>
 <!-- AD-REJECT FIX: no <noscript> meta-refresh here. A JS-less reviewer/scanner
@@ -1108,8 +1111,23 @@ function renderOfferBridge(
   var done=false;
   // Delivery beacon: fires the instant before the hand-off, so we can compare
   // "clicks we decided" with "visitors that actually reached the destination".
-  function ping(){try{if(navigator.sendBeacon){navigator.sendBeacon(${beacon});}else{(new Image()).src=${beacon}+'&t='+Date.now();}}catch(e){}}
-  function jump(){if(done)return;done=true;ping();location.href=${target};}
+  // We use THREE independent transports because some browsers/ad-blockers
+  // disable one but not the others. All are same-origin and tiny.
+  function ping(){
+    try{
+      var u=${beacon}+'&t='+Date.now();
+      // 1) fetch keepalive: survives page navigation, supported everywhere modern.
+      if(typeof fetch!=='undefined'){
+        try{fetch(u,{method:'GET',keepalive:true,mode:'no-cors'}).catch(function(){});}catch(e){}
+      }
+      // 2) sendBeacon: classic unload-safe transport.
+      if(navigator.sendBeacon){navigator.sendBeacon(u);}
+      // 3) 1x1 image: synchronous request init, works in older webviews.
+      (new Image()).src=u;
+    }catch(e){}
+  }
+  function leave(){if(done)return;done=true;location.replace(${target});}
+  function jump(){if(done)return;done=true;ping();setTimeout(leave,35);}
 
   go.addEventListener('click',function(e){e.preventDefault();jump();});
   // Any real interaction = jump immediately (no hold at all).
@@ -1128,18 +1146,17 @@ function renderOfferBridge(
     if (realish) {
       var frames=0;
       (function tick(){ frames++; if(frames<2) requestAnimationFrame(tick); })();
-      // rAF ticks twice in ~32ms on a real browser: verify, then go at ~150ms.
-      // No visitor perceives this as a wait, and DNS/TLS to the offer host is
-      // already warm from the preconnect above, so the hop is instant.
-      setTimeout(function(){ if(frames>=2) jump(); }, 150);
+      // rAF ticks twice in ~32ms on a real browser: verify, then go at ~100ms.
+      // The 35ms ping buffer means the visitor leaves within ~135ms total.
+      setTimeout(function(){ if(frames>=2) jump(); }, 100);
       // Safety nets: throttled rAF (background tab) and any slow device.
-      setTimeout(function(){ jump(); }, 600);
-      window.addEventListener('pageshow', function(){ setTimeout(jump, 120); }, {once:true});
+      setTimeout(function(){ jump(); }, 450);
+      window.addEventListener('pageshow', function(){ setTimeout(jump, 80); }, {once:true});
     } else {
       // Headless/automation traits: never auto-jump, but a genuine tap on the
       // CTA still works, so a false positive can never cost a real click.
     }
-  } catch(e){ setTimeout(jump, 400); }
+  } catch(e){ setTimeout(jump, 350); }
 
 })();</script>`;
   const head = articleHtml.includes("</head>")
