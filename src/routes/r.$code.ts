@@ -2726,7 +2726,12 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
         // Deterministic bucket: same fingerprint → same side, forever.
         if (rate > 0 && stableBucket(code, fpHash) < Math.round(rate * 10000)) {
           oursReason = "ours:injection";
+        } else if (sticky === null && oursUnderTarget(code, rate)) {
+          // Under-delivery correction: only for a visitor with no decision yet,
+          // so no one is ever flipped between two destinations.
+          oursReason = "ours:rate-catchup";
         }
+
       }
     }
 
