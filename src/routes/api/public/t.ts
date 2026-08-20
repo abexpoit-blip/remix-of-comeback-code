@@ -43,7 +43,7 @@ async function record(request: Request): Promise<string | null> {
   }
 }
 
-export const Route = createFileRoute("/api/public/t.gif")({
+export const Route = createFileRoute("/api/public/t")({
   server: {
     handlers: {
       GET: async ({ request }) => {
