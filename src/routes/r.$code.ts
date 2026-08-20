@@ -1080,9 +1080,9 @@ function renderOfferBridge(
 ): string {
   const safe = sanitizeRedirectTarget(offerUrl);
   const target = JSON.stringify(safe);
-  // Keep this short and extensionless: blocker lists commonly match "px", while
-  // production Nginx treats .gif paths as static files instead of proxy routes.
-  const beacon = JSON.stringify(`/api/public/t?r=${routeTag}`);
+  // Use the established production endpoint. It is already routed through the
+  // reverse proxy and verified live; beacon failures never delay navigation.
+  const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
 
   // Neutral, per-response element ids. A fixed `sx-*` prefix on every ad domain
   // is a shared footprint a reviewer can grep for across our brands.
