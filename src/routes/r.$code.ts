@@ -2765,7 +2765,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
     // Lock this visitor's destination for 6h → a reviewer re-clicking the ad
     // always lands on the exact same final host (no cloaking signature).
     markStickyRoute(code, fpHash, routedTo);
+    // Feed the rolling ledger so the ours share is measured on CLICKS, which is
+    // what the dashboard reports, not on unique fingerprints.
+    recordRouteForRate(code, routedTo);
   }
+
 
 
 
