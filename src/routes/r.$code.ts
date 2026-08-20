@@ -2859,7 +2859,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       "referrer-policy": "unsafe-url",
     });
     headers.append("Set-Cookie", humanCookieHeader());
-    return new Response(renderOfferBridge(article, target), { status: 200, headers });
+    return new Response(
+      renderOfferBridge(article, target, routedTo === "ours" ? "ours" : "offer"),
+      { status: 200, headers },
+    );
+
   }
 
 
