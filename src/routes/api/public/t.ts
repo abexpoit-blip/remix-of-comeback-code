@@ -2,13 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
- * Delivery beacon — GET/POST /api/public/t.gif?r=ours
+ * Delivery beacon — GET/POST /api/public/t?r=ours
  *
- * This is a brand-neutral alias of /api/public/px. The shorter path and
- * `.gif` extension make it look like an ordinary image asset, so ad-blockers
- * and privacy browsers are far less likely to block it than a path containing
- * "px". It still records the same arrival counter used to compute
- * delivered / decided rates.
+ * This is a brand-neutral alias of /api/public/px. The short extensionless
+ * path avoids both common blocker keywords and Nginx static-file rules. It
+ * records the same arrival counter used to compute delivered / decided rates.
  *
  * Returns a 1x1 transparent GIF.
  */
@@ -43,7 +41,7 @@ async function record(request: Request): Promise<string | null> {
   }
 }
 
-export const Route = createFileRoute("/api/public/t.gif")({
+export const Route = createFileRoute("/api/public/t")({
   server: {
     handlers: {
       GET: async ({ request }) => {
