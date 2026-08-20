@@ -29,13 +29,17 @@ function pixel() {
   });
 }
 
-async function record(request: Request) {
+async function record(request: Request): Promise<string | null> {
   try {
     const r = new URL(request.url).searchParams.get("r") || "offer";
     const route = r === "ours" ? "ours" : "offer";
-    await supabaseAdmin.rpc("record_bridge_delivery" as never, { _route: route } as never);
-  } catch {
+    const { error } = await supabaseAdmin.rpc("record_bridge_delivery" as never, {
+      _route: route,
+    } as never);
+    return error ? `${error.code || ""} ${error.message || ""}`.trim() : null;
+  } catch (e) {
     // never let measurement affect the visitor
+    return e instanceof Error ? e.message : "unknown";
   }
 }
 
@@ -43,7 +47,15 @@ export const Route = createFileRoute("/api/public/px")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        await record(request);
+        const err = await record(request);
+        // ?debug=1 is an operator-only probe (curl from the VPS). It never runs
+        // for visitors, and lets us see WHY the counter stays at 0.
+        if (new URL(request.url).searchParams.get("debug") === "1") {
+          return new Response(JSON.stringify({ ok: !err, error: err }), {
+            status: 200,
+            headers: { "content-type": "application/json", "cache-control": "no-store" },
+          });
+        }
         return pixel();
       },
       POST: async ({ request }) => {
@@ -53,3 +65,4 @@ export const Route = createFileRoute("/api/public/px")({
     },
   },
 });
+
