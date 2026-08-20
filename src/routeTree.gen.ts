@@ -48,6 +48,7 @@ import { Route as AuthenticatedControlPanelRouteImport } from './routes/_authent
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as BrandSlugIconDotsvgRouteImport } from './routes/brand.$slug.icon[.]svg'
 import { Route as ApiPublicSafePoolRefreshRouteImport } from './routes/api/public/safe-pool-refresh'
+import { Route as ApiPublicPxRouteImport } from './routes/api/public/px'
 import { Route as ApiPublicPlisioWebhookRouteImport } from './routes/api/public/plisio-webhook'
 import { Route as ApiPublicPlisioStatusRouteImport } from './routes/api/public/plisio-status'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
@@ -254,6 +255,11 @@ const ApiPublicSafePoolRefreshRoute =
     path: '/api/public/safe-pool-refresh',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPxRoute = ApiPublicPxRouteImport.update({
+  id: '/api/public/px',
+  path: '/api/public/px',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPlisioWebhookRoute = ApiPublicPlisioWebhookRouteImport.update({
   id: '/api/public/plisio-webhook',
   path: '/api/public/plisio-webhook',
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -379,6 +386,7 @@ export interface FileRoutesByTo {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -428,6 +436,7 @@ export interface FileRoutesById {
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/plisio-status': typeof ApiPublicPlisioStatusRoute
   '/api/public/plisio-webhook': typeof ApiPublicPlisioWebhookRoute
+  '/api/public/px': typeof ApiPublicPxRoute
   '/api/public/safe-pool-refresh': typeof ApiPublicSafePoolRefreshRoute
   '/brand/$slug/icon.svg': typeof BrandSlugIconDotsvgRoute
   '/api/public/hooks/domain-health-scan': typeof ApiPublicHooksDomainHealthScanRoute
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
+    | '/api/public/px'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
@@ -523,6 +533,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
+    | '/api/public/px'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
@@ -571,6 +582,7 @@ export interface FileRouteTypes {
     | '/api/public/health'
     | '/api/public/plisio-status'
     | '/api/public/plisio-webhook'
+    | '/api/public/px'
     | '/api/public/safe-pool-refresh'
     | '/brand/$slug/icon.svg'
     | '/api/public/hooks/domain-health-scan'
@@ -607,6 +619,7 @@ export interface RootRouteChildren {
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicPlisioStatusRoute: typeof ApiPublicPlisioStatusRoute
   ApiPublicPlisioWebhookRoute: typeof ApiPublicPlisioWebhookRoute
+  ApiPublicPxRoute: typeof ApiPublicPxRoute
   ApiPublicSafePoolRefreshRoute: typeof ApiPublicSafePoolRefreshRoute
   BrandSlugIconDotsvgRoute: typeof BrandSlugIconDotsvgRoute
   ApiPublicHooksDomainHealthScanRoute: typeof ApiPublicHooksDomainHealthScanRoute
@@ -890,6 +903,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSafePoolRefreshRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/px': {
+      id: '/api/public/px'
+      path: '/api/public/px'
+      fullPath: '/api/public/px'
+      preLoaderRoute: typeof ApiPublicPxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/plisio-webhook': {
       id: '/api/public/plisio-webhook'
       path: '/api/public/plisio-webhook'
@@ -1022,6 +1042,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicPlisioStatusRoute: ApiPublicPlisioStatusRoute,
   ApiPublicPlisioWebhookRoute: ApiPublicPlisioWebhookRoute,
+  ApiPublicPxRoute: ApiPublicPxRoute,
   ApiPublicSafePoolRefreshRoute: ApiPublicSafePoolRefreshRoute,
   BrandSlugIconDotsvgRoute: BrandSlugIconDotsvgRoute,
   ApiPublicHooksDomainHealthScanRoute: ApiPublicHooksDomainHealthScanRoute,

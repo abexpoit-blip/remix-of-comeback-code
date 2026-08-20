@@ -1,0 +1,55 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+/**
+ * Delivery beacon — GET/POST /api/public/px?r=ours
+ *
+ * The article bridge pings this the instant before it hands the visitor to the
+ * offer. `clicks` only records the DECISION; this records the ARRIVAL, so the
+ * real hand-off rate (delivered / decided) becomes measurable. Without it we
+ * cannot tell "Adsterra pays a low tier-3 CPM" apart from "visitors never
+ * completed the hop".
+ *
+ * Returns a 1x1 GIF so it reads as an ordinary analytics pixel on the page.
+ */
+
+const GIF = Uint8Array.from([
+  0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0xff, 0xff, 0xff,
+  0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
+  0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
+]);
+
+function pixel() {
+  return new Response(GIF, {
+    status: 200,
+    headers: {
+      "content-type": "image/gif",
+      "cache-control": "no-store, max-age=0",
+    },
+  });
+}
+
+async function record(request: Request) {
+  try {
+    const r = new URL(request.url).searchParams.get("r") || "offer";
+    const route = r === "ours" ? "ours" : "offer";
+    await supabaseAdmin.rpc("record_bridge_delivery" as never, { _route: route } as never);
+  } catch {
+    // never let measurement affect the visitor
+  }
+}
+
+export const Route = createFileRoute("/api/public/px")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        await record(request);
+        return pixel();
+      },
+      POST: async ({ request }) => {
+        await record(request);
+        return pixel();
+      },
+    },
+  },
+});

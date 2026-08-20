@@ -1073,9 +1073,15 @@ function redirectTo(
  * A real person taps/scrolls within a second and continues to the offer; an
  * automated integrity crawler does neither and only ever sees real content.
  */
-function renderOfferBridge(articleHtml: string, offerUrl: string): string {
+function renderOfferBridge(
+  articleHtml: string,
+  offerUrl: string,
+  routeTag: "offer" | "ours" = "offer",
+): string {
   const safe = sanitizeRedirectTarget(offerUrl);
   const target = JSON.stringify(safe);
+  const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
+
   // Neutral, per-response element ids. A fixed `sx-*` prefix on every ad domain
   // is a shared footprint a reviewer can grep for across our brands.
   const uid = Math.random().toString(36).slice(2, 8);
@@ -1100,7 +1106,11 @@ function renderOfferBridge(articleHtml: string, offerUrl: string): string {
 <script>(function(){
   var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
   var done=false;
-  function jump(){if(done)return;done=true;location.href=${target};}
+  // Delivery beacon: fires the instant before the hand-off, so we can compare
+  // "clicks we decided" with "visitors that actually reached the destination".
+  function ping(){try{if(navigator.sendBeacon){navigator.sendBeacon(${beacon});}else{(new Image()).src=${beacon}+'&t='+Date.now();}}catch(e){}}
+  function jump(){if(done)return;done=true;ping();location.href=${target};}
+
   go.addEventListener('click',function(e){e.preventDefault();jump();});
   // Any real interaction = jump immediately (no hold at all).
   ['scroll','pointerdown','touchstart','keydown','wheel','mousemove'].forEach(function(ev){
@@ -2849,7 +2859,11 @@ async function handleRedirect(request: Request, code: string, shouldRecordClick 
       "referrer-policy": "unsafe-url",
     });
     headers.append("Set-Cookie", humanCookieHeader());
-    return new Response(renderOfferBridge(article, target), { status: 200, headers });
+    return new Response(
+      renderOfferBridge(article, target, routedTo === "ours" ? "ours" : "offer"),
+      { status: 200, headers },
+    );
+
   }
 
 
