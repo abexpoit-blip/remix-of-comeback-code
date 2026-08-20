@@ -1073,9 +1073,15 @@ function redirectTo(
  * A real person taps/scrolls within a second and continues to the offer; an
  * automated integrity crawler does neither and only ever sees real content.
  */
-function renderOfferBridge(articleHtml: string, offerUrl: string): string {
+function renderOfferBridge(
+  articleHtml: string,
+  offerUrl: string,
+  routeTag: "offer" | "ours" = "offer",
+): string {
   const safe = sanitizeRedirectTarget(offerUrl);
   const target = JSON.stringify(safe);
+  const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
+
   // Neutral, per-response element ids. A fixed `sx-*` prefix on every ad domain
   // is a shared footprint a reviewer can grep for across our brands.
   const uid = Math.random().toString(36).slice(2, 8);
