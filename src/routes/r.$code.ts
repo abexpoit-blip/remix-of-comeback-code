@@ -866,6 +866,51 @@ function markStickyRoute(code: string, fpHash: string, route: "offer" | "ours"):
   void redisSet(routeStickyKey(code, fpHash), route, ROUTE_STICKY_TTL_SEC * 1000).catch(() => {});
 }
 
+// ---------------------------------------------------------------------------
+// WHY OURS% LANDS BELOW THE CONFIGURED SHARE
+// ---------------------------------------------------------------------------
+// The bucket is per *fingerprint*, not per click. Sticky routing then locks a
+// visitor for 6h, so every repeat click of an "offer" visitor is counted again
+// on the offer side while the ours visitor may only click once. With ~1.3
+// clicks/visitor the measured ours share drifts to 7-8% even though exactly 10%
+// of visitors were selected.
+//
+// Fix: a rolling per-link click ledger. When the observed ours share is running
+// under target, the NEXT NEW fingerprint (one with no sticky decision yet) is
+// admitted to ours. Consistency is untouched — an already-decided visitor is
+// never flipped, because this only runs when sticky === null.
+// ---------------------------------------------------------------------------
+type RouteLedger = { total: number; ours: number; hour: number };
+const routeLedger = new Map<string, RouteLedger>();
+
+function ledgerFor(code: string): RouteLedger {
+  const hour = Math.floor(Date.now() / 3_600_000);
+  let l = routeLedger.get(code);
+  if (!l || l.hour !== hour) {
+    l = { total: 0, ours: 0, hour };
+    routeLedger.set(code, l);
+    if (routeLedger.size > 5000) {
+      for (const [k, v] of routeLedger) if (v.hour !== hour) routeLedger.delete(k);
+    }
+  }
+  return l;
+}
+
+function recordRouteForRate(code: string, route: "offer" | "ours"): void {
+  const l = ledgerFor(code);
+  l.total += 1;
+  if (route === "ours") l.ours += 1;
+}
+
+/** True when this link is running under its configured ours share right now. */
+function oursUnderTarget(code: string, rate: number): boolean {
+  if (rate <= 0) return false;
+  const l = ledgerFor(code);
+  if (l.total < 10) return false; // too small a sample to correct
+  return l.ours / l.total < rate;
+}
+
+
 
 
 
