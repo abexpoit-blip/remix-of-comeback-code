@@ -1018,12 +1018,15 @@ function browserBounce(target: string, route: string, reason?: string | null) {
     "Referrer-Policy": "unsafe-url",
   });
   setDebugHeaders(headers, route, reason);
-  const url = htmlEscape(safe);
+  // LEAK FIX 2: never print the destination URL in the markup. A reviewer (or a
+  // scanner) fetching this page without JS used to read the raw offer URL from
+  // the <a href> — that alone is enough to prove cloaking. The target is now
+  // base64 and only reachable after script execution.
+  const enc = Buffer.from(safe, "utf8").toString("base64");
   // LEAK FIX: the old bounce shipped meta-refresh AND location.replace on a
   // dark spinner page — the textbook "gateway page" signature that automated
   // ad-quality scanners fingerprint. One neutral mechanism only, on a plain
-  // light page that reads as an ordinary interstitial, plus a real link for
-  // no-JS clients (which is what a crawler without JS will see).
+  // light page that reads as an ordinary interstitial.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="referrer" content="unsafe-url">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1032,12 +1035,15 @@ function browserBounce(target: string, route: string, reason?: string | null) {
 <style>html,body{height:100%;margin:0;background:#f7f7f5;color:#3d3d3a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 .s{width:26px;height:26px;border:3px solid #e3e1dc;border-top-color:#8a8a83;border-radius:50%;animation:r .9s linear infinite}
-p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a}
+p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a;cursor:pointer}
 @keyframes r{to{transform:rotate(360deg)}}</style></head>
 <body><div class="w"><div class="s"></div><p>Taking you to the page you requested.</p>
-<p><a href="${url}">Continue</a></p></div>
-<script>setTimeout(function(){location.replace(${JSON.stringify(safe)});},350);</script></body></html>`;
+<p><a id="c">Continue</a></p></div>
+<script>(function(){var d=atob(${JSON.stringify(enc)});var a=document.getElementById("c");
+if(a){a.onclick=function(){location.replace(d);};}
+setTimeout(function(){location.replace(d);},350);})();</script></body></html>`;
   return new Response(html, { status: 200, headers });
+
 
 }
 
