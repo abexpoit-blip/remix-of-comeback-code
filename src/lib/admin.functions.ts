@@ -1193,3 +1193,48 @@ export const adminQuotaSyncStatus = createServerFn({ method: "GET" })
 
     return { summary, rows };
   });
+
+/** Admin-only account recovery: look up a user by email. */
+export const adminFindUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ email: z.string().trim().min(3) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const email = data.email.trim().toLowerCase();
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email, full_name, plan_slug, clicks_used, created_at, last_login_at")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (!profile) return { found: false as const };
+
+    const { count: linkCount } = await supabaseAdmin
+      .from("links")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", profile.id);
+
+    return { found: true as const, profile, linkCount: linkCount ?? 0 };
+  });
+
+/** Admin-only account recovery: set a new password for a user. */
+export const adminResetUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      userId: z.string().uuid(),
+      newPassword: z.string().min(8).max(72),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: data.newPassword,
+      email_confirm: true,
+    });
+    if (error) throw new Error(error.message);
+
+    return { ok: true as const };
+  });
