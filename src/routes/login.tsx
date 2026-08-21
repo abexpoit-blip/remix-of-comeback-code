@@ -148,7 +148,11 @@ function LoginPage() {
                 </button>
               </form>
 
-              <p className="mt-7 text-center text-sm text-[#7D6452]">
+              <p className="mt-4 text-center text-sm">
+                <Link to="/forgot-password" className="font-semibold text-[#A38D7D] hover:text-[#FF7E5F]">Forgot password?</Link>
+              </p>
+
+              <p className="mt-3 text-center text-sm text-[#7D6452]">
                 New here?{" "}
                 <Link to="/signup" className="font-bold text-[#FF7E5F] hover:text-[#E66D50]">Create an account</Link>
               </p>
