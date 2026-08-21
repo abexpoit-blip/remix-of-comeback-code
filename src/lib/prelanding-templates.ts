@@ -1378,7 +1378,7 @@ ${robots}
   </div>
   <div class="side-card">
     <h3>Trending Now</h3>
-    ${content.related.map((r) => `<div class="related-item"><img src="${r.img}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="72" height="72" onerror="this.onerror=null;this.src='${HERO_FALLBACK_SRC}';"><h4>${r.title}</h4></div>`).join("")}
+    ${content.related.map((r) => `<div class="related-item"><img src="${attrEscape(selfHostImage(r.img))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="72" height="72" onerror="this.onerror=null;this.src='${HERO_FALLBACK_SRC}';"><h4>${r.title}</h4></div>`).join("")}
   </div>
   <div class="ad-slot" style="margin:0"><small>Advertisement</small><div class="ad-slot-inner" style="height:250px">Sponsored</div></div>
 </aside>

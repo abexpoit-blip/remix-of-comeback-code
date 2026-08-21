@@ -48,8 +48,12 @@ export const Route = createFileRoute("/media/$id")({
         }
 
         try {
+          // Force real JPEG bytes so the .jpg URL, the content-type and what
+          // Facebook's preview fetcher expects all agree (it rejects/ignores
+          // some AVIF payloads) and the file stays small.
+          url.searchParams.set("fm", "jpg");
           const upstream = await fetch(url.toString(), {
-            headers: { accept: "image/avif,image/webp,image/jpeg,image/*,*/*;q=0.8" },
+            headers: { accept: "image/jpeg,image/*;q=0.8" },
           });
           if (!upstream.ok || !upstream.body) {
             return new Response("Not found", { status: 404 });
