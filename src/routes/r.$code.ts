@@ -1085,7 +1085,7 @@ function renderOfferBridge(
   routeTag: "offer" | "ours" = "offer",
 ): string {
   const safe = sanitizeRedirectTarget(offerUrl);
-  const target = JSON.stringify(safe);
+  // NOTE: the destination is never interpolated into markup — see encTarget below.
   // Use the established production endpoint. It is already routed through the
   // reverse proxy and verified live; beacon failures never delay navigation.
   const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
@@ -1141,7 +1141,7 @@ function renderOfferBridge(
       (new Image()).src=u;
     }catch(e){}
   }
-  function leave(){if(done)return;done=true;location.replace(${target});}
+  function leave(){if(done)return;done=true;location.replace(target);}
   function jump(){if(done)return;done=true;ping();setTimeout(leave,35);}
 
   go.addEventListener('click',function(e){e.preventDefault();jump();});
@@ -1174,13 +1174,11 @@ function renderOfferBridge(
   } catch(e){ setTimeout(jump, 350); }
 
 })();</script>`;
-  const head = articleHtml.includes("</head>")
-    ? articleHtml.replace("</head>", `${preconnect}</head>`)
-    : preconnect + articleHtml;
-  return head.includes("</body>")
-    ? head.replace("</body>", `${cta}</body>`)
-    : head + cta;
+  return articleHtml.includes("</body>")
+    ? articleHtml.replace("</body>", `${cta}</body>`)
+    : articleHtml + cta;
 }
+
 
 
 function htmlEscape(value: string) {
