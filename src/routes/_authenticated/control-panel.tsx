@@ -1043,7 +1043,7 @@ function TrafficTab() {
 
       <div className="mt-8 pt-6 border-t border-[#FFD4BB]">
         <h3 className="text-sm font-bold uppercase tracking-widest text-[#FF7E5F] mb-1">FB Ad-Review Protection</h3>
-        <p className="text-xs text-[#7A5C45] mb-4">নতুন লিংকের প্রথম ৬ ঘন্টা বা ২৫ ক্লিক পর্যন্ত FB/IG in-app browser-কে safe page দেখায় (ad reviewer যেন offer না দেখে)। <b>Ad approved হয়ে campaign run হলে এটা OFF করে দিন</b> — সব FB user offer পাবে, traffic 100% count হবে।</p>
+        <p className="text-xs text-[#7A5C45] mb-4">For a new link's first 6 hours or 25 clicks, FB/IG in-app browsers see the safe page (so ad reviewers don't see the offer). <b>Turn this OFF once the ad is approved and the campaign is running</b> — then all FB users get the offer and traffic counts 100%.</p>
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-white/60 border border-[#FFD4BB]">
           <input type="checkbox" checked={fbReviewOn} onChange={(e) => setFbReviewOn(e.target.checked)} className="w-5 h-5 accent-[#FF7E5F]" />
           <span className="text-sm font-semibold">🛡️ Enable FB Ad-Review Protection (turn OFF after ad approved)</span>
@@ -1112,7 +1112,7 @@ function TrafficSnapshotPanel() {
             <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex gap-2 items-start">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
               <div>
-                Bot rate <b>{d.botPct}%</b> — যদি FB campaign চলছে তাহলে নিচে <b>FB Ad-Review Protection</b> OFF করুন। Top bot reasons:&nbsp;
+                Bot rate <b>{d.botPct}%</b> — if an FB campaign is running, turn <b>FB Ad-Review Protection</b> OFF below. Top bot reasons:&nbsp;
                 {d.topBotReasons.map((r) => `${r.key}(${r.count})`).join(", ")}
               </div>
             </div>
