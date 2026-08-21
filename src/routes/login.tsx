@@ -2,9 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight, ShieldCheck, Zap, BarChart3 } from "lucide-react";
+import { Mail, Lock, ArrowRight, ShieldCheck, Zap, BarChart3, Copy, Check, X, KeyRound, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BrandLogo } from "@/components/brand-logo";
+import { issueTempPassword, TEMP_PASSWORD } from "@/lib/account-recovery.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Sleepox" }] }),
@@ -18,37 +19,79 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tempPass, setTempPass] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const goAfterLogin = async (usedTemp: boolean) => {
+    const target = usedTemp ? "/reset-password" : "/dashboard";
+    const fallback = window.setTimeout(() => { window.location.replace(target); }, 1200);
+    try {
+      await navigate({ to: target, replace: true });
+      window.clearTimeout(fallback);
+    } catch {
+      window.clearTimeout(fallback);
+      window.location.replace(target);
+    }
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
       const result = await Promise.race([
-        supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
+        supabase.auth.signInWithPassword({ email: cleanEmail, password }),
         new Promise<never>((_, reject) => {
           window.setTimeout(() => reject(new Error("The login server took too long to respond. Please try again.")), 20_000);
         }),
       ]);
       if (result.error || !result.data.session) {
+        // Account may exist but the password is lost — hand out a temp password.
+        try {
+          const recovery = await issueTempPassword({ data: { email: cleanEmail } });
+          if (recovery.found && "ok" in recovery && recovery.ok) {
+            setCopied(false);
+            setTempPass(recovery.tempPassword);
+            return;
+          }
+        } catch { /* fall through to the normal error */ }
         toast.error(result.error?.message ?? "Login failed");
         return;
       }
 
-      // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
-      const fallback = window.setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
-      try {
-        await navigate({ to: "/dashboard", replace: true });
-        window.clearTimeout(fallback);
-      } catch {
-        window.clearTimeout(fallback);
-        window.location.replace("/dashboard");
-      }
+      await goAfterLogin(password === TEMP_PASSWORD);
     } catch {
       toast.error("Could not reach the login server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const copyTemp = async () => {
+    try {
+      await navigator.clipboard.writeText(TEMP_PASSWORD);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed — please select and copy manually.");
+    }
+  };
+
+  const useTempNow = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: TEMP_PASSWORD,
+      });
+      if (error || !data.session) { toast.error(error?.message ?? "Login failed"); return; }
+      setTempPass(null);
+      await goAfterLogin(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
 
@@ -57,7 +100,71 @@ function LoginPage() {
       className="relative min-h-screen w-full bg-[#FFF9F5] text-[#4A3728] overflow-hidden grid lg:grid-cols-2"
       style={font}
     >
+      {tempPass && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8 bg-[#2D1B0D]/50 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md animate-in zoom-in-95 duration-200">
+            <div className="absolute -inset-3 bg-gradient-to-tr from-[#FF7E5F]/40 via-[#FEB47B]/30 to-transparent blur-3xl rounded-[3rem] pointer-events-none" />
+            <div className="relative rounded-[2rem] border border-white/80 bg-white/85 backdrop-blur-2xl p-7 sm:p-9 shadow-2xl shadow-orange-900/20">
+              <button
+                type="button" onClick={() => setTempPass(null)} aria-label="Close"
+                className="absolute top-5 right-5 w-9 h-9 rounded-full bg-[#FFF3EC] hover:bg-[#FFE3D3] text-[#A38D7D] hover:text-[#FF7E5F] flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FF7E5F] to-[#FEB47B] flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <KeyRound className="w-6 h-6 text-white" />
+              </div>
+
+              <div className="mt-5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FF7E5F]/10 border border-[#FF7E5F]/30 text-[#FF7E5F] text-[10px] font-bold uppercase tracking-widest">
+                <Sparkles className="w-3 h-3" /> Account found
+              </div>
+
+              <h3 className="mt-3 text-2xl font-extrabold tracking-tight text-[#2D1B0D]">Use your temporary password</h3>
+              <p className="mt-2 text-sm text-[#7D6452]">
+                We found <span className="font-semibold text-[#4A3728]">{email.trim().toLowerCase()}</span> on our server.
+                Sign in with the temporary password below, then set your own password.
+              </p>
+
+              <div className="mt-6 rounded-2xl border border-[#FFEDD5] bg-[#FFF9F5] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A38D7D]">Temporary password</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="flex-1 select-all font-mono text-lg font-bold text-[#2D1B0D] tracking-tight break-all">
+                    {tempPass}
+                  </code>
+                  <button
+                    type="button" onClick={copyTemp}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#FFEDD5] hover:border-[#FF7E5F] text-xs font-bold text-[#FF7E5F] transition-colors"
+                  >
+                    {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button" onClick={useTempNow} disabled={loading}
+                className="w-full mt-5 bg-gradient-to-r from-[#FF7E5F] to-[#FEB47B] hover:from-[#E66D50] hover:to-[#FF9F6B] text-white py-3.5 rounded-2xl font-bold text-sm tracking-tight transition-all shadow-lg shadow-orange-500/30 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? "Signing in…" : <>Sign in & set new password <ArrowRight className="w-4 h-4" /></>}
+              </button>
+
+              <button
+                type="button" onClick={() => setTempPass(null)}
+                className="w-full mt-2 py-2.5 rounded-2xl text-sm font-semibold text-[#A38D7D] hover:text-[#FF7E5F] transition-colors"
+              >
+                Close
+              </button>
+
+              <p className="mt-3 text-center text-[11px] text-[#A38D7D]">
+                Your links, clicks and earnings are untouched — only the password changes.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* warm blobs */}
+
       <div className="fixed top-[-15%] left-[-10%] w-[55%] h-[55%] bg-[#FF7E5F]/20 blur-[140px] rounded-full pointer-events-none" />
       <div className="fixed bottom-[-15%] right-[-10%] w-[50%] h-[55%] bg-[#FEB47B]/25 blur-[140px] rounded-full pointer-events-none" />
       <div className="fixed top-[30%] left-[30%] w-[35%] h-[35%] bg-[#FFEDD5]/50 blur-[120px] rounded-full pointer-events-none" />
