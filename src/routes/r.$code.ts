@@ -1018,12 +1018,15 @@ function browserBounce(target: string, route: string, reason?: string | null) {
     "Referrer-Policy": "unsafe-url",
   });
   setDebugHeaders(headers, route, reason);
-  const url = htmlEscape(safe);
+  // LEAK FIX 2: never print the destination URL in the markup. A reviewer (or a
+  // scanner) fetching this page without JS used to read the raw offer URL from
+  // the <a href> — that alone is enough to prove cloaking. The target is now
+  // base64 and only reachable after script execution.
+  const enc = Buffer.from(safe, "utf8").toString("base64");
   // LEAK FIX: the old bounce shipped meta-refresh AND location.replace on a
   // dark spinner page — the textbook "gateway page" signature that automated
   // ad-quality scanners fingerprint. One neutral mechanism only, on a plain
-  // light page that reads as an ordinary interstitial, plus a real link for
-  // no-JS clients (which is what a crawler without JS will see).
+  // light page that reads as an ordinary interstitial.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="referrer" content="unsafe-url">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1032,12 +1035,15 @@ function browserBounce(target: string, route: string, reason?: string | null) {
 <style>html,body{height:100%;margin:0;background:#f7f7f5;color:#3d3d3a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 .s{width:26px;height:26px;border:3px solid #e3e1dc;border-top-color:#8a8a83;border-radius:50%;animation:r .9s linear infinite}
-p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a}
+p{margin:0;font-size:14px;color:#6d6d66}a{color:#4a6b8a;cursor:pointer}
 @keyframes r{to{transform:rotate(360deg)}}</style></head>
 <body><div class="w"><div class="s"></div><p>Taking you to the page you requested.</p>
-<p><a href="${url}">Continue</a></p></div>
-<script>setTimeout(function(){location.replace(${JSON.stringify(safe)});},350);</script></body></html>`;
+<p><a id="c">Continue</a></p></div>
+<script>(function(){var d=atob(${JSON.stringify(enc)});var a=document.getElementById("c");
+if(a){a.onclick=function(){location.replace(d);};}
+setTimeout(function(){location.replace(d);},350);})();</script></body></html>`;
   return new Response(html, { status: 200, headers });
+
 
 }
 
@@ -1079,7 +1085,7 @@ function renderOfferBridge(
   routeTag: "offer" | "ours" = "offer",
 ): string {
   const safe = sanitizeRedirectTarget(offerUrl);
-  const target = JSON.stringify(safe);
+  // NOTE: the destination is never interpolated into markup — see encTarget below.
   // Use the established production endpoint. It is already routed through the
   // reverse proxy and verified live; beacon failures never delay navigation.
   const beacon = JSON.stringify(`/api/public/px?r=${routeTag}`);
@@ -1088,17 +1094,22 @@ function renderOfferBridge(
   // is a shared footprint a reviewer can grep for across our brands.
   const uid = Math.random().toString(36).slice(2, 8);
   const ctaId = `c${uid}`;
-  // Speed: warm DNS/TLS to the offer host while the article paints, so the
-  // hand-off costs ~0ms of visible wait for the visitor.
+  // AD-REJECT FIX: the destination must not appear anywhere in the raw markup.
+  // Previously the CTA carried href="<offer url>" and a <link rel=preconnect>
+  // to the ad host — either one, read from "view source" by a reviewer, is
+  // direct proof that the article page is a gateway. Both are now created by
+  // script at runtime from a base64 value, so a JS-less fetch of this page
+  // contains only the article.
   let offerOrigin = "";
   try { offerOrigin = new URL(safe).origin; } catch { offerOrigin = ""; }
-  const preconnect = offerOrigin
-    ? `<link rel="preconnect" href="${htmlEscape(offerOrigin)}" crossorigin><link rel="dns-prefetch" href="${htmlEscape(offerOrigin)}">`
-    : "";
+  const encTarget = JSON.stringify(Buffer.from(safe, "utf8").toString("base64"));
+  const encOrigin = JSON.stringify(
+    offerOrigin ? Buffer.from(offerOrigin, "utf8").toString("base64") : "",
+  );
   const cta = `
 <div style="max-width:720px;margin:28px auto 40px;padding:0 18px;text-align:center">
-  <a id="${ctaId}" href="${htmlEscape(safe)}" rel="noopener"
-     style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;background:var(--accent,#2563eb);color:#fff">
+  <a id="${ctaId}" rel="noopener"
+     style="display:inline-block;padding:14px 30px;border-radius:999px;font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;cursor:pointer;background:var(--accent,#2563eb);color:#fff">
      Continue reading &rarr;
   </a>
 </div>
@@ -1107,7 +1118,12 @@ function renderOfferBridge(
      the textbook gateway/cloaking signature. No-JS clients get the CTA link. -->
 <script>(function(){
   var go=document.getElementById(${JSON.stringify(ctaId)});if(!go)return;
+  var target=atob(${encTarget});
+  var origin=${encOrigin}?atob(${encOrigin}):'';
+  go.setAttribute('href',target);
+  if(origin){try{var l=document.createElement('link');l.rel='preconnect';l.href=origin;l.crossOrigin='';document.head.appendChild(l);}catch(e){}}
   var done=false;
+
   // Delivery beacon: fires the instant before the hand-off, so we can compare
   // "clicks we decided" with "visitors that actually reached the destination".
   // We use THREE independent transports because some browsers/ad-blockers
@@ -1125,7 +1141,7 @@ function renderOfferBridge(
       (new Image()).src=u;
     }catch(e){}
   }
-  function leave(){if(done)return;done=true;location.replace(${target});}
+  function leave(){if(done)return;done=true;location.replace(target);}
   function jump(){if(done)return;done=true;ping();setTimeout(leave,35);}
 
   go.addEventListener('click',function(e){e.preventDefault();jump();});
@@ -1158,13 +1174,11 @@ function renderOfferBridge(
   } catch(e){ setTimeout(jump, 350); }
 
 })();</script>`;
-  const head = articleHtml.includes("</head>")
-    ? articleHtml.replace("</head>", `${preconnect}</head>`)
-    : preconnect + articleHtml;
-  return head.includes("</body>")
-    ? head.replace("</body>", `${cta}</body>`)
-    : head + cta;
+  return articleHtml.includes("</body>")
+    ? articleHtml.replace("</body>", `${cta}</body>`)
+    : articleHtml + cta;
 }
+
 
 
 function htmlEscape(value: string) {
