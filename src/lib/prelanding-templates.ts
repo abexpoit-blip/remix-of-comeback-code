@@ -1170,11 +1170,32 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   // ampersands, and angle brackets in copy never break the head.
   const titleAttr = attrEscape(content.title);
   const descAttr = attrEscape(content.description);
-  const heroAttr = attrEscape(content.heroImage);
   const authorAttr = attrEscape(content.author);
   const categoryAttr = attrEscape(content.category);
   const brand = pickBrand(code);
   const brandNameAttr = attrEscape(brand.name);
+
+  // SELF-HOSTED IMAGERY. Hotlinking images.unsplash.com with an identical
+  // `?auto=format&fit=crop&w=1200&q=75` signature on every ad domain lets a
+  // reviewer cluster all our domains together in one look. Routing the bytes
+  // through /media/<b64>.jpg on the SAME host removes that shared fingerprint.
+  const mediaOrigin = (requestOrigin || process.env.SHORTENER_BASE_URL || "https://breezysocial.com").replace(/\/+$/, "");
+  const selfHostImage = (src: string): string => {
+    try {
+      const u = new URL(src);
+      if (u.hostname !== "images.unsplash.com") return src;
+      const raw = typeof btoa === "function" ? btoa(src) : Buffer.from(src, "binary").toString("base64");
+      const id = raw.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      return `${mediaOrigin}/media/${id}.jpg`;
+    } catch {
+      return src;
+    }
+  };
+  const heroSrc = selfHostImage(content.heroImage);
+  const heroAttr = attrEscape(heroSrc);
+  const publisherLogo = selfHostImage(
+    "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75",
+  );
 
   // JSON-LD Article schema — Facebook & Google preview crawlers use this as a stronger
   // "real article" signal than OG tags alone. Required for richer link previews.
@@ -1183,14 +1204,14 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   "@type": "NewsArticle",
   "headline": "${jsonEscape(content.title)}",
   "description": "${jsonEscape(content.description)}",
-  "image": ["${content.heroImage}"],
+  "image": ["${jsonEscape(heroSrc)}"],
   "datePublished": "${today.toISOString()}",
   "dateModified": "${today.toISOString()}",
   "author": { "@type": "Person", "name": "${jsonEscape(content.author)}" },
   "publisher": {
     "@type": "Organization",
     "name": "${jsonEscape(brand.name)}",
-    "logo": { "@type": "ImageObject", "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75" }
+    "logo": { "@type": "ImageObject", "url": "${jsonEscape(publisherLogo)}" }
   },
   "articleSection": "${jsonEscape(content.category)}"
 }`;
