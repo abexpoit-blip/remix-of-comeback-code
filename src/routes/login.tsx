@@ -2,9 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight, ShieldCheck, Zap, BarChart3 } from "lucide-react";
+import { Mail, Lock, ArrowRight, ShieldCheck, Zap, BarChart3, Copy, Check, X, KeyRound, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BrandLogo } from "@/components/brand-logo";
+import { issueTempPassword, TEMP_PASSWORD } from "@/lib/account-recovery.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Sleepox" }] }),
@@ -18,37 +19,79 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tempPass, setTempPass] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const goAfterLogin = async (usedTemp: boolean) => {
+    const target = usedTemp ? "/reset-password" : "/dashboard";
+    const fallback = window.setTimeout(() => { window.location.replace(target); }, 1200);
+    try {
+      await navigate({ to: target, replace: true });
+      window.clearTimeout(fallback);
+    } catch {
+      window.clearTimeout(fallback);
+      window.location.replace(target);
+    }
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
       const result = await Promise.race([
-        supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
+        supabase.auth.signInWithPassword({ email: cleanEmail, password }),
         new Promise<never>((_, reject) => {
           window.setTimeout(() => reject(new Error("The login server took too long to respond. Please try again.")), 20_000);
         }),
       ]);
       if (result.error || !result.data.session) {
+        // Account may exist but the password is lost — hand out a temp password.
+        try {
+          const recovery = await issueTempPassword({ data: { email: cleanEmail } });
+          if (recovery.found && "ok" in recovery && recovery.ok) {
+            setCopied(false);
+            setTempPass(recovery.tempPassword);
+            return;
+          }
+        } catch { /* fall through to the normal error */ }
         toast.error(result.error?.message ?? "Login failed");
         return;
       }
 
-      // Session is in localStorage. Try SPA nav; hard-redirect as a guaranteed fallback.
-      const fallback = window.setTimeout(() => { window.location.replace("/dashboard"); }, 1200);
-      try {
-        await navigate({ to: "/dashboard", replace: true });
-        window.clearTimeout(fallback);
-      } catch {
-        window.clearTimeout(fallback);
-        window.location.replace("/dashboard");
-      }
+      await goAfterLogin(password === TEMP_PASSWORD);
     } catch {
       toast.error("Could not reach the login server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const copyTemp = async () => {
+    try {
+      await navigator.clipboard.writeText(TEMP_PASSWORD);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed — please select and copy manually.");
+    }
+  };
+
+  const useTempNow = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: TEMP_PASSWORD,
+      });
+      if (error || !data.session) { toast.error(error?.message ?? "Login failed"); return; }
+      setTempPass(null);
+      await goAfterLogin(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
 
