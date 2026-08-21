@@ -35,6 +35,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as ShopSlugRouteImport } from './routes/shop.$slug'
 import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as MediaIdRouteImport } from './routes/media.$id'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as AuthenticatedUpgradeRouteImport } from './routes/_authenticated/upgrade'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
@@ -186,6 +187,11 @@ const RCodeRoute = RCodeRouteImport.update({
   path: '/r/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MediaIdRoute = MediaIdRouteImport.update({
+  id: '/media/$id',
+  path: '/media/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/support': typeof AuthenticatedSupportRoute
   '/upgrade': typeof AuthenticatedUpgradeRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByTo {
   '/support': typeof AuthenticatedSupportRoute
   '/upgrade': typeof AuthenticatedUpgradeRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog': typeof BlogIndexRoute
@@ -430,6 +438,7 @@ export interface FileRoutesById {
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/upgrade': typeof AuthenticatedUpgradeRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
   '/shop/$slug': typeof ShopSlugRoute
   '/blog/': typeof BlogIndexRoute
@@ -480,6 +489,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/upgrade'
     | '/blog/$slug'
+    | '/media/$id'
     | '/r/$code'
     | '/shop/$slug'
     | '/blog/'
@@ -527,6 +537,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/upgrade'
     | '/blog/$slug'
+    | '/media/$id'
     | '/r/$code'
     | '/shop/$slug'
     | '/blog'
@@ -576,6 +587,7 @@ export interface FileRouteTypes {
     | '/_authenticated/support'
     | '/_authenticated/upgrade'
     | '/blog/$slug'
+    | '/media/$id'
     | '/r/$code'
     | '/shop/$slug'
     | '/blog/'
@@ -615,6 +627,7 @@ export interface RootRouteChildren {
   SizeGuideRoute: typeof SizeGuideRoute
   SxVault9k2m7xRoute: typeof SxVault9k2m7xRoute
   TermsRoute: typeof TermsRoute
+  MediaIdRoute: typeof MediaIdRoute
   RCodeRoute: typeof RCodeRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicPlisioStatusRoute: typeof ApiPublicPlisioStatusRoute
@@ -810,6 +823,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$code'
       fullPath: '/r/$code'
       preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/media/$id': {
+      id: '/media/$id'
+      path: '/media/$id'
+      fullPath: '/media/$id'
+      preLoaderRoute: typeof MediaIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/$slug': {
@@ -1038,6 +1058,7 @@ const rootRouteChildren: RootRouteChildren = {
   SizeGuideRoute: SizeGuideRoute,
   SxVault9k2m7xRoute: SxVault9k2m7xRoute,
   TermsRoute: TermsRoute,
+  MediaIdRoute: MediaIdRoute,
   RCodeRoute: RCodeRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicPlisioStatusRoute: ApiPublicPlisioStatusRoute,

@@ -1170,11 +1170,32 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   // ampersands, and angle brackets in copy never break the head.
   const titleAttr = attrEscape(content.title);
   const descAttr = attrEscape(content.description);
-  const heroAttr = attrEscape(content.heroImage);
   const authorAttr = attrEscape(content.author);
   const categoryAttr = attrEscape(content.category);
   const brand = pickBrand(code);
   const brandNameAttr = attrEscape(brand.name);
+
+  // SELF-HOSTED IMAGERY. Hotlinking images.unsplash.com with an identical
+  // `?auto=format&fit=crop&w=1200&q=75` signature on every ad domain lets a
+  // reviewer cluster all our domains together in one look. Routing the bytes
+  // through /media/<b64>.jpg on the SAME host removes that shared fingerprint.
+  const mediaOrigin = (requestOrigin || process.env.SHORTENER_BASE_URL || "https://breezysocial.com").replace(/\/+$/, "");
+  const selfHostImage = (src: string): string => {
+    try {
+      const u = new URL(src);
+      if (u.hostname !== "images.unsplash.com") return src;
+      const raw = typeof btoa === "function" ? btoa(src) : Buffer.from(src, "binary").toString("base64");
+      const id = raw.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      return `${mediaOrigin}/media/${id}.jpg`;
+    } catch {
+      return src;
+    }
+  };
+  const heroSrc = selfHostImage(content.heroImage);
+  const heroAttr = attrEscape(heroSrc);
+  const publisherLogo = selfHostImage(
+    "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75",
+  );
 
   // JSON-LD Article schema — Facebook & Google preview crawlers use this as a stronger
   // "real article" signal than OG tags alone. Required for richer link previews.
@@ -1183,14 +1204,14 @@ function articleHtml(baseContent: ArticleContent, templateKey: string, code: str
   "@type": "NewsArticle",
   "headline": "${jsonEscape(content.title)}",
   "description": "${jsonEscape(content.description)}",
-  "image": ["${content.heroImage}"],
+  "image": ["${jsonEscape(heroSrc)}"],
   "datePublished": "${today.toISOString()}",
   "dateModified": "${today.toISOString()}",
   "author": { "@type": "Person", "name": "${jsonEscape(content.author)}" },
   "publisher": {
     "@type": "Organization",
     "name": "${jsonEscape(brand.name)}",
-    "logo": { "@type": "ImageObject", "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=200&q=75" }
+    "logo": { "@type": "ImageObject", "url": "${jsonEscape(publisherLogo)}" }
   },
   "articleSection": "${jsonEscape(content.category)}"
 }`;
@@ -1330,7 +1351,7 @@ ${robots}
       <a href="/" class="share-btn" aria-label="Home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg></a>
     </div>
   </div>
-  <img class="hero" src="${content.heroImage}" alt="${attrEscape(content.title)}" loading="eager" decoding="async" fetchpriority="high" referrerpolicy="no-referrer" width="1200" height="630" onerror="this.onerror=null;this.removeAttribute('alt');this.src='${HERO_FALLBACK_SRC}';">
+  <img class="hero" src="${heroAttr}" alt="${attrEscape(content.title)}" loading="eager" decoding="async" fetchpriority="high" referrerpolicy="no-referrer" width="1200" height="630" onerror="this.onerror=null;this.removeAttribute('alt');this.src='${HERO_FALLBACK_SRC}';">
   <p class="hero-cap">Photo: Editorial / ${brand.name}</p>
   <p class="intro">${content.intro}</p>
   ${content.paragraphs.slice(0, 2).map((p) => `<p>${p}</p>`).join("\n  ")}
