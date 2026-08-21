@@ -39,6 +39,7 @@ import { Route as ShopSlugRouteImport } from './routes/shop.$slug'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as MediaIdRouteImport } from './routes/media.$id'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as AuthenticatedUserRecoveryRouteImport } from './routes/_authenticated/user-recovery'
 import { Route as AuthenticatedUpgradeRouteImport } from './routes/_authenticated/upgrade'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedSmartFilterRouteImport } from './routes/_authenticated/smart-filter'
@@ -209,6 +210,12 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => BlogRoute,
 } as any)
+const AuthenticatedUserRecoveryRoute =
+  AuthenticatedUserRecoveryRouteImport.update({
+    id: '/user-recovery',
+    path: '/user-recovery',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedUpgradeRoute = AuthenticatedUpgradeRouteImport.update({
   id: '/upgrade',
   path: '/upgrade',
@@ -352,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/smart-filter': typeof AuthenticatedSmartFilterRoute
   '/support': typeof AuthenticatedSupportRoute
   '/upgrade': typeof AuthenticatedUpgradeRoute
+  '/user-recovery': typeof AuthenticatedUserRecoveryRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
@@ -402,6 +410,7 @@ export interface FileRoutesByTo {
   '/smart-filter': typeof AuthenticatedSmartFilterRoute
   '/support': typeof AuthenticatedSupportRoute
   '/upgrade': typeof AuthenticatedUpgradeRoute
+  '/user-recovery': typeof AuthenticatedUserRecoveryRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
@@ -455,6 +464,7 @@ export interface FileRoutesById {
   '/_authenticated/smart-filter': typeof AuthenticatedSmartFilterRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/upgrade': typeof AuthenticatedUpgradeRoute
+  '/_authenticated/user-recovery': typeof AuthenticatedUserRecoveryRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/media/$id': typeof MediaIdRoute
   '/r/$code': typeof RCodeRoute
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/smart-filter'
     | '/support'
     | '/upgrade'
+    | '/user-recovery'
     | '/blog/$slug'
     | '/media/$id'
     | '/r/$code'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/smart-filter'
     | '/support'
     | '/upgrade'
+    | '/user-recovery'
     | '/blog/$slug'
     | '/media/$id'
     | '/r/$code'
@@ -610,6 +622,7 @@ export interface FileRouteTypes {
     | '/_authenticated/smart-filter'
     | '/_authenticated/support'
     | '/_authenticated/upgrade'
+    | '/_authenticated/user-recovery'
     | '/blog/$slug'
     | '/media/$id'
     | '/r/$code'
@@ -879,6 +892,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof BlogRoute
     }
+    '/_authenticated/user-recovery': {
+      id: '/_authenticated/user-recovery'
+      path: '/user-recovery'
+      fullPath: '/user-recovery'
+      preLoaderRoute: typeof AuthenticatedUserRecoveryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/upgrade': {
       id: '/_authenticated/upgrade'
       path: '/upgrade'
@@ -1033,6 +1053,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSmartFilterRoute: typeof AuthenticatedSmartFilterRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedUpgradeRoute: typeof AuthenticatedUpgradeRoute
+  AuthenticatedUserRecoveryRoute: typeof AuthenticatedUserRecoveryRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1046,6 +1067,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSmartFilterRoute: AuthenticatedSmartFilterRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedUpgradeRoute: AuthenticatedUpgradeRoute,
+  AuthenticatedUserRecoveryRoute: AuthenticatedUserRecoveryRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
